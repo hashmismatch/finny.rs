@@ -1,0 +1,8 @@
+[package]
+name = "fsm_tests"
+version = "0.1.0"
+authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+
+[dependencies]
+fsm = { path = "../" }
+fsm_codegen = { path = "../fsm_codegen/" } 
