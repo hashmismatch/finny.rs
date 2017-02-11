@@ -13,6 +13,7 @@ Consider this a preview, undocumented, alpha-level release.
 	- Interrupt states
 	- State guards
 	- Queued events
+	- Enum generation for event and state types
 	- Internal state transitions that don't trigger the entry and exit events
 	- Helpers for multiple entry states	
 	- Graphviz visualisation, the codegen generates a test that saves the graph file to the filesystem
