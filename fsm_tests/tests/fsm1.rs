@@ -28,7 +28,7 @@ impl FsmEvent for MagicEvent {}
 
 pub struct MagicGuard;
 impl FsmGuard<FsmOne> for MagicGuard {
-	fn guard(event_context: &EventContext<FsmOne>) -> bool {
+	fn guard(event_context: &EventContext<FsmOne>, _: &FsmOneStatesStore) -> bool {
 		match event_context.event {
 			&FsmOneEvents::MagicEvent(MagicEvent(n)) if n == 42 => {				
 				true

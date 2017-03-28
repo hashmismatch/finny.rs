@@ -32,6 +32,16 @@ pub fn build_state_store(fsm: &FsmDescription) -> quote::Tokens {
                     &mut self.states.#field_name
                 }
             }
+
+            impl #impl_suffix FsmRetrieveState<#state> for #states_store_ty {
+                fn get_state(&self) -> &#state {
+                    &self.#field_name
+                }
+
+                fn get_state_mut(&mut self) -> &mut #state {
+                    &mut self.#field_name
+                }
+            }            
         }.as_str());
     }
 
@@ -75,15 +85,27 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
     let events = all_transitions.iter().map(|ref x| &x.event).unique_by(|x| *x);
 
     let mut events_types = quote::Tokens::new();
+    let mut event_traits = quote::Tokens::new();
     for event in events {
         let mut t = quote::Tokens::new();
         event.to_tokens(&mut t);
         if t.as_str() == "NoEvent" { continue; }
         
         events_types.append(quote! { #event(#event), }.as_str());
+        event_traits.append(quote! {
+            impl From<#event> for #events_ty {
+                fn from(ev: #event) -> Self {
+                    #events_ty::#event(ev)
+                }
+            }
+        }.as_str());
     }
     events_types.append(quote! { NoEvent(NoEvent) }.as_str());
 
+    let mut derive_events = quote::Tokens::new();
+    if fsm.copyable_events {
+        derive_events.append("#[derive(Copy, Clone)]");
+    }
 
     // states
     let mut state_types = quote::Tokens::new();
@@ -95,6 +117,7 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
     quote! {
         // Events
         #[derive(Debug)]
+        #derive_events
         pub enum #events_ty {
             #events_types
         }
@@ -103,6 +126,7 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
                 #events_ty::NoEvent(NoEvent)
             }
         }
+        #event_traits
 
         // States
         #[derive(PartialEq, Copy, Clone, Debug)]
@@ -214,7 +238,7 @@ pub fn build_state_transitions(fsm: &FsmDescription) -> quote::Tokens {
 
                 let guard = if let Some(ref guard_ty) = transition.guard {
                     quote! {
-                        if #guard_ty::guard(&event_ctx)
+                        if #guard_ty::guard(&event_ctx, &self.states)
                     }
                 } else {
                     quote! {}
@@ -356,7 +380,8 @@ pub fn build_state_transitions(fsm: &FsmDescription) -> quote::Tokens {
                 let mut event_ctx = EventContext {
                     event: &event,
                     queue: &mut self.queue,
-                    context: &mut self.context
+                    context: &mut self.context,
+                    current_state: self.state
                 };
 
                 {
@@ -418,7 +443,8 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
                 let mut event_ctx = EventContext {
                     event: &no,
                     queue: &mut self.queue,
-                    context: &mut self.context
+                    context: &mut self.context,
+                    current_state: self.state
                 };
                 self.states.#initial_state_field.on_entry(&mut event_ctx);
             }
@@ -484,8 +510,9 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
         impl #impl_suffix Fsm for #fsm_ty {
             type E = #events_ty;
             type S = #states_ty;
+            type SS = #states_store_ty;
             type C = #ctx;
-            type CS = #current_state_ty;
+            type CS = #current_state_ty;            
             
             fn new(context: Self::C) -> Self {                
                 #fsm_ty_inline {
@@ -518,6 +545,14 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
             fn get_current_state(&self) -> #current_state_ty {
                 self.state
+            }
+
+            fn get_states(&self) -> &#states_store_ty {
+                &self.states
+            }
+
+	        fn get_states_mut(&mut self) -> &mut #states_store_ty {
+                &mut self.states
             }
 
             #transitions
@@ -574,7 +609,8 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
             let mut event_ctx = EventContext {
                 event: &no,
                 queue: &mut self.queue,
-                context: &mut self.context
+                context: &mut self.context,
+                current_state: self.state
             };
             match state {
                 #on_entry
@@ -587,7 +623,8 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
             let mut event_ctx = EventContext {
                 event: &no,
                 queue: &mut self.queue,
-                context: &mut self.context
+                context: &mut self.context,
+                current_state: self.state
             };
             match state {
                 #on_exit

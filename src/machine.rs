@@ -103,13 +103,13 @@ impl<S: Default> FsmStateFactory for S {
 }
 
 pub trait FsmGuard<F: Fsm> {
-	fn guard(event_context: &EventContext<F>) -> bool;
+	fn guard(event_context: &EventContext<F>, states: &F::SS) -> bool;
 }
 
 pub struct NoGuard;
 impl<F: Fsm> FsmGuard<F> for NoGuard {
 	#[inline]
-	fn guard(event_context: &EventContext<F>) -> bool {
+	fn guard(event_context: &EventContext<F>, states: &F::SS) -> bool {
 		true
 	}
 }
@@ -141,7 +141,9 @@ impl<F: Fsm, S> FsmActionSelf<F, S> for NoAction {
 pub struct EventContext<'a, F: Fsm + 'a> {
 	pub event: &'a F::E,
 	pub queue: &'a mut FsmEventQueue<F>,
-	pub context: &'a mut F::C
+	pub context: &'a mut F::C,
+	pub current_state: F::CS,
+	//pub states: &'a mut F::SS
 }
 
 
@@ -193,6 +195,7 @@ pub trait Fsm where Self: Sized {
 	type S;
 	type C;
 	type CS: Debug;
+	type SS;
 
 	fn new(context: Self::C) -> Self;
 
@@ -203,6 +206,8 @@ pub trait Fsm where Self: Sized {
 	fn get_queue_mut(&mut self) -> &mut FsmEventQueue<Self>;
 
 	fn get_current_state(&self) -> Self::CS;
+	fn get_states(&self) -> &Self::SS;
+	fn get_states_mut(&mut self) -> &mut Self::SS;
 	
 	fn process_anonymous_transitions(&mut self) -> Result<(), FsmError> {
 		loop {
@@ -253,7 +258,7 @@ pub struct InspectionType<F: Fsm, T: FsmInspect<F>>(PhantomData<F>, T);
 pub struct SubMachine<F: Fsm>(F);
 pub struct ShallowHistory<F: Fsm, E: FsmEvent, StateTarget: FsmState<F> + Fsm>(PhantomData<F>, E, StateTarget);
 pub struct InterruptState<F: Fsm, S: FsmState<F>, E: FsmEvent>(PhantomData<F>, S, E);
-
+pub struct CopyableEvents;
 
 
 pub struct Transition<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, StateTarget>>(PhantomData<F>, StateSource, E, StateTarget, A);

@@ -94,6 +94,7 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
 
 
     let mut initial_state_ty = None;
+    let mut copyable_events = false;
     let mut inspect_ty = None;
     let mut context_ty = syn::parse_type("()").unwrap();
     let mut transitions = Vec::new();
@@ -129,7 +130,8 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
                         continue;
                     }
 
-                    
+                } else if let Ok(g) = match_type_grab_generics(&p, "CopyableEvents") {
+                    copyable_events = true;             
                 } else if let Ok(g) = match_type_grab_generics(&p, "InspectionType") {
                     if let Some(t) = g.get(1) {
                         inspect_ty = Some(t.clone());
@@ -212,6 +214,8 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
         
         context_ty: context_ty,
         inspect_ty: inspect_ty,
-        regions: regions
+        regions: regions,
+
+        copyable_events: copyable_events
     }
 }

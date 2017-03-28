@@ -16,7 +16,9 @@ pub struct FsmDescription {
 
     pub regions: Vec<FsmRegion>,
     pub context_ty: syn::Ty,
-    pub inspect_ty: Option<syn::Ty>
+    pub inspect_ty: Option<syn::Ty>,
+
+    pub copyable_events: bool
 }
 
 #[derive(Debug, Clone)]
