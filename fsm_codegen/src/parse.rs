@@ -81,7 +81,7 @@ fn transition_from_ty(g: &[syn::Ty], transition_type: TransitionType) -> Vec<Tra
 }
 
 pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
-    
+
     let fsm_name = ast.ident.as_ref().replace("Definition", "");
     let fsm_name_ident = syn::Ident::new(fsm_name.clone());
 

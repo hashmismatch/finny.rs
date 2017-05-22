@@ -495,7 +495,77 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
     
     let viz = build_viz(&fsm);
 
+
+
+
+    /*
+            complete_js.push_str(&format!("\nvar cy = init_cy_fsm();\n"));
+            complete_js.push_str(&Self::viz_cytoscape_fsm(""));
+            complete_js.push_str(&format!("\n f.run_layout(); \n"));
+            */
+    let main_struct_docs = match () {
+        #[cfg(not(feature = "viz_docs"))]
+        () => quote! {},
+        #[cfg(feature = "viz_docs")]
+        () => 
+        {
+            let js_file = &format!("fsm_viz_{}.js", ty_to_string(&fsm_ty_inline));
+            let viz_html_file = &format!("fsm_viz_{}.html", ty_to_string(&fsm_ty_inline));            
+            let js_file_js = {
+                let mut q = quote! {};
+
+                {
+                    let mut str_to_js = |key: &str, val: &str| {
+                        let b: Vec<_> = val.bytes().map(|x| x.to_string()).collect();
+                        q.append(&format!("\n/// var {} = String.fromCharCode({}); \n", key, b.connect(", ")));
+                    };
+
+                    str_to_js("viz_js", js_file);
+                    str_to_js("viz_html_full", viz_html_file);
+                    str_to_js("lib_js", "viz_fsm.js");
+                    str_to_js("t_scr", "text/javascript");
+                    str_to_js("t_body", "body");
+                    str_to_js("t_head", "head");
+                    str_to_js("t_script", "script");
+                }
+
+                q
+            };
+            let mut q = quote! {
+                /// A generated state machine.
+                ///
+                /// <span>
+                /// <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+                /// <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.1.0/cytoscape.js"></script>                
+                /// <div id="cy" style="width: 100%; height: 500px;"></div>
+                /// <script type="text/javascript">
+                /// $(function() {
+                ///    var crate_doc_root = window.rootPath + window.currentCrate + String.fromCharCode(47);
+                #js_file_js
+                ///    window.viz_fsm_inline = true;
+                ///    window.viz_html_full = crate_doc_root + viz_html_full;
+                ///    // fsm data
+                ///    var s = document.createElement(t_script);
+                ///    s.type = t_scr;
+                ///    s.src = crate_doc_root + viz_js;
+                ///    document.getElementsByTagName(t_head)[0].appendChild(s);
+                ///    // library
+                ///    var s = document.createElement(t_script);
+                ///    s.type = t_scr;
+                ///    s.src = crate_doc_root + lib_js;
+                ///    document.getElementsByTagName(t_head)[0].appendChild(s);
+                /// });
+                /// </script>
+                /// </span>
+                ///
+                /// <a href="#" id="viz_fullscreen_link" target="_blank">Fullscreen FSM visualization</a>
+            };
+            q
+        }
+    };
+
     quote! {
+        #main_struct_docs
         pub struct #fsm_ty {
 	        state: #current_state_ty,
             states: #states_store_ty,
@@ -565,6 +635,10 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             
             pub fn get_context(&self) -> &#ctx {
                 &self.context
+            }
+
+            pub fn module_path() -> &'static str {
+                 module_path!()
             }
 
             #sub_on_handlers

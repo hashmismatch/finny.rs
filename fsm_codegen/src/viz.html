@@ -1,0 +1,31 @@
+<html>
+    <head>
+        <meta charset=utf-8 />
+        <style type="text/css">
+    body { 
+  font: 14px helvetica neue, helvetica, arial, sans-serif;
+}
+
+#cy {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.1.0/cytoscape.js"></script>
+        <script src="./viz_fsm.js"></script>        
+    </head>
+    <body>
+        <div id="cy"></div>
+
+        <script src="##VIZ_JS_FSM##"></script>
+        <script type="text/javascript">
+            var cy = init_cy_fsm();
+            var f = viz_fsm_body(cy);
+            f.run_layout();
+        </script>
+    </body>
+</html>

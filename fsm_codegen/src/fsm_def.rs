@@ -147,6 +147,10 @@ impl FsmDescription {
         syn::parse_type(&format!("build_viz_{}", self.name)).unwrap()
     }
 
+    pub fn get_build_viz_docs_fn(&self) -> syn::Ty {
+        syn::parse_type(&format!("build_viz_docs_{}", self.name)).unwrap()
+    }
+
     pub fn get_submachine_types(&self) -> &[syn::Ty] {
         &self.submachines
     }
@@ -220,9 +224,27 @@ pub enum TransitionType {
     Internal
 }
 
+use std::fmt;
+
+impl fmt::Display for TransitionType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            TransitionType::Normal => write!(f, "Normal"),
+            TransitionType::SelfTransition => write!(f, "SelfTransition"),
+            TransitionType::Internal => write!(f, "Internal")
+        }
+    }
+}
+
 impl TransitionEntry {
     pub fn has_same_states(&self) -> bool {
         self.source_state == self.target_state
     }
+
+    pub fn is_anonymous_transition(&self) -> bool {
+        self.event == syn::parse_type("NoEvent").unwrap()
+    }
 }
+
+
 
