@@ -128,8 +128,17 @@ struct FsmOneDefinition(
 fn test_machine1() {
 
 	let mut fsm1 = FsmOne::new(Default::default());
+	
+	assert_eq!(fsm1.get_current_state(), FsmOneStates::Initial);
+	{
+		let initial: &Initial = fsm1.get_state();
+		assert_eq!(initial.entry, 0);
+		assert_eq!(initial.exit, 0);
+	}
 
 	fsm1.start();
+
+	assert_eq!(fsm1.get_current_state(), FsmOneStates::State1);
 
 	{
 		let initial: &Initial = fsm1.get_state();

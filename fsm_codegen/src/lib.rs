@@ -1,4 +1,4 @@
-#![recursion_limit = "128"]
+#![recursion_limit = "256"]
 
 extern crate proc_macro;
 extern crate fsm;
@@ -38,7 +38,7 @@ use viz::*;
 #[proc_macro_derive(Fsm)]
 pub fn derive_fsm(input: TokenStream) -> TokenStream {    
     let ast = syn::parse_macro_input(&input.to_string()).unwrap();
-    
+
     let desc = parse_description(&ast);
 
     //panic!("fsm: {:?}", fsm);
