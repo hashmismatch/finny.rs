@@ -19,3 +19,5 @@ mod machine;
 
 pub use machine::*;
 
+#[macro_use]
+mod macros;
