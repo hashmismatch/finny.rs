@@ -1,10 +1,26 @@
 use prelude::v1::*;
 
+//pub trait FsmStructSerialize : ::serde::Serialize { }
+//pub trait FsmStructDeserialize<'de> : ::serde::Deserialize<'de> { }
+
+/*
+pub trait FsmStructSerialize {
+    fn fsm_serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: ::serde::Serializer
+	{
+		use serde::ser::Error;
+		Err(S::Error::custom("not implemented"))
+	}
+}
+*/
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FsmError {
 	NoTransition,
-	Interrupted
+	Interrupted,
+	TimersImplementationRequired,
+	UnknownTimerId
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -16,8 +32,11 @@ pub enum FsmQueueStatus {
 pub trait FsmEvent {
 
 }
-pub trait FsmEvents<F: Fsm> {
+pub trait FsmEvents: Debug {
 	fn new_no_event() -> Self;
+}
+pub trait FsmEventsRef: Debug {
+
 }
 
 pub trait FsmState<F: Fsm> {	
@@ -25,28 +44,36 @@ pub trait FsmState<F: Fsm> {
 	fn on_exit(&mut self, event_context: &mut EventContext<F>) { }		
 }
 
-pub trait FsmInspect<F: Fsm> {
-	fn new_from_context(context: &F::C) -> Self;
-
-	fn on_state_entry(&self, state: &F::S, event_context: &EventContext<F>) { }
-	fn on_state_exit(&self, state: &F::S, event_context: &EventContext<F>) { }
-	fn on_action(&self, state: &F::S, event_context: &EventContext<F>) { }
-	fn on_transition(&self, source_state: &F::S, target_state: &F::S, event_context: &EventContext<F>) { }
-	fn on_no_transition(&self, current_state: &F::S, event_context: &EventContext<F>) { }
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum TransitionId {
+	Start,
+	Table(u32),
+	Stop
 }
 
-#[derive(Default)]
-pub struct FsmInspectNull<F: Fsm> {
-	_fsm_ty: PhantomData<F>
+pub trait FsmInspect<F: Fsm>: Clone
+	where F::C : ::serde::Serialize + ::std::fmt::Debug
+{
+	fn on_process_event<Ev: FsmEvent + ::serde::Serialize + ::std::fmt::Debug>(&self, state: &F::CS, event_kind: F::EventKind, event: &Ev) { }
+
+	/* the approximate order in which these methods get called */
+	
+	fn on_transition_start(&self, transition_id: TransitionId, source_state: &F::RegionState, target_state: &F::RegionState, event_context: &EventContext<F>) { }
+	fn on_state_exit<S: FsmState<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, transition_id: TransitionId, region_state: &F::RegionState, state: &S, event_context: &EventContext<F>) { }
+	
+	fn on_action<Ss, St>(&self, transition_id: TransitionId, action: &'static str, source_state_kind: &F::RegionState, source_state: &Ss, target_state_kind: &F::RegionState, target_state: &St, event_context: &EventContext<F>)
+		where Ss: FsmState<F> + ::serde::Serialize + ::std::fmt::Debug, St: FsmState<F> + ::serde::Serialize + ::std::fmt::Debug
+		{ }
+
+	fn on_state_entry<S: FsmState<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, transition_id: TransitionId, region_state: &F::RegionState, state: &S, event_context: &EventContext<F>) { }
+	fn on_transition_finish(&self, transition_id: TransitionId, source_state: &F::RegionState, target_state: &F::RegionState, event_context: &EventContext<F>) { }
+	
+	//fn on_no_transition<F: Fsm>(&self, current_state: &F::CS, event_context: &EventContext<F>) { }
 }
 
-impl<F: Fsm> FsmInspect<F> for FsmInspectNull<F> {
-	fn new_from_context(context: &F::C) -> Self {
-		FsmInspectNull {
-			_fsm_ty: PhantomData
-		}
-	}
-}
+#[derive(Default, Clone, Copy)]
+pub struct FsmInspectNull;
+impl<F: Fsm> FsmInspect<F> for FsmInspectNull where F::C : ::serde::Serialize + ::std::fmt::Debug { }
 
 /*
 impl<F: Fsm> FsmInspectNull<F> {
@@ -102,25 +129,33 @@ impl<S: Default> FsmStateFactory for S {
 	}
 }
 
-pub trait FsmGuard<F: Fsm> {
-	fn guard(event_context: &EventContext<F>, states: &F::SS) -> bool;
+pub trait FsmGuard<F: Fsm, E> {
+	fn guard(event: &E, event_context: &EventContext<F>, states: &F::SS) -> bool;
 }
 
 pub struct NoGuard;
-impl<F: Fsm> FsmGuard<F> for NoGuard {
+impl<F: Fsm, E> FsmGuard<F, E> for NoGuard {
 	#[inline]
-	fn guard(event_context: &EventContext<F>, states: &F::SS) -> bool {
+	fn guard(event: &E, event_context: &EventContext<F>, states: &F::SS) -> bool {
 		true
 	}
 }
 
-
-pub trait FsmAction<F: Fsm, S, T> {
-	fn action(event_context: &mut EventContext<F>, source_state: &mut S, target_state: &mut T);
+pub struct NegateGuard<G>(PhantomData<G>);
+impl<F, E, G> FsmGuard<F, E> for NegateGuard<G> where G: FsmGuard<F, E>, F: Fsm {
+	#[inline]
+	fn guard(event: &E, event_context: &EventContext<F>, states: &F::SS) -> bool {
+		!G::guard(event, event_context, states)
+	}
 }
 
-pub trait FsmActionSelf<F: Fsm, S> {
-	fn action(event_context: &mut EventContext<F>, state: &mut S);
+
+pub trait FsmAction<F: Fsm, S, E, T> {
+	fn action(event: &E, event_context: &mut EventContext<F>, source_state: &mut S, target_state: &mut T);
+}
+
+pub trait FsmActionSelf<F: Fsm, S, E> {
+	fn action(event: &E, event_context: &mut EventContext<F>, state: &mut S);
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -128,22 +163,22 @@ pub struct NoEvent;
 impl FsmEvent for NoEvent { }
 
 pub struct NoAction;
-impl<F: Fsm, S, T> FsmAction<F, S, T> for NoAction {
+impl<F: Fsm, S, E, T> FsmAction<F, S, E, T> for NoAction {
 	#[inline]
-	fn action(event_context: &mut EventContext<F>, source_state: &mut S, target_state: &mut T) { }
+	fn action(event: &E, event_context: &mut EventContext<F>, source_state: &mut S, target_state: &mut T) { }
 }
-impl<F: Fsm, S> FsmActionSelf<F, S> for NoAction {
+impl<F: Fsm, S, E> FsmActionSelf<F, S, E> for NoAction {
 	#[inline]
-	fn action(event_context: &mut EventContext<F>, state: &mut S) { }
+	fn action(event: &E, event_context: &mut EventContext<F>, state: &mut S) { }
 }
 
+pub type RegionId = usize;
 
 pub struct EventContext<'a, F: Fsm + 'a> {
-	pub event: &'a F::E,
 	pub queue: &'a mut FsmEventQueue<F>,
 	pub context: &'a mut F::C,
-	pub current_state: F::CS,
-	//pub states: &'a mut F::SS
+	//pub current_state: F::CS,
+	pub region: RegionId
 }
 
 
@@ -190,28 +225,30 @@ impl<F: Fsm> FsmEventQueue<F> for FsmEventQueueVec<F> {
 }
 
 
-pub trait Fsm where Self: Sized {
-	type E: FsmEvents<Self>;
+pub trait Fsm: FsmInfo where Self: Sized {
+	type E: FsmEvents;
+	type EventKind: Debug + PartialEq;
 	type S;
 	type C;
 	type CS: Debug;
+	type RegionState: Debug + PartialEq;
 	type SS;
-
-	fn new(context: Self::C) -> Self;
-
-	fn start(&mut self);
-	fn stop(&mut self);
-
-	fn get_queue(&self) -> &FsmEventQueue<Self>;
-	fn get_queue_mut(&mut self) -> &mut FsmEventQueue<Self>;
 
 	fn get_current_state(&self) -> Self::CS;
 	fn get_states(&self) -> &Self::SS;
 	fn get_states_mut(&mut self) -> &mut Self::SS;
-	
+}
+
+pub trait FsmFrontend<F: Fsm> {
+	fn start(&mut self);
+	fn stop(&mut self);
+		
+	fn get_queue(&self) -> &FsmEventQueue<F>;
+	fn get_queue_mut(&mut self) -> &mut FsmEventQueue<F>;
+
 	fn process_anonymous_transitions(&mut self) -> Result<(), FsmError> {
 		loop {
-			match self.process_event(Self::E::new_no_event()) {
+			match self.process_tagged_event(F::E::new_no_event()) {
 				Ok(_) => { continue; }
 				Err(_) => {
 					break;
@@ -222,8 +259,7 @@ pub trait Fsm where Self: Sized {
 		Ok(())
 	}	
 
-	fn process_event(&mut self, event: Self::E) -> Result<(), FsmError>;
-
+	fn process_tagged_event(&mut self, event: F::E) -> Result<(), FsmError>;
 	
 	fn execute_queued_events(&mut self) -> FsmQueueStatus {
 		if self.get_queue().len() == 0 { return FsmQueueStatus::Empty; }
@@ -238,7 +274,7 @@ pub trait Fsm where Self: Sized {
 
 	fn execute_single_queued_event(&mut self) -> FsmQueueStatus {
 		if let Some(ev) = self.get_queue_mut().dequeue_event() {
-			self.process_event(ev); // should this somehow bubble?
+			self.process_tagged_event(ev); // should this somehow bubble?
 		}
 
 		if self.get_queue().len() == 0 { FsmQueueStatus::Empty } else { FsmQueueStatus::MoreEventsQueued }
@@ -249,22 +285,153 @@ pub trait Fsm where Self: Sized {
 	}
 }
 
+pub trait FsmProcessor<F: Fsm, E> {
+	fn process_event(&mut self, event: E) -> Result<(), FsmError>;
+}
+
 
 // codegen types
 
 pub struct InitialState<F: Fsm, S: FsmState<F>>(PhantomData<F>, S);
 pub struct ContextType<T>(T);
-pub struct InspectionType<F: Fsm, T: FsmInspect<F>>(PhantomData<F>, T);
 pub struct SubMachine<F: Fsm>(F);
 pub struct ShallowHistory<F: Fsm, E: FsmEvent, StateTarget: FsmState<F> + Fsm>(PhantomData<F>, E, StateTarget);
 pub struct InterruptState<F: Fsm, S: FsmState<F>, E: FsmEvent>(PhantomData<F>, S, E);
+pub struct StopState<F: Fsm, S: FsmState<F>>(PhantomData<F>, S);
 pub struct CopyableEvents;
 
 
-pub struct Transition<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, StateTarget>>(PhantomData<F>, StateSource, E, StateTarget, A);
-pub struct TransitionSelf<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State>>(PhantomData<F>, State, E, A);
-pub struct TransitionInternal<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State>>(PhantomData<F>, State, E, A);
+pub struct Transition<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, E, StateTarget>>(PhantomData<F>, StateSource, E, StateTarget, A);
+pub struct TransitionSelf<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>>(PhantomData<F>, State, E, A);
+pub struct TransitionInternal<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>>(PhantomData<F>, State, E, A);
 
-pub struct TransitionGuard<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, StateTarget>, G: FsmGuard<F>>(PhantomData<F>, StateSource, E, StateTarget, A, G);
-pub struct TransitionSelfGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State>, G: FsmGuard<F>>(PhantomData<F>, State, E, A, G);
-pub struct TransitionInternalGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State>, G: FsmGuard<F>>(PhantomData<F>, State, E, A, G);
+pub struct TransitionGuard<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, E, StateTarget>, G: FsmGuard<F, E>>(PhantomData<F>, StateSource, E, StateTarget, A, G);
+pub struct TransitionSelfGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>, G: FsmGuard<F, E>>(PhantomData<F>, State, E, A, G);
+pub struct TransitionInternalGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>, G: FsmGuard<F, E>>(PhantomData<F>, State, E, A, G);
+
+
+
+pub trait StateTimeout<F: Fsm> : FsmState<F> {
+	fn timeout_on_entry(&self, event_context: &mut EventContext<F>) -> Option<TimerSettings>;
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TimerSettings {
+	pub timeout: TimerDuration,
+	pub cancel_on_state_exit: bool
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct TimerDuration {
+	pub ms: u64
+}
+
+impl TimerDuration {
+	pub fn from_millis(ms: u64) -> Self {
+		TimerDuration { ms: ms }
+	}
+}
+
+
+pub struct TimerStateTimeout<F: Fsm, S: StateTimeout<F>, E: FsmEvent + Default>(PhantomData<F>, S, E);
+
+
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct TimerId(pub u32);
+
+pub trait FsmTimers: Clone {
+	fn implemented() -> bool { true }
+	fn create_timeout_timer(&mut self, id: TimerId, duration: TimerDuration);
+	fn cancel_timer(&mut self, id: TimerId);
+	
+	fn receive_events(&mut self) -> Vec<FsmTimerEvent>;
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct FsmTimersNull;
+impl FsmTimers for FsmTimersNull {
+	fn implemented() -> bool { false }
+
+	fn create_timeout_timer(&mut self, id: TimerId, duration: TimerDuration) { }
+	fn cancel_timer(&mut self, id: TimerId) { }
+	
+	fn receive_events(&mut self) -> Vec<FsmTimerEvent> { vec![] }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub enum FsmTimerEvent {
+	TimedOut(FsmTimerTimedOut)
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct FsmTimerTimedOut {
+	pub timer_id: TimerId
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+pub trait FsmInfo {
+	fn fsm_info_regions() -> Vec<FsmInfoRegion>;
+	fn fsm_name() -> &'static str;
+}
+
+#[cfg_attr(feature="info_serializable", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
+pub struct FsmInfoRegion {
+	pub region_name: &'static str,
+	// todo: should be a vector!
+	pub initial_state: &'static str,
+	pub states: Vec<FsmInfoState>,
+	pub transitions: Vec<FsmInfoTransition>
+}
+
+#[cfg_attr(feature="info_serializable", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
+pub struct FsmInfoState {
+	pub state_name: &'static str,
+	pub is_initial_state: bool,
+	pub is_interrupt_state: bool
+}
+
+#[cfg_attr(feature="info_serializable", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug)]
+pub struct FsmInfoTransition {
+	pub transition_id: TransitionId,
+
+	pub state_from: &'static str,
+	pub state_from_is_submachine: bool,
+	pub state_to: &'static str,
+	pub state_to_is_submachine: bool,
+	
+	pub event: &'static str,
+	pub action: &'static str,
+	pub guard: &'static str,
+	
+	pub is_shallow_history: bool,
+    pub is_resume_event: bool,
+    pub is_internal: bool,
+    pub is_anonymous: bool,
+	pub transition_type: FsmInfoTransitionType
+}
+
+#[cfg_attr(feature="info_serializable", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Copy, Clone, Debug)]
+pub enum FsmInfoTransitionType {
+    Normal,
+    SelfTransition,
+    Internal
+}

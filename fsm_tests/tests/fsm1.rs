@@ -27,14 +27,9 @@ impl FsmEvent for MagicEvent {}
 // guards
 
 pub struct MagicGuard;
-impl FsmGuard<FsmOne> for MagicGuard {
-	fn guard(event_context: &EventContext<FsmOne>, _: &FsmOneStatesStore) -> bool {
-		match event_context.event {
-			&FsmOneEvents::MagicEvent(MagicEvent(n)) if n == 42 => {				
-				true
-			},
-			_ => false
-		}
+impl FsmGuard<FsmOne, MagicEvent> for MagicGuard {
+	fn guard(event: &MagicEvent, event_context: &EventContext<FsmOne>, _: &FsmOneStatesStore) -> bool {
+		event.0 == 42
 	}
 }
 
@@ -83,22 +78,22 @@ impl FsmState<FsmOne> for State2 {
 // actions
 
 pub struct InitAction;
-impl FsmAction<FsmOne, Initial, State1> for InitAction {
-	fn action(event_context: &mut EventContext<FsmOne>, source_state: &mut Initial, target_state: &mut State1) {
+impl FsmAction<FsmOne, Initial, NoEvent, State1> for InitAction {
+	fn action(event: &NoEvent, event_context: &mut EventContext<FsmOne>, source_state: &mut Initial, target_state: &mut State1) {
 		println!("Init action!");
 	}
 }
 
 pub struct State1InternalAction;
-impl FsmActionSelf<FsmOne, State1> for State1InternalAction {
-	fn action(event_context: &mut EventContext<FsmOne>, state: &mut State1) {
+impl FsmActionSelf<FsmOne, State1, Event2> for State1InternalAction {
+	fn action(event: &Event2, event_context: &mut EventContext<FsmOne>, state: &mut State1) {
 		state.internal_action += 1;
 	}
 }
 
 pub struct InternalTrigger;
-impl FsmActionSelf<FsmOne, State1> for InternalTrigger {
-	fn action(event_context: &mut EventContext<FsmOne>, state: &mut State1) {
+impl FsmActionSelf<FsmOne, State1, Event3> for InternalTrigger {
+	fn action(event: &Event3, event_context: &mut EventContext<FsmOne>, state: &mut State1) {
 		event_context.queue.enqueue_event(FsmOneEvents::Event2(Event2));
 	}
 }
@@ -127,7 +122,9 @@ struct FsmOneDefinition(
 #[test]
 fn test_machine1() {
 
-	let mut fsm1 = FsmOne::new(Default::default());
+	let mut fsm1 = FsmOne::new(Default::default()).unwrap();
+	fsm1.execute_queue_pre = true;
+	fsm1.execute_queue_post = false;
 	
 	assert_eq!(fsm1.get_current_state(), FsmOneStates::Initial);
 	{

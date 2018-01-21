@@ -20,7 +20,7 @@ struct FsmMinOneDefinition(
 #[test]
 fn test_fsm_min1() {
 
-    let mut fsm = FsmMinOne::new(());
+    let mut fsm = FsmMinOne::new(()).unwrap();
     fsm.start();
     assert_eq!(FsmMinOneStates::StaticA, fsm.get_current_state());
 }

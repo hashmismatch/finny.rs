@@ -98,7 +98,7 @@ fn test_orthogonal() {
     let ctx = OrthoContext {
         id: &id
     };
-	let mut fsm = Ortho::new(ctx);
+	let mut fsm = Ortho::new(ctx).unwrap();
 
 	fsm.start();
 

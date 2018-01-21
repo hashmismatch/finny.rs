@@ -95,7 +95,7 @@ impl FsmState<Player> for Playing {
 
 impl FsmStateFactory for Playing {
     fn new_state<PlayerContext>(parent_context: &PlayerContext) -> Self {
-        Playing::new(Default::default())
+        Playing::new_fsm(Default::default())
     }
 }
 
@@ -103,85 +103,80 @@ impl FsmStateFactory for Playing {
 
 
 pub struct StartPlayback;
-impl FsmAction<Player, Stopped, Playing> for StartPlayback {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Stopped, target_state: &mut Playing) {		
+impl FsmAction<Player, Stopped, Play, Playing> for StartPlayback {
+	fn action(event: &Play, event_context: &mut EventContext<Player>, source_state: &mut Stopped, target_state: &mut Playing) {		
         println!("StartPlayback");
         event_context.context.start_playback_counter += 1;
 	}
 }
 
 pub struct OpenDrawer;
-impl FsmAction<Player, Empty, Open> for OpenDrawer {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Empty, target_state: &mut Open) {		
+impl FsmAction<Player, Empty, OpenClose, Open> for OpenDrawer {
+	fn action(event: &OpenClose, event_context: &mut EventContext<Player>, source_state: &mut Empty, target_state: &mut Open) {		
         println!("OpenDrawer");
 	}
 }
-impl FsmAction<Player, Stopped, Open> for OpenDrawer {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Stopped, target_state: &mut Open) {		
+impl FsmAction<Player, Stopped, OpenClose, Open> for OpenDrawer {
+	fn action(event: &OpenClose, event_context: &mut EventContext<Player>, source_state: &mut Stopped, target_state: &mut Open) {		
         println!("OpenDrawer");
 	}
 }
 
 pub struct CloseDrawer;
-impl FsmAction<Player, Open, Empty> for CloseDrawer {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Open, target_state: &mut Empty) {		
+impl FsmAction<Player, Open, OpenClose, Empty> for CloseDrawer {
+	fn action(event: &OpenClose, event_context: &mut EventContext<Player>, source_state: &mut Open, target_state: &mut Empty) {		
         println!("CloseDrawer");
 	}
 }
 
 pub struct StoreCdInfo;
-impl FsmAction<Player, Empty, Stopped> for StoreCdInfo {
-    fn action(event_context: &mut EventContext<Player>, source_state: &mut Empty, target_state: &mut Stopped) {		
-        match event_context.event {
-            &PlayerEvents::CdDetected(CdDetected { name: ref name }) => {
-                println!("StoreCdInfo: name = {}", name);
-            },
-            _ => { panic!("Mismatched event!"); }
-        }        
+impl FsmAction<Player, Empty, CdDetected, Stopped> for StoreCdInfo {
+    fn action(event: &CdDetected, event_context: &mut EventContext<Player>, source_state: &mut Empty, target_state: &mut Stopped) {		
+        println!("StoreCdInfo: name = {}", event.name);
 	}
 }
 
 pub struct StopPlayback;
-impl FsmAction<Player, Playing, Stopped> for StopPlayback {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Playing, target_state: &mut Stopped) {		
+impl FsmAction<Player, Playing, Stop, Stopped> for StopPlayback {
+	fn action(event: &Stop, event_context: &mut EventContext<Player>, source_state: &mut Playing, target_state: &mut Stopped) {		
         println!("StopPlayback");
 	}
 }
-impl FsmAction<Player, Paused, Stopped> for StopPlayback {
-	fn action(eevent_context: &mut EventContext<Player>, source_state: &mut Paused, target_state: &mut Stopped) {
+impl FsmAction<Player, Paused, Stop, Stopped> for StopPlayback {
+	fn action(event: &Stop, event_context: &mut EventContext<Player>, source_state: &mut Paused, target_state: &mut Stopped) {
         println!("StopPlayback");
 	}
 }
 
 pub struct PausePlayback;
-impl FsmAction<Player, Playing, Paused> for PausePlayback {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Playing, target_state: &mut Paused) {		
+impl FsmAction<Player, Playing, Pause, Paused> for PausePlayback {
+	fn action(event: &Pause, event_context: &mut EventContext<Player>, source_state: &mut Playing, target_state: &mut Paused) {		
         println!("PausePlayback");
 	}
 }
 
 pub struct ResumePlayback;
-impl FsmAction<Player, Paused, Playing> for ResumePlayback {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Paused, target_state: &mut Playing) {
+impl FsmAction<Player, Paused, EndPause, Playing> for ResumePlayback {
+	fn action(event: &EndPause, event_context: &mut EventContext<Player>, source_state: &mut Paused, target_state: &mut Playing) {
         println!("ResumePlayback");
 	}
 }
 
 pub struct StopAndOpen;
-impl FsmAction<Player, Playing, Open> for StopAndOpen {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Playing, target_state: &mut Open) {		
+impl FsmAction<Player, Playing, OpenClose, Open> for StopAndOpen {
+	fn action(event: &OpenClose, event_context: &mut EventContext<Player>, source_state: &mut Playing, target_state: &mut Open) {		
         println!("StopAndOpen");
 	}
 }
-impl FsmAction<Player, Paused, Open> for StopAndOpen {
-	fn action(event_context: &mut EventContext<Player>, source_state: &mut Paused, target_state: &mut Open) {		
+impl FsmAction<Player, Paused, OpenClose, Open> for StopAndOpen {
+	fn action(event: &OpenClose, event_context: &mut EventContext<Player>, source_state: &mut Paused, target_state: &mut Open) {		
         println!("StopAndOpen");
 	}
 }
 
 pub struct StoppedAgain;
-impl FsmActionSelf<Player, Stopped> for StoppedAgain {
-	fn action(event_context: &mut EventContext<Player>, state: &mut Stopped) {
+impl FsmActionSelf<Player, Stopped, Stop> for StoppedAgain {
+	fn action(event: &Stop, event_context: &mut EventContext<Player>, state: &mut Stopped) {
         println!("StoppedAgain");
 	}
 }
@@ -291,25 +286,25 @@ impl FsmState<Playing> for Song3 {
 
 // Actions
 pub struct StartNextSong;
-impl FsmAction<Playing, Song1, Song2> for StartNextSong {
-	fn action(event_context: &mut EventContext<Playing>, source_state: &mut Song1, target_state: &mut Song2) {		
+impl FsmAction<Playing, Song1, NextSong, Song2> for StartNextSong {
+	fn action(event: &NextSong, event_context: &mut EventContext<Playing>, source_state: &mut Song1, target_state: &mut Song2) {		
         println!("Playing::StartNextSong");
 	}
 }
-impl FsmAction<Playing, Song2, Song3> for StartNextSong {
-	fn action(event_context: &mut EventContext<Playing>, source_state: &mut Song2, target_state: &mut Song3) {
+impl FsmAction<Playing, Song2, NextSong, Song3> for StartNextSong {
+	fn action(event: &NextSong, event_context: &mut EventContext<Playing>, source_state: &mut Song2, target_state: &mut Song3) {
         println!("Playing::StartNextSong");
 	}
 }
 
 pub struct StartPrevSong;
-impl FsmAction<Playing, Song2, Song1> for StartPrevSong {
-	fn action(event_context: &mut EventContext<Playing>, source_state: &mut Song2, target_state: &mut Song1) {		
+impl FsmAction<Playing, Song2, PreviousSong, Song1> for StartPrevSong {
+	fn action(event: &PreviousSong, event_context: &mut EventContext<Playing>, source_state: &mut Song2, target_state: &mut Song1) {		
         println!("Playing::StartPrevSong");
 	}
 }
-impl FsmAction<Playing, Song3, Song2> for StartPrevSong {
-	fn action(event_context: &mut EventContext<Playing>, source_state: &mut Song3, target_state: &mut Song2) {
+impl FsmAction<Playing, Song3, PreviousSong, Song2> for StartPrevSong {
+	fn action(event: &PreviousSong, event_context: &mut EventContext<Playing>, source_state: &mut Song3, target_state: &mut Song2) {
         println!("Playing::StartPrevSong");
 	}
 }
@@ -342,7 +337,7 @@ struct PlayingDefinition(
 #[test]
 fn test_player() {
 
-    let mut p = Player::new(Default::default());
+    let mut p = Player::new(Default::default()).unwrap();
 
 	p.start();
     assert_eq!(1, p.get_context().action_empty_entry_counter);
@@ -366,18 +361,21 @@ fn test_player() {
     
     p.process_event(PlayerEvents::Play(Play)).unwrap();
     assert_eq!(PlayerStates::Playing, p.get_current_state());
-
-    assert_eq!(PlayingStates::Song1, p.states.playing.get_current_state());
-    assert_eq!(1, p.states.playing.get_context().song1_entry_counter);
+    
+    {
+        let sub: &Playing = p.get_state();
+        assert_eq!(PlayingStates::Song1, sub.get_current_state());
+        assert_eq!(1, sub.get_context().song1_entry_counter);
+    }
 
     assert_eq!(1, p.get_context().action_stopped_exit_counter);
     assert_eq!(1, p.get_context().playing_fsm_entry_counter);
     assert_eq!(1, p.get_context().start_playback_counter);
 
     
+    p.process_event(PlayingEvents::NextSong(NextSong)).unwrap();    
     {
-        let sub: &mut Playing = p.get_state_mut();
-        sub.process_event(PlayingEvents::NextSong(NextSong)).unwrap();    
+        let sub: &Playing = p.get_state();
         assert_eq!(PlayingStates::Song2, sub.get_current_state());
         assert_eq!(1, sub.get_context().song1_exit_counter);
         assert_eq!(1, sub.get_context().song2_entry_counter);

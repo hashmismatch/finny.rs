@@ -55,7 +55,7 @@ struct FsmMinTwoDefinition(
 #[cfg(test)]
 #[test]
 fn test_fsm_min2() {
-    let mut fsm = FsmMinTwo::new(());
+    let mut fsm = FsmMinTwo::new(()).unwrap();
     fsm.start();
     assert_eq!(FsmMinTwoStates::StateA, fsm.get_current_state());
 
