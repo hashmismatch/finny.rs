@@ -1,0 +1,80 @@
+
+.events.panel {
+    //border: 1px solid red;    
+    height: 100%;
+
+    .title {
+        color: white;
+        font-weight: bold;
+        height: 20px;
+        background-color: #4d6082;
+    }
+
+    .contents {
+        height: calc(100% - 20px);
+    }
+}
+
+#events_table ::ng-deep {
+    display: block;
+    border-collapse: collapse;
+
+    height: 100%;
+    width: 100%;
+
+    td {
+        padding: 0.25em;
+    }
+
+    tbody {
+        display: block;
+    }
+    
+    thead {
+        display: block;
+        background-color: #f6f6f6;    
+        border: 1px solid #cccedb;
+        height: 30px;
+    }
+
+    thead td {
+        border-left: 1px solid #cccedb;
+        border-right: 1px solid #cccedb;
+    }
+
+    thead td:first-child {
+        border-left: none;
+    }
+
+    tbody {
+        width: 100%;
+        height: calc(100% - 32px);
+
+        overflow-x: hidden;
+        overflow-y: scroll;
+
+        tr {
+            width: 100%;
+        }
+
+        tr {
+            border-bottom: 1px solid #ccc;
+        }
+
+        tr:last-child {
+            border-bottom: none;
+        }
+    }
+
+    .column_id {
+        width: 60px;
+    }
+
+    .column_type {
+        width: 150px;
+    }
+
+    .column_message {
+        
+    }
+}

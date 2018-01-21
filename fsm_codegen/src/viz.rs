@@ -23,7 +23,7 @@ pub fn build_viz(fsm: &FsmDescription) -> quote::Tokens {
         let var_region = format!("{}_region_{}", fsm.name, region.id);
         writeln!(out, r#"var {} = f.add_region("Region {}");"#, var_region, region.id);
 
-        let initial_name = ty_to_string(&region.initial_state_ty);
+        let initial_name = syn_to_string(&region.initial_state_ty);
         writeln!(out, r#"var state_{} = {}.add_initial_state("{}");"#, initial_name, var_region, initial_name);
         for state in &region.get_all_internal_states() {
             if state == &region.initial_state_ty {
@@ -35,12 +35,12 @@ pub fn build_viz(fsm: &FsmDescription) -> quote::Tokens {
 
             let info = format!(r#"{{ is_initial_state: {:?}, is_interrupt_state: {:?} }}"#, is_initial_state, is_interrupt_state);
 
-            let name = ty_to_string(state);
+            let name = syn_to_string(state);
             writeln!(out, r#"var state_{} = {}.add_state("{}", {});"#, name, var_region, name, info);
         }
 
         for sub in region.get_all_states().iter().filter(|ref x| fsm.is_submachine(x)) {
-            let s = ty_to_string(&sub);
+            let s = syn_to_string(&sub);
 
             // submachines
             writeln!(out, "// submachine {} start", s);
@@ -48,19 +48,20 @@ pub fn build_viz(fsm: &FsmDescription) -> quote::Tokens {
             writeln!(out, "// submachine {} end", s);
             
             {
+                let sub_viz = syn::parse_type(&format!("{}Viz", s)).unwrap();
                 let a = format!("// ##SUB_{}##", s);
                 let p = format!("fsm_{}", fsm.name);
                 subs.append(quote! {
-                    let t = t.replace(#a, &#sub::viz_cytoscape_fsm(#p));
+                    let t = t.replace(#a, &#sub_viz::viz_cytoscape_fsm(#p));
                 }.as_str());
             }
         }
 
         for transition in &region.transitions {
-            let s_from = ty_to_string(&transition.source_state);
-            let s_to = ty_to_string(&transition.target_state);
-            let ev = ty_to_string(&transition.event);
-            let ac = ty_to_string(&transition.action);
+            let s_from = syn_to_string(&transition.source_state);
+            let s_to = syn_to_string(&transition.target_state);
+            let ev = syn_to_string(&transition.event);
+            let ac = syn_to_string(&transition.action);
 
             
             let is_shallow_history = fsm.shallow_history_events.iter().find(|ref x| &x.event_ty == &transition.event && &x.target_state_ty == &transition.target_state).is_some();
@@ -69,7 +70,7 @@ pub fn build_viz(fsm: &FsmDescription) -> quote::Tokens {
             let is_anonymous = transition.is_anonymous_transition();
 
             let guard_json = match transition.guard {
-                Some(ref g) => ty_to_string(g),
+                Some(ref g) => syn_to_string(g),
                 None => "".into()
             };
             let data = {
@@ -125,7 +126,7 @@ pub fn build_test_viz_build(fsm: &FsmDescription) -> quote::Tokens {
 pub fn build_test_viz_build(fsm: &FsmDescription) -> quote::Tokens {
     let fn_name = fsm.get_build_viz_fn();
     let fn_name_docs = fsm.get_build_viz_docs_fn();    
-    let ty = fsm.get_fsm_ty_inline();
+    let ty = fsm.get_fsm_viz_ty();
     let ref ty_str = fsm.name;
 
     let js_lib = include_str!("viz_fsm.js");
@@ -191,21 +192,6 @@ pub fn build_test_viz_build(fsm: &FsmDescription) -> quote::Tokens {
     
 
     quote! {
-        #[test]
-        #[cfg(test)]
-        fn #fn_name () {
-            
-            #output_file
-            let output_file = format!("{}_{}.html", f, #ty_str);
-
-            use std::io::prelude::*;
-            use std::fs::File;
-
-            let d = #ty::viz_cytoscape();
-
-            let mut f = File::create(&output_file).unwrap();
-            f.write_all(d.as_bytes()).unwrap();
-        }
 
         #build_inline_docs
     }

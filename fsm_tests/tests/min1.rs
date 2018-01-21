@@ -2,9 +2,13 @@ extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
 use fsm::*;
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StaticA;
 impl FsmState<FsmMinOne> for StaticA {
 
@@ -20,7 +24,7 @@ struct FsmMinOneDefinition(
 #[test]
 fn test_fsm_min1() {
 
-    let mut fsm = FsmMinOne::new(());
+    let mut fsm = FsmMinOne::new(()).unwrap();
     fsm.start();
     assert_eq!(FsmMinOneStates::StaticA, fsm.get_current_state());
 }

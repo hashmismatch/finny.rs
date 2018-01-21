@@ -3,69 +3,73 @@ extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 use fsm::*;
 
 
 // events
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventA;
 impl FsmEvent for EventA {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventA2;
 impl FsmEvent for EventA2 {}
 
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventB;
 impl FsmEvent for EventB {}
 
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct ErrorDetected;
 impl FsmEvent for ErrorDetected {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct ErrorFixed;
 impl FsmEvent for ErrorFixed {}
 
 
 // states
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct InitialA;
 impl<'a> FsmState<Ortho<'a>> for InitialA { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct InitialB;
 impl<'a> FsmState<Ortho<'a>> for InitialB { }
 
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateA;
 impl<'a> FsmState<Ortho<'a>> for StateA { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateB;
 impl<'a> FsmState<Ortho<'a>> for StateB { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct FixedC;
 impl<'a> FsmState<Ortho<'a>> for FixedC { }
 
 
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct AllOk;
 impl<'a> FsmState<Ortho<'a>> for AllOk { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct ErrorMode;
 impl<'a> FsmState<Ortho<'a>> for ErrorMode { }
 
 
+#[derive(Debug, Serialize)]
 pub struct OrthoContext<'a> {
     id: &'a str   
 }
@@ -98,7 +102,7 @@ fn test_orthogonal() {
     let ctx = OrthoContext {
         id: &id
     };
-	let mut fsm = Ortho::new(ctx);
+	let mut fsm = Ortho::new(ctx).unwrap();
 
 	fsm.start();
 

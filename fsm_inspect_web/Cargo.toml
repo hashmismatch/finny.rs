@@ -1,0 +1,26 @@
+[package]
+name = "fsm_inspect_web"
+version = "0.1.0"
+authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+
+[dependencies]
+websocket = "0.20.2"
+rocket = "0.3.3"
+rocket_codegen = "0.3.3"
+rocket_cors = "0.2.1"
+serde = "1.0"
+serde_derive = "1.0"
+serde_json = "1.0"
+
+fsm = {path="../"}
+
+#[dependencies.rocket_contrib]
+#version = "0.3.3"
+#default-features = false
+#features = ["handlebars_templates"]
+
+handlebars = "0.29.1"
+
+[dev-dependencies]
+fsm_codegen = { path="../fsm_codegen/" }
+fsm_timers_std = { path="../fsm_timers_std/" }

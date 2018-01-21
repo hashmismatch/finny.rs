@@ -2,37 +2,41 @@ extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
 use fsm::*;
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Event1 { v: usize }
 impl FsmEvent for Event1 {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventGo;
 impl FsmEvent for EventGo {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventRestart;
 impl FsmEvent for EventRestart {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventStart;
 impl FsmEvent for EventStart {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct EventStop;
 impl FsmEvent for EventStop {}
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateA { a: usize }
 impl FsmState<FsmMinTwo> for StateA { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateB { b: usize }
 impl FsmState<FsmMinTwo> for StateB { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateC { c: usize }
 impl FsmState<FsmMinTwo> for StateC { }
 
@@ -55,7 +59,7 @@ struct FsmMinTwoDefinition(
 #[cfg(test)]
 #[test]
 fn test_fsm_min2() {
-    let mut fsm = FsmMinTwo::new(());
+    let mut fsm = FsmMinTwo::new(()).unwrap();
     fsm.start();
     assert_eq!(FsmMinTwoStates::StateA, fsm.get_current_state());
 

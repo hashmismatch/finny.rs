@@ -37,7 +37,7 @@ pub fn create_regions(transitions: &Vec<TransitionEntry>, initial_states: &Vec<s
     let orphan_region = 255;
 
     for initial_state in initial_states {
-        let s = ty_to_string(initial_state);
+        let s = syn_to_string(initial_state);
 
         let n = gr.add_node(NodeData { state: s.clone(), region: orphan_region });
         nodes.insert(s, n);
@@ -46,7 +46,7 @@ pub fn create_regions(transitions: &Vec<TransitionEntry>, initial_states: &Vec<s
     for transition in transitions {
         let (src, target) = {
             let mut get_node = |ty| {
-                let s = ty_to_string(ty);
+                let s = syn_to_string(ty);
 
                 let mut node = None;
                                 
@@ -72,7 +72,7 @@ pub fn create_regions(transitions: &Vec<TransitionEntry>, initial_states: &Vec<s
     let mut regions = Vec::new();
     let mut region_id = 0;
     for initial_state in initial_states {
-        let s = ty_to_string(initial_state);
+        let s = syn_to_string(initial_state);
 
         let node = nodes.get(&s).expect(&format!("Missing initial state {} in graph?", &s));
 
@@ -103,7 +103,7 @@ pub fn create_regions(transitions: &Vec<TransitionEntry>, initial_states: &Vec<s
     }
 
     for transition in transitions {
-        let s = ty_to_string(&transition.source_state);
+        let s = syn_to_string(&transition.source_state);
         let node = *nodes.get(&s).unwrap();
         let r_id = gr[node].region;
         let ref mut r = regions[r_id];
