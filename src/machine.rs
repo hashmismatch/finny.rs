@@ -158,7 +158,7 @@ pub trait FsmActionSelf<F: Fsm, S, E> {
 	fn action(event: &E, event_context: &mut EventContext<F>, state: &mut S);
 }
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug, Serialize)]
 pub struct NoEvent;
 impl FsmEvent for NoEvent { }
 

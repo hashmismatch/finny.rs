@@ -5,22 +5,27 @@ extern crate fsm_codegen;
 
 use fsm::*;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
+
 
 // events
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Event1;
 impl FsmEvent for Event1 {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Event2;
 impl FsmEvent for Event2 {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Event3;
 impl FsmEvent for Event3 {}
 
-#[derive(Clone, PartialEq, Default, Debug)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct MagicEvent(u32);
 impl FsmEvent for MagicEvent {}
 
@@ -35,7 +40,7 @@ impl FsmGuard<FsmOne, MagicEvent> for MagicGuard {
 
 // states
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Initial {
 	entry: usize,
 	exit: usize
@@ -50,7 +55,7 @@ impl FsmState<FsmOne> for Initial {
 	}
 }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct State1 {
 	entry: usize,
 	exit: usize,
@@ -68,7 +73,7 @@ impl FsmState<FsmOne> for State1  {
 	}
 }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct State2;
 impl FsmState<FsmOne> for State2 {
 
@@ -98,7 +103,7 @@ impl FsmActionSelf<FsmOne, State1, Event3> for InternalTrigger {
 	}
 }
 
-#[derive(Default)]
+#[derive(Default, Debug, Serialize)]
 pub struct FsmOneContext {
 	guard1_exec: usize	
 }

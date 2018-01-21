@@ -3,6 +3,9 @@ extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
 
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 use fsm::*;
 
@@ -10,19 +13,19 @@ use fsm::*;
 fsm_event_unit!(EventBoth);
 
 // states
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateA;
 impl FsmState<Ortho> for StateA { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateB;
 impl FsmState<Ortho> for StateB { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateX;
 impl FsmState<Ortho> for StateX { }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct StateY;
 impl FsmState<Ortho> for StateY { }
 

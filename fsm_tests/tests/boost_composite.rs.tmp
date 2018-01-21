@@ -1,7 +1,12 @@
-
 extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
+
+
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
 
 
 use fsm::*;
@@ -10,33 +15,33 @@ use fsm::*;
 
 
 // events
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Play;
 impl FsmEvent for Play { }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct EndPause;
 impl FsmEvent for EndPause {}
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Stop;
 impl FsmEvent for Stop {}
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Pause;
 impl FsmEvent for Pause {}
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct OpenClose;
 impl FsmEvent for OpenClose {}
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct CdDetected { name: String }
 impl FsmEvent for CdDetected {}
 
 // states
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct Empty;
 impl FsmState<Player> for Empty {
 	fn on_entry(&mut self, event_context: &mut EventContext<Player>) {
@@ -47,7 +52,7 @@ impl FsmState<Player> for Empty {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct Open;
 impl FsmState<Player> for Open {
 	fn on_entry(&mut self, event_context: &mut EventContext<Player>) {
@@ -58,7 +63,7 @@ impl FsmState<Player> for Open {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct Stopped;
 impl FsmState<Player> for Stopped {
     fn on_entry(&mut self, event_context: &mut EventContext<Player>) {
@@ -69,7 +74,7 @@ impl FsmState<Player> for Stopped {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug, Serialize)]
 pub struct Paused;
 impl FsmState<Player> for Paused {
     fn on_entry(&mut self, event_context: &mut EventContext<Player>) {
@@ -181,7 +186,7 @@ impl FsmActionSelf<Player, Stopped, Stop> for StoppedAgain {
 }
 
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Serialize)]
 pub struct PlayerContext {
     action_empty_entry_counter: usize,
     action_empty_exit_counter: usize,
@@ -232,18 +237,18 @@ struct PlayerDefinition(
 // Playing FSM
 
 // events
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct NextSong;
 impl FsmEvent for NextSong { }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct PreviousSong;
 impl FsmEvent for PreviousSong { }
 
 
 // states
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Song1;
 impl FsmState<Playing> for Song1 {
     fn on_entry(&mut self, event_context: &mut EventContext<Playing>) {
@@ -256,7 +261,7 @@ impl FsmState<Playing> for Song1 {
     }
 }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Song2;
 impl FsmState<Playing> for Song2 {
     fn on_entry(&mut self, event_context: &mut EventContext<Playing>) {
@@ -269,7 +274,7 @@ impl FsmState<Playing> for Song2 {
     }
 }
 
-#[derive(Clone, PartialEq, Default)]
+#[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct Song3;
 impl FsmState<Playing> for Song3 {
     fn on_entry(&mut self, event_context: &mut EventContext<Playing>) {
@@ -306,7 +311,7 @@ impl FsmAction<Playing, Song3, PreviousSong, Song2> for StartPrevSong {
 }
 
 
-#[derive(Default)]
+#[derive(Default, Debug, Serialize)]
 pub struct PlayingContext {
     song1_entry_counter: usize,
     song1_exit_counter: usize,

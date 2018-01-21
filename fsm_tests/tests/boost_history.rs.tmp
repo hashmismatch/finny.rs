@@ -311,7 +311,7 @@ impl FsmAction<Playing, Song3, PreviousSong, Song2> for StartPrevSong {
 
 
 
-#[derive(Default)]
+#[derive(Default, Debug, Serialize)]
 pub struct PlayingContext {
     song1_entry_counter: usize,
     song1_exit_counter: usize,

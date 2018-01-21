@@ -6,3 +6,5 @@ authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 [dependencies]
 fsm = { path = "../" }
 fsm_codegen = { path = "../fsm_codegen/", features = ["viz", "viz_docs"] } 
+serde = "^1.0"
+serde_derive = "^1.0"
