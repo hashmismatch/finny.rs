@@ -29,7 +29,7 @@ impl fmt::Display for NodeData {
     }
 }
 
-pub fn create_regions(transitions: &Vec<TransitionEntry>, initial_states: &Vec<syn::Ty>, submachines: &Vec<syn::Ty>, interrupt_states: &Vec<FsmInterruptState>) -> Vec<FsmRegion> {
+pub fn create_regions(transitions: &Vec<TransitionEntry>, initial_states: &Vec<syn::Type>, submachines: &Vec<syn::Type>, interrupt_states: &Vec<FsmInterruptState>) -> Vec<FsmRegion> {
     
     let mut gr = Graph::new();
     let mut nodes = HashMap::new();

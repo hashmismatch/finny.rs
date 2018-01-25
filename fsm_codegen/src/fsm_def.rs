@@ -14,11 +14,11 @@ pub struct FsmDescription {
 
     pub runtime_generics: syn::Generics,
 
-    pub submachines: Vec<syn::Ty>,
+    pub submachines: Vec<syn::Type>,
     pub shallow_history_events: Vec<ShallowHistoryEvent>,
 
     pub regions: Vec<FsmRegion>,
-    pub context_ty: syn::Ty,
+    pub context_ty: syn::Type,
 
     pub timeout_timers: Vec<FsmTimeoutTimer>,
 
@@ -28,36 +28,36 @@ pub struct FsmDescription {
 #[derive(Debug, Clone)]
 pub struct FsmTimeoutTimer {
     pub id: u32,
-    pub state: syn::Ty,
-    pub event_on_timeout: syn::Ty
+    pub state: syn::Type,
+    pub event_on_timeout: syn::Type
 }
 
 #[derive(Debug, Clone)]
 pub struct FsmInterruptState {
-    pub interrupt_state_ty: syn::Ty,
-    pub resume_event_ty: Vec<syn::Ty>
+    pub interrupt_state_ty: syn::Type,
+    pub resume_event_ty: Vec<syn::Type>
 }
 
 #[derive(Debug)]
 pub struct FsmRegion {
-    pub submachines: Vec<syn::Ty>,
+    pub submachines: Vec<syn::Type>,
     pub id: usize,
     pub transitions: Vec<TransitionEntry>,
-    pub initial_state_ty: syn::Ty,
+    pub initial_state_ty: syn::Type,
     pub interrupt_states: Vec<FsmInterruptState>
 }
 
 impl FsmRegion {
-    pub fn get_all_states(&self) -> Vec<syn::Ty> {
+    pub fn get_all_states(&self) -> Vec<syn::Type> {
         self.transitions.iter().map(|ref x| &x.source_state).chain(self.transitions.iter().map(|ref x| &x.target_state)).unique_by(|x| *x).cloned().collect()
     }
     
-    pub fn get_all_internal_states(&self) -> Vec<syn::Ty> {
+    pub fn get_all_internal_states(&self) -> Vec<syn::Type> {
         // warning: quadratic!
         self.get_all_states().iter().filter(|ref x| !self.is_submachine(x)).cloned().collect()
     }
 
-    pub fn is_submachine(&self, ty: &syn::Ty) -> bool {
+    pub fn is_submachine(&self, ty: &syn::Type) -> bool {
         self.submachines.iter().find(|x| x == &ty).is_some()
     }
 }
@@ -65,33 +65,33 @@ impl FsmRegion {
 
 #[derive(Debug)]
 pub struct ShallowHistoryEvent {
-    pub event_ty: syn::Ty,
-    pub target_state_ty: syn::Ty
+    pub event_ty: syn::Type,
+    pub target_state_ty: syn::Type
 }
 
 impl ShallowHistoryEvent {
-    pub fn get_field_name(&self) -> syn::Ty {
+    pub fn get_field_name(&self) -> syn::Type {
         let mut t = quote::Tokens::new();
         self.target_state_ty.to_tokens(&mut t);
         
-        syn::parse_type(&format!("history_{}", t.as_str())).unwrap()
+        syn::parse_str(&format!("history_{}", syn_to_string(&t))).unwrap()
     }
 
-    pub fn get_field_ty(&self) -> syn::Ty {
+    pub fn get_field_ty(&self) -> syn::Type {
         let mut t = quote::Tokens::new();
         self.target_state_ty.to_tokens(&mut t);
 
-        syn::parse_type(&format!("Option<{}>", t.as_str())).unwrap()
+        syn::parse_str(&format!("Option<{}>", syn_to_string(&t))).unwrap()
     }
 }
 
 impl FsmDescription {
-    pub fn get_fsm_runtime_ty_inline(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}Runtime", &self.name)).unwrap()
+    pub fn get_fsm_runtime_ty_inline(&self) -> syn::Type {
+        syn::parse_str(&format!("{}Runtime", &self.name)).unwrap()
     }
 
-    pub fn get_fsm_ty(&self) -> syn::Ty {
-        let ty = syn::parse_type(&format!("{} {}", &self.name,
+    pub fn get_fsm_ty(&self) -> syn::Type {
+        let ty = syn::parse_str(&format!("{} {}", &self.name,
         {
             let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
             syn_to_string(&ty_generics)
@@ -99,12 +99,12 @@ impl FsmDescription {
         ty
     }
 
-    pub fn get_fsm_viz_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}{}", &self.name, "Viz")).unwrap()
+    pub fn get_fsm_viz_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}{}", &self.name, "Viz")).unwrap()
     } 
 
-    pub fn get_fsm_ty_inline(&self) -> syn::Ty {        
-        syn::parse_type(&self.name).unwrap()
+    pub fn get_fsm_ty_inline(&self) -> syn::Type {        
+        syn::parse_str(&self.name).unwrap()
     }
 
     pub fn get_impl_suffix(&self) -> quote::Tokens {
@@ -119,73 +119,73 @@ impl FsmDescription {
         q
     }
 
-    pub fn get_events_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}Events", self.name)).unwrap()
+    pub fn get_events_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}Events", self.name)).unwrap()
     }
 
-    pub fn get_event_kind_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}EventKind", self.name)).unwrap()
+    pub fn get_event_kind_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}EventKind", self.name)).unwrap()
     }    
 
-    pub fn get_events_ref_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}EventsRef", self.name)).unwrap()
+    pub fn get_events_ref_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}EventsRef", self.name)).unwrap()
     }
 
-    pub fn get_states_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}States", self.name)).unwrap()
+    pub fn get_states_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}States", self.name)).unwrap()
     }
 
-    pub fn get_current_state_ty(&self) -> syn::Ty {
-        let mut q = quote::Tokens::new();
-        q.append("(");
+    pub fn get_current_state_ty(&self) -> syn::Type {
+        let mut s = String::new();
+        s.push_str("(");
         for (i, region) in self.regions.iter().enumerate() {
-            q.append(&syn_to_string(&self.get_states_ty()));
+            s.push_str(&syn_to_string(&self.get_states_ty()));
             if i < self.regions.len() - 1 {
-                q.append(",");
+                s.push_str(", ");
             }
         }
-        q.append(")");
-        syn::parse_type(&q.as_str()).unwrap()
+        s.push_str(")");
+        syn::parse_str(&s).unwrap()
     }
 
     pub fn get_current_region_state(&self, region_id: RegionId) -> quote::Tokens {
-        let mut q = quote!{};
         if self.has_multiple_regions() {
-            q.append(".");
-            q.append(&(region_id as usize).to_string());
-        }
-        q
-    }
-
-    pub fn get_states_store_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}StatesStore", self.name)).unwrap()
-    }
-
-    pub fn get_actions_ty(&self) -> syn::Ty {
-        syn::parse_type(&format!("{}Actions", self.name)).unwrap()
-    }
-
-    pub fn get_history_ty(&self) -> syn::Ty {
-        if self.shallow_history_events.len() == 0 {
-            syn::parse_type("()").unwrap()
+            let region_id = region_id as usize;
+            quote! { .#region_id }
         } else {
-            syn::parse_type(&format!("{}History", self.name)).unwrap()
+            quote! {}
         }
     }
 
-    pub fn get_build_viz_fn(&self) -> syn::Ty {
-        syn::parse_type(&format!("build_viz_{}", self.name)).unwrap()
+    pub fn get_states_store_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}StatesStore", self.name)).unwrap()
     }
 
-    pub fn get_build_viz_docs_fn(&self) -> syn::Ty {
-        syn::parse_type(&format!("build_viz_docs_{}", self.name)).unwrap()
+    pub fn get_actions_ty(&self) -> syn::Type {
+        syn::parse_str(&format!("{}Actions", self.name)).unwrap()
     }
 
-    pub fn get_submachine_types(&self) -> &[syn::Ty] {
+    pub fn get_history_ty(&self) -> syn::Type {
+        if self.shallow_history_events.len() == 0 {
+            syn::parse_str("()").unwrap()
+        } else {
+            syn::parse_str(&format!("{}History", self.name)).unwrap()
+        }
+    }
+
+    pub fn get_build_viz_fn(&self) -> syn::Type {
+        syn::parse_str(&format!("build_viz_{}", self.name)).unwrap()
+    }
+
+    pub fn get_build_viz_docs_fn(&self) -> syn::Type {
+        syn::parse_str(&format!("build_viz_docs_{}", self.name)).unwrap()
+    }
+
+    pub fn get_submachine_types(&self) -> &[syn::Type] {
         &self.submachines
     }
 
-    pub fn is_submachine(&self, ty: &syn::Ty) -> bool {
+    pub fn is_submachine(&self, ty: &syn::Type) -> bool {
         self.get_submachine_types().iter().find(|x| x == &ty).is_some()
     }
 
@@ -193,27 +193,27 @@ impl FsmDescription {
         self.regions.iter().flat_map(|x| &x.transitions).cloned().collect()
     }
 
-    pub fn get_all_states(&self) -> Vec<syn::Ty> {
+    pub fn get_all_states(&self) -> Vec<syn::Type> {
         self.get_all_transitions().iter().map(|ref x| &x.source_state)
             .chain(self.get_all_transitions().iter().map(|ref x| &x.target_state))
             .chain(self.regions.iter().map(|ref x| &x.initial_state_ty))
             .unique_by(|x| *x).cloned().collect()
     }
 
-    pub fn get_all_events(&self) -> Vec<syn::Ty> {
+    pub fn get_all_events(&self) -> Vec<syn::Type> {
         self.get_all_transitions().iter().map(|ref x| &x.event)            
             .unique_by(|x| *x).cloned().collect()
     }
 
-    pub fn get_all_internal_states(&self) -> Vec<syn::Ty> {
+    pub fn get_all_internal_states(&self) -> Vec<syn::Type> {
         // warning: quadratic!
         self.get_all_states().iter().filter(|ref x| !self.is_submachine(x)).cloned().collect()
     }
 
-    pub fn to_state_field_access(&self, state: &syn::Ty) -> Tokens {
+    pub fn to_state_field_access(&self, state: &syn::Type) -> Tokens {
         if self.is_submachine(&state) {
             let field_name = format!("fsm_sub_{}", syn_to_string(&state).to_lowercase());
-            let field_name = syn::parse_type(&field_name).unwrap();
+            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
 
             quote! {
                 self.#field_name.fsm
@@ -227,10 +227,10 @@ impl FsmDescription {
         }
     }
 
-    pub fn to_sub_runtime(&self, state: &syn::Ty) -> Tokens {
+    pub fn to_sub_runtime(&self, state: &syn::Type) -> Tokens {
         if self.is_submachine(&state) {
             let field_name = format!("fsm_sub_{}", syn_to_string(&state).to_lowercase());
-            let field_name = syn::parse_type(&field_name).unwrap();
+            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
 
             quote! {
                 self.#field_name
@@ -241,27 +241,36 @@ impl FsmDescription {
         }
     }    
 
-    pub fn to_state_field_name(state: &syn::Ty) -> syn::Ty {
+    pub fn to_state_field_name(state: &syn::Type) -> syn::Type {
         let t = syn_to_string(state).to_lowercase();
-        syn::parse_type(&t).unwrap()
+        syn::parse_str(&t).unwrap()
     }
 
-    pub fn to_state_sub_started_field_name(state: &syn::Ty) -> syn::Ty {
+    pub fn to_state_sub_started_field_name(state: &syn::Type) -> syn::Type {
         let t = &format!("{}_started", syn_to_string(state).to_lowercase());
-        syn::parse_type(&t).unwrap()
+        syn::parse_str(&t).unwrap()
     }
 
     pub fn has_multiple_regions(&self) -> bool {
         self.regions.len() > 1
     }
 
-    pub fn get_fsm_runtime_generics(&self, types: &[(&str, &syn::Ty)]) -> syn::Ty {
+    pub fn get_fsm_runtime_generics(&self, types: &[(&str, &syn::Type)]) -> syn::Type {
         let mut g = self.runtime_generics.clone();
 
         for &(i, r) in types {
-            if let Some(idx) = g.ty_params.iter().position(|p| p.ident == i) {
-                let ref mut gt = &mut g.ty_params[idx];
-                gt.default = Some(r.clone());
+            if let Some(idx) = g.params.iter().position(|p| {
+                if let &syn::GenericParam::Type(ref p) = p {
+                    p.ident == i
+                } else {
+                    false
+                }
+            }) 
+            {
+                let gt = &mut g.params[idx];
+                if let &mut syn::GenericParam::Type(ref mut gt) = gt {
+                    gt.default = Some(r.clone());
+                }
             }
         }
 
@@ -269,22 +278,26 @@ impl FsmDescription {
             syn_to_string(&self.get_fsm_runtime_ty_inline()),
             {
                 let mut parts = vec![];
-                'l: for ty in g.ty_params {
+                'l: for ty in g.params {
                     for &(i, r) in types {
-                        if ty.ident == i {
-                            parts.push(syn_to_string(r));
-                            continue 'l;
+                        if let syn::GenericParam::Type(ref ty) = ty {
+                            if ty.ident == i {
+                                parts.push(syn_to_string(r));
+                                continue 'l;
+                            }
                         }
                     }
 
-                    parts.push(syn_to_string(&ty.ident));
+                    if let syn::GenericParam::Type(ref ty) = ty {
+                        parts.push(syn_to_string(&ty.ident));
+                    }
                 }
 
                 parts.join(", ")
             }
         );
 
-        syn::parse_type(&t).unwrap()
+        syn::parse_str(&t).unwrap()
     }
 
     pub fn has_timers(&self) -> bool {
@@ -293,7 +306,7 @@ impl FsmDescription {
 }
 
 pub fn syn_to_string<T: ToTokens>(thing: &T) -> String {
-    syn_to_tokens(thing).as_str().into()
+    format!("{}", syn_to_tokens(thing))
 }
 
 pub fn append_to_tokens<T: ToTokens>(thing: &T, tokens: &mut quote::Tokens) {
@@ -308,9 +321,9 @@ pub fn syn_to_tokens<T: ToTokens>(thing: &T) -> quote::Tokens {
 
 /// Deconstruct a potential tuple into a vector of types,
 /// otherwise return just the type wrapped into a vector.
-pub fn ty_to_vec(ty: &syn::Ty) -> Vec<syn::Ty> {
+pub fn ty_to_vec(ty: &syn::Type) -> Vec<syn::Type> {
     match ty {
-        &syn::Ty::Tup(ref t) => t.clone(),
+        &syn::Type::Tuple(ref t) => t.elems.iter().cloned().collect(),
         t @ _ => vec![t.clone()]
     }
 }
@@ -320,12 +333,12 @@ pub fn ty_to_vec(ty: &syn::Ty) -> Vec<syn::Ty> {
 #[derive(Debug, Clone)]
 pub struct TransitionEntry {
     pub id: u32,
-    pub source_state: syn::Ty,
-    pub event: syn::Ty,
-    pub target_state: syn::Ty,
-    pub action: syn::Ty,
+    pub source_state: syn::Type,
+    pub event: syn::Type,
+    pub target_state: syn::Type,
+    pub action: syn::Type,
     pub transition_type: TransitionType,
-    pub guard: Option<syn::Ty>
+    pub guard: Option<syn::Type>
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -353,7 +366,7 @@ impl TransitionEntry {
     }
 
     pub fn is_anonymous_transition(&self) -> bool {
-        self.event == syn::parse_type("NoEvent").unwrap()
+        self.event == syn::parse_str("NoEvent").unwrap()
     }
 }
 

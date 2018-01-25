@@ -4,12 +4,12 @@ extern crate syn;
 use fsm_def::*;
 use graph::*;
 
-fn match_type_grab_param_data(path: &syn::Path) -> Result<syn::AngleBracketedParameterData , ()> {
+fn match_type_grab_param_data(path: &syn::Path) -> Result<syn::AngleBracketedGenericArguments , ()> {
     if path.segments.len() == 1 {
         let ref segment = path.segments[0];
 
-        match segment.parameters {
-            syn::PathParameters::AngleBracketed(ref angle_bracketed) => {
+        match segment.arguments {
+            syn::PathArguments::AngleBracketed(ref angle_bracketed) => {
                 return Ok(angle_bracketed.clone());
             },
             _ => ()
@@ -19,14 +19,21 @@ fn match_type_grab_param_data(path: &syn::Path) -> Result<syn::AngleBracketedPar
     Err(())
 }
 
-fn match_type_grab_generics(path: &syn::Path, type_name: &str) -> Result<Vec<syn::Ty>, ()> {
+fn match_type_grab_generics(path: &syn::Path, type_name: &str) -> Result<Vec<syn::Type>, ()> {
     if path.segments.len() == 1 {
         let ref segment = path.segments[0];
 
-        if segment.ident == syn::Ident::new(type_name) {
-            match segment.parameters {
-                syn::PathParameters::AngleBracketed(ref angle_bracketed) => {
-                    return Ok(angle_bracketed.types.iter().cloned().collect());
+        if segment.ident == type_name {
+            match segment.arguments {
+                syn::PathArguments::AngleBracketed(ref angle_bracketed) => {
+                    return Ok(angle_bracketed.args.iter().cloned().filter_map(|t| {
+                        if let syn::GenericArgument::Type(ty) = t {
+                            Some(ty)
+                        } else {
+                            None
+                        }
+
+                    }).collect());
                 },
                 _ => ()
             }
@@ -36,7 +43,7 @@ fn match_type_grab_generics(path: &syn::Path, type_name: &str) -> Result<Vec<syn
     Err(())
 }
 
-fn transition_from_ty(id_counter: &mut u32, g: &[syn::Ty], transition_type: TransitionType) -> Vec<TransitionEntry> {
+fn transition_from_ty(id_counter: &mut u32, g: &[syn::Type], transition_type: TransitionType) -> Vec<TransitionEntry> {
     let mut ret = vec![];
 
     let src_states = ty_to_vec(&g[1]);
@@ -86,13 +93,13 @@ fn transition_from_ty(id_counter: &mut u32, g: &[syn::Ty], transition_type: Tran
     ret
 }
 
-pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
+pub fn parse_description(ast: &syn::DeriveInput) -> FsmDescription {
 
     let fsm_name = ast.ident.as_ref().replace("Definition", "");
-    let fsm_name_ident = syn::Ident::new(fsm_name.clone());
+    let fsm_name_ident: syn::Ident = fsm_name.clone().into();
 
-    let fields: Vec<_> = match ast.body {
-        syn::Body::Struct(syn::VariantData::Tuple(ref fields)) => {
+    let fields: Vec<_> = match ast.data {
+        syn::Data::Struct(syn::DataStruct { ref fields, .. }) => {
             fields.iter().collect()
         },
         _ => panic!("Tuples only!"),
@@ -101,7 +108,7 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
 
     let mut initial_state_ty = None;
     let mut copyable_events = false;
-    let mut context_ty = syn::parse_type("()").unwrap();
+    let mut context_ty = syn::parse_str("()").unwrap();
     let mut transitions = Vec::new();
     let mut submachines = Vec::new();
     let mut shallow_history_events = Vec::new();
@@ -115,7 +122,7 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
     for field in fields {
 
         match field.ty {
-            syn::Ty::Path(None, ref p @ syn::Path { .. }) => {
+            syn::Type::Path(syn::TypePath { qself: None, path: ref p @ syn::Path { .. } }) => {
 
                 if let Ok(g) = match_type_grab_generics(&p, "InitialState") {
                     if let Some(t) = g.get(1) {
@@ -209,7 +216,7 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
         let mut g = ast.generics.clone();
         let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
-        let fsm_ty = syn::parse_type(&format!("{} {}", fsm_name, syn_to_string(&ty_generics))).unwrap();
+        let fsm_ty: syn::Type = syn::parse_str(&format!("{} {}", fsm_name, syn_to_string(&ty_generics))).unwrap();
 
         let all_fsm_types = {
             let mut f = vec![syn_to_string(&fsm_ty)];
@@ -217,21 +224,37 @@ pub fn parse_description(ast: &syn::MacroInput) -> FsmDescription {
             f
         };
         
-        g.ty_params.push(TyParam {
+        g.params.push(TypeParam {
             attrs: vec![],
             ident: "FI".into(),
-            bounds: all_fsm_types.iter().map(|t| {
-                syn::parse_ty_param_bound(&format!("FsmInspect<{}>", t)).unwrap()
-            }).collect(),
-            default: None
-        });
+            bounds: {
+                let mut p = syn::punctuated::Punctuated::new();
+                for t in all_fsm_types.iter().map(|t| {
+                    let t = syn::parse_str(&format!("FsmInspect<{}>", t)).unwrap();
+                    t
+                })
+                {
+                    p.push(t);
+                }
+                p
+            },
+            default: None,
+            colon_token: Default::default(),
+            eq_token: Default::default()
+        }.into());
 
-        g.ty_params.push(TyParam {
+        g.params.push(TypeParam {
             attrs: vec![],
             ident: "FT".into(),
-            bounds: vec![syn::parse_ty_param_bound(&"FsmTimers").unwrap()],
-            default: None
-        });
+            bounds: {
+                let mut p = syn::punctuated::Punctuated::new();
+                p.push(syn::parse_str(&"FsmTimers").unwrap());
+                p
+            },
+            default: None,
+            colon_token: Default::default(),
+            eq_token: Default::default()
+        }.into());
 
         //panic!("b: {:#?}", b);
         //panic!("g: {:#?}", g);

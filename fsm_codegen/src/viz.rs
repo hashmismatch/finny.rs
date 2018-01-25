@@ -48,12 +48,12 @@ pub fn build_viz(fsm: &FsmDescription) -> quote::Tokens {
             writeln!(out, "// submachine {} end", s);
             
             {
-                let sub_viz = syn::parse_type(&format!("{}Viz", s)).unwrap();
+                let sub_viz = syn::Ident::from(format!("{}Viz", s));
                 let a = format!("// ##SUB_{}##", s);
                 let p = format!("fsm_{}", fsm.name);
-                subs.append(quote! {
+                subs.append_all(quote! {
                     let t = t.replace(#a, &#sub_viz::viz_cytoscape_fsm(#p));
-                }.as_str());
+                });
             }
         }
 

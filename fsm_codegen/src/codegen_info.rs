@@ -15,7 +15,7 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
         let mut states = vec![];
         let mut state_types = vec![];
         for state in &region.get_all_internal_states() {
-            let state_name: syn::Lit = syn_to_string(&state).into();
+            let state_name = &state;
             let is_initial_state = state == &region.initial_state_ty;
             let is_interrupt_state = region.interrupt_states.iter().any(|x| &x.interrupt_state_ty == state);
 
@@ -39,7 +39,7 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             let event = syn_to_string(&transition.event);
             let action = syn_to_string(&transition.action);
             let guard = transition.guard.clone().map(|g| syn_to_string(&g)).unwrap_or("".to_string());
-            let transition_type: syn::Path = syn::parse_path(match transition.transition_type {
+            let transition_type: syn::Path = syn::parse_str(match transition.transition_type {
                 TransitionType::Normal => "FsmInfoTransitionType::Normal",
                 TransitionType::SelfTransition => "FsmInfoTransitionType::SelfTransition",
                 TransitionType::Internal => "FsmInfoTransitionType::Internal"
@@ -77,8 +77,8 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             });
         }
         
-        let region_name: syn::Lit = region.id.to_string().into();
-        let initial_state: syn::Lit = syn_to_string(&region.initial_state_ty).into();
+        let region_name: syn::Lit = syn::parse_str(&region.id.to_string()).unwrap();
+        let initial_state = &region.initial_state_ty;
 
         regions.push(quote! {
             FsmInfoRegion {

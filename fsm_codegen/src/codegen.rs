@@ -14,20 +14,20 @@ pub fn build_state_store(fsm: &FsmDescription) -> quote::Tokens {
     let states_ty = fsm.get_states_ty();
     let states_store_ty = fsm.get_states_store_ty();
 
-    let mut retr = quote::Tokens::new();
+    let mut retr = quote! {};
 
-    let mut f = quote::Tokens::new();
-    let mut n = quote::Tokens::new();
+    let mut f = quote! {};
+    let mut n = quote! {};
     for state in &fsm.get_all_states() {
         if fsm.is_submachine(&state) {
             continue;
         }
 
         let field_name = FsmDescription::to_state_field_name(&state);
-        f.append(quote! { #field_name: #state,  }.as_str());
-        n.append(quote! { #field_name: #state::new_state(context), }.as_str());
+        f.append_all(quote! { #field_name: #state,  });
+        n.append_all(quote! { #field_name: #state::new_state(context), });
 
-        retr.append(quote! {
+        retr.append_all(quote! {
             impl #impl_suffix FsmRetrieveState<#state> for #fsm_name {
                 fn get_state(&self) -> &#state {
                     &self.states.#field_name
@@ -47,7 +47,7 @@ pub fn build_state_store(fsm: &FsmDescription) -> quote::Tokens {
                     &mut self.#field_name
                 }
             }
-        }.as_str());
+        });
     }
 
     let fsm_runtime_ty_inline = fsm.get_fsm_runtime_ty_inline();
@@ -56,15 +56,15 @@ pub fn build_state_store(fsm: &FsmDescription) -> quote::Tokens {
     for sub in fsm.get_submachine_types() {
         {
             let field_name = FsmDescription::to_state_sub_started_field_name(sub);
-            f.append(quote! { #field_name: bool, }.as_str());
-            n.append(quote! { #field_name: false, }.as_str());
+            f.append_all(quote! { #field_name: bool, });
+            n.append_all(quote! { #field_name: false, });
         }
 
         {
             let field_name = format!("fsm_sub_{}", syn_to_string(&sub).to_lowercase());
-            let field_name = syn::parse_type(&field_name).unwrap();
+            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
 
-            retr.append(quote! {
+            retr.append_all(quote! {
                 impl #runtime_impl_generics FsmRetrieveState<#sub> for #fsm_runtime_ty_inline #runtime_ty_generics #runtime_where_clause {
                     fn get_state(&self) -> &#sub {
                         &self.#field_name.fsm
@@ -118,9 +118,9 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
     let mut event_traits = quote::Tokens::new();
     let mut event_kinds = quote! {};
     {
-        let events ={
+        let events = {
             let mut events = fsm.get_all_events();
-            let ty = syn::parse_type("NoEvent").unwrap();
+            let ty = syn::parse_str("NoEvent").unwrap();
             if !events.contains(&ty) {
                 events.push(ty);
             }
@@ -128,13 +128,13 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
         };
 
         for event in events {
-            event_kinds.append(quote! { #event, } );
-            events_types.append(quote! { #event(#event), });
-            events_ref_types.append(quote! {
+            event_kinds.append_all(quote! { #event, } );
+            events_types.append_all(quote! { #event(#event), });
+            events_ref_types.append_all(quote! {
                 #event(&'a #event),
             });
 
-            event_traits.append(quote! {
+            event_traits.append_all(quote! {
                 impl From<#event> for #events_ty {
                     fn from(ev: #event) -> Self {
                         #events_ty::#event(ev)
@@ -146,20 +146,20 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
                         #events_ref_ty::#event(ev)
                     }
                 }
-            }.as_str());
+            });
         }
     }
 
     let mut derive_events = quote::Tokens::new();
     if fsm.copyable_events {
-        derive_events.append("#[derive(Copy, Clone)]");
+        derive_events.append_all(quote! { #[derive(Copy, Clone)] });
     }
 
     // states
     let mut state_types = quote::Tokens::new();
 
     for state in &fsm.get_all_states() {
-        state_types.append(quote! { #state, }.as_str());
+        state_types.append_all(quote! { #state, });
     }
     
     quote! {
@@ -200,7 +200,7 @@ pub fn build_enums(fsm: &FsmDescription) -> quote::Tokens {
     }
 }
 
-pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Ty) -> Tokens {
+pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Type) -> Tokens {
     let mut q = quote!{};
 
     let state_field = fsm.to_state_field_access(&state);
@@ -208,7 +208,7 @@ pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Ty) -
     let start_timeout_timers = fsm.timeout_timers.iter().filter(|t| &t.state == state);
     for timer in start_timeout_timers {
         let n = timer.id as usize;
-        q.append(quote! {
+        q.append_all(quote! {
             if self.timeout_timers[#n].is_some() {
                 panic!("This timer wasn't properly disposed!");
             }
@@ -223,13 +223,13 @@ pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Ty) -
     q
 }
 
-pub fn build_state_timeout_timers_exit(fsm: &FsmDescription, state: &syn::Ty) -> Tokens {
+pub fn build_state_timeout_timers_exit(fsm: &FsmDescription, state: &syn::Type) -> Tokens {
     let mut q = quote!{};
 
     let stop_timeout_timers = fsm.timeout_timers.iter().filter(|t| &t.state == state);
     for timer in stop_timeout_timers {
         let n = timer.id as usize;
-        q.append(quote! {
+        q.append_all(quote! {
             if let Some(mut timer) = self.timeout_timers[#n].take() {
                 if timer.cancel_on_state_exit {
                     // this timer hasn't timed out. announce its cancellation to the outside API
@@ -242,7 +242,7 @@ pub fn build_state_timeout_timers_exit(fsm: &FsmDescription, state: &syn::Ty) ->
     q
 }
 
-pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> quote::Tokens {
+pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) -> quote::Tokens {
 
     let fsm_ty = fsm.get_fsm_ty();
     let fsm_ty_inline = fsm.get_fsm_ty_inline();
@@ -370,8 +370,8 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> q
                     state_entry = quote! {};
                 } else {
                     // is there a timeout timer for this state?
-                    state_entry.append(build_state_timeout_timers_entry(fsm, target_state));
-                    state_exit.append(build_state_timeout_timers_exit(fsm, state));
+                    state_entry.append_all(build_state_timeout_timers_entry(fsm, target_state));
+                    state_exit.append_all(build_state_timeout_timers_exit(fsm, state));
                 }
 
                 let guard = if let Some(ref guard_ty) = transition.guard {
@@ -383,9 +383,8 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> q
                 };
 
                 let state_set = if fsm.has_multiple_regions() { 
-                    let mut q = quote! { self.fsm.state. };
-                    q.append(&region.id.to_string());
-                    q
+                    let s = syn::Ident::from(region.id.to_string());
+                    quote! { self.fsm.state.#s }
                 } else {
                     quote! { self.fsm.state }
                 };
@@ -418,24 +417,26 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> q
                     },
                 };
                 
-                tq.append(s);
+                tq.append_all(s);
             }
 
-            q.append(tq);
+            q.append_all(tq);
         }
 
         let (region_state_field, result) = if fsm.has_multiple_regions() { 
             let mut q = quote! { self.fsm.state. };
-            q.append(&region.id.to_string());
+            let rs = syn::Ident::from(region.id.to_string());
+            q.append_all(quote! { #rs });
 
             let mut r = quote::Tokens::new();
-            r.append(&format!("r{}", region.id));
+            let rf = syn::Ident::from(format!("r{}", region.id));
+            r.append_all(quote! { #rf });
             (q, r)            
         } else {
             (quote! { self.fsm.state }, quote! { res })
         };
 
-        event_dispatch.append(quote! {
+        event_dispatch.append_all(quote! {
 
             let #result = {
                 let event_ref: #events_ref_ty = (&event).into();
@@ -464,25 +465,25 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> q
 
             let whitelisted_event = interrupted_state.resume_event_ty.contains(event);            
             if whitelisted_event {
-                m.append(quote! {
+                m.append_all(quote! {
                     #states_ty::#s_ty => {
                         whitelisted_event = true;
                     },
                 });
             } else {
-                m.append(quote! {
+                m.append_all(quote! {
                     #states_ty::#s_ty => {
                         is_interrupted = true;
                     },
                 });
             }
 
-            interrupted_states.append(quote! {
+            interrupted_states.append_all(quote! {
                 match #region_state_field {
                     #m
                     _ => ()
                 }
-            }.as_str());
+            });
         }
     }
 
@@ -490,16 +491,16 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> q
         let mut res = None;
     };
     if fsm.has_multiple_regions() {                 
-        let mut r = quote::Tokens::new();
-
         for region in &fsm.regions {
-            let mut q = quote! { self.fsm.state. };
-            q.append(&region.id.to_string());
+            //let mut q = quote! { self.fsm.state. };
+            //let reg = syn::Ident::from(region.id.to_string());
+            //let q = q.append_all(quote! { self.fsm.state.#reg });
 
-            r = quote::Tokens::new();
-            r.append(&format!("r{}", region.id));
+            let mut r = quote::Tokens::new();
+            let rf = syn::Ident::from(format!("r{}", region.id));
+            r.append_all(quote! { #rf });
             
-            return_result.append(quote! {
+            return_result.append_all(quote! {
                 if #r == Err(FsmError::NoTransition) {
                     //self.inspection.on_no_transition(&#q, &event_ctx);
                 }
@@ -509,10 +510,10 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Ty) -> q
                 if res.is_none() && !#r.is_ok() && #r != Err(FsmError::NoTransition) {
                     res = Some(#r);
                 }
-            }.as_str());
+            });
         }
 
-        return_result.append(quote! {            
+        return_result.append_all(quote! {            
             let res = res.unwrap_or(Err(FsmError::NoTransition));
         });
     } else {
@@ -591,7 +592,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
         let all_events = fsm.get_all_events();
         for event in all_events {
-            t.append(build_event_state_transitions(fsm, &event));
+            t.append_all(build_event_state_transitions(fsm, &event));
         }
 
         t
@@ -602,7 +603,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
         let all_events = fsm.get_all_events();
         for event in all_events {
-            t.append(quote! {
+            t.append_all(quote! {
                 #events_ty::#event(ev) => {
                     return self.process_event(ev);
                 }
@@ -623,8 +624,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
         let get_current_region_state = fsm.get_current_region_state(region.id);
         let region_id = region.id;
 
-        start.append("{");
-        start.append(quote! {                        
+        let mut s = quote! {                        
             let mut event_ctx = EventContext {
                 queue: &mut self.queue,
                 context: &mut self.fsm.context,
@@ -633,34 +633,37 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             self.fsm.states.#initial_state_field.on_entry(&mut event_ctx);
             let current_region_state = self.fsm.state #get_current_region_state;
             self.inspection.on_state_entry(TransitionId::Start, &current_region_state, &self.fsm.states.#initial_state_field, &event_ctx);
+        };
+
+        s.append_all(build_state_timeout_timers_entry(fsm, initial_state));
+
+        start.append_all(quote! {
+            {
+                #s
+            }
         });
-
-        start.append(build_state_timeout_timers_entry(fsm, initial_state));
-
-        start.append("}");
     }
 
-    start.append(quote! {
+    start.append_all(quote! {
         self.process_tagged_event(no);
         self.process_anonymous_transitions();
         if self.execute_queue_post {
             self.execute_queued_events();
         }
-    }.as_str());
+    });
 
     
 
     let mut stop = quote! {};
     if fsm.has_multiple_regions() {
-        stop.append(quote!{
+        stop.append_all(quote!{
             let s = self.fsm.get_current_state();
-        }.as_str());
+        });
         for region in &fsm.regions {
-            let mut q = Tokens::new();
-            q.append(&format!("s.{}", region.id));
-            stop.append(quote! {
-                self.call_on_exit(#q);
-            }.as_str());
+            let region_id = region.id as usize;
+            stop.append_all(quote! {
+                self.call_on_exit(s.#region_id);
+            });
         }        
     } else {        
         stop = quote! {
@@ -701,7 +704,9 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
                 {
                     let mut str_to_js = |key: &str, val: &str| {
                         let b: Vec<_> = val.bytes().map(|x| x.to_string()).collect();
-                        q.append(&format!("\n/// var {} = String.fromCharCode({}); \n", key, b.connect(", ")));
+                        let l = format!("\n/// var {} = String.fromCharCode({}); \n", key, b.join(", "));
+                        //let t: syn::Attribute = syn::parse_str(&l).unwrap();
+                        //q.append_all(t);
                     };
 
                     str_to_js("viz_js", js_file);
@@ -754,14 +759,20 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
     let runtime_struct_where_clause = {
         use syn::*;
 
-        let mut w1 = runtime_where_clause.clone();
+        let mut w1 = runtime_where_clause.cloned().unwrap_or(syn::WhereClause {
+            where_token: Default::default(),
+            predicates: syn::punctuated::Punctuated::new()
+        });
 
-        for ty_param in &fsm.runtime_generics.ty_params {
-            w1.predicates.push(WherePredicate::BoundPredicate(WhereBoundPredicate {
-                bound_lifetimes: vec![],
-                bounded_ty: parse_type(&syn_to_string(&ty_param.ident)).unwrap(),
-                bounds: ty_param.bounds.clone()
-            }));
+        for ty_param in &fsm.runtime_generics.params {
+            if let &GenericParam::Type(ref ty_param) = ty_param {
+                w1.predicates.push(WherePredicate::Type(PredicateType {
+                    lifetimes: None,
+                    bounded_ty: parse_str(&syn_to_string(&ty_param.ident)).unwrap(),
+                    bounds: ty_param.bounds.clone(),
+                    colon_token: Default::default()
+                }));
+            }
         }
         
 
@@ -775,21 +786,21 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
         for sub in fsm.get_submachine_types() {
             let field_name = format!("fsm_sub_{}", syn_to_string(&sub).to_lowercase());
-            let field_name = syn::parse_type(&field_name).unwrap();
+            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
 
-            let sub_runtime_type = {
+            let sub_runtime_type: syn::Type = {
                 // FI: FsmInspection, FT: FsmTimers
                 let n = format!("{}Runtime < FI, FT >", syn_to_string(&sub));
-                syn::parse_type(&n).unwrap()
+                syn::parse_str(&n).unwrap()
             };
 
-            q.append(quote! {
+            q.append_all(quote! {
                 #field_name: #sub_runtime_type,
             });
 
-            let sub_runtime_type = {
+            let sub_runtime_type: syn::Type = {
                 let n = format!("{}", syn_to_string(&sub));
-                syn::parse_type(&n).unwrap()
+                syn::parse_str(&n).unwrap()
             };
 
             fsm_sub_inits.push(quote! {
@@ -804,7 +815,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
         if fsm.timeout_timers.len() > 0 {
             let l = fsm.timeout_timers.len();
-            q.append(quote! {
+            q.append_all(quote! {
                 timeout_timers: [Option<TimerSettings>; #l ],
             });
         }
@@ -814,15 +825,15 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
     let new_runtime_fsm_null = {
         let g = fsm.get_fsm_runtime_generics(&[
-            ("FI", &syn::parse_type(&"FsmInspectNull").unwrap()),
-            ("FT", &syn::parse_type(&"FsmTimersNull").unwrap())
+            ("FI", &syn::parse_str(&"FsmInspectNull").unwrap()),
+            ("FT", &syn::parse_str(&"FsmTimersNull").unwrap())
         ]);
 
         
         let fsm_sub_inits = {
             let mut q = quote!{};
-            for f in &fsm_sub_inits {
-                q.append(f);
+            for f in fsm_sub_inits {
+                q.append_all(f);
             }
             q
         };
@@ -831,7 +842,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             let mut q = quote!{};
 
             if fsm.timeout_timers.len() > 0 {
-                q.append(quote! {
+                q.append_all(quote! {
                     timeout_timers: Default::default(),
                 });
             }
@@ -905,11 +916,11 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
         for sub in fsm.get_submachine_types() {
             let field_name = format!("fsm_sub_{}", syn_to_string(&sub).to_lowercase());
-            let field_name = syn::parse_type(&field_name).unwrap();
+            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
 
-            let ev = syn::parse_type(&format!("{}Events", syn_to_string(&sub))).unwrap();
+            let ev: syn::Type = syn::parse_str(&format!("{}Events", syn_to_string(&sub))).unwrap();
 
-            q.append(quote! {
+            q.append_all(quote! {
                 impl #runtime_impl_generics FsmProcessor<#fsm_ty, #ev> for #fsm_runtime_ty_inline #runtime_ty_generics #runtime_where_clause {
                     fn process_event(&mut self, event: PlayingEvents) -> Result<(), FsmError> {
                         self.#field_name.process_tagged_event(event)
@@ -928,7 +939,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             let id = timer.id as u32;
             let event = &timer.event_on_timeout;
 
-            timer_timeouts.append(quote! {
+            timer_timeouts.append_all(quote! {
                 #id => {
                     let timer = self.timeout_timers[#id as usize].take();
 
@@ -1110,7 +1121,6 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
 pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
     
-    //let fsm_ty = fsm.get_fsm_ty();
     let events_ty = fsm.get_events_ty();
     let events_ref_ty = fsm.get_events_ref_ty();
     let states_ty = fsm.get_states_ty();
@@ -1133,7 +1143,7 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
                 };
             };
 
-            on_entry.append(quote!{
+            on_entry.append_all(quote!{
                 #states_ty::#state => {
                     #event_ctx
                     self.fsm.states.#f.on_entry(&mut event_ctx);
@@ -1141,7 +1151,7 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
                 },
             });
 
-            on_exit.append(quote!{
+            on_exit.append_all(quote!{
                 #states_ty::#state => {
                     #event_ctx
                     self.fsm.states.#f.on_exit(&mut event_ctx);

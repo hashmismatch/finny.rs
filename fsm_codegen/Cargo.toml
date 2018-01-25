@@ -9,13 +9,13 @@ viz = []
 viz_docs = []
 
 [dependencies]
-quote = "^0.3.10"
+quote = "^0.4"
 itertools = "0.5.8"
 petgraph = "0.4.3"
 
 [dependencies.syn]
-version = "^0.11.11"
-features = ["full", "parsing", "printing"]
+version = "^0.12"
+features = ["full", "parsing", "printing", "extra-traits"]
 
 [dependencies.fsm]
 path = "../"
