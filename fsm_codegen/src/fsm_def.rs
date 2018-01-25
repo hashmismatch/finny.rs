@@ -150,7 +150,7 @@ impl FsmDescription {
 
     pub fn get_current_region_state(&self, region_id: RegionId) -> quote::Tokens {
         if self.has_multiple_regions() {
-            let region_id = region_id as usize;
+            let region_id = syn::Index::from(region_id as usize);
             quote! { .#region_id }
         } else {
             quote! {}

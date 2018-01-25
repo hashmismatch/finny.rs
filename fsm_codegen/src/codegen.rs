@@ -383,7 +383,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
                 };
 
                 let state_set = if fsm.has_multiple_regions() { 
-                    let s = syn::Ident::from(region.id.to_string());
+                    let s = syn::Index::from(region.id);
                     quote! { self.fsm.state.#s }
                 } else {
                     quote! { self.fsm.state }
@@ -424,9 +424,8 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
         }
 
         let (region_state_field, result) = if fsm.has_multiple_regions() { 
-            let mut q = quote! { self.fsm.state. };
-            let rs = syn::Ident::from(region.id.to_string());
-            q.append_all(quote! { #rs });
+            let s = syn::Index::from(region.id);
+            let q = quote! { self.fsm.state.#s };
 
             let mut r = quote::Tokens::new();
             let rf = syn::Ident::from(format!("r{}", region.id));
@@ -660,7 +659,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             let s = self.fsm.get_current_state();
         });
         for region in &fsm.regions {
-            let region_id = region.id as usize;
+            let region_id = syn::Index::from(region.id as usize);
             stop.append_all(quote! {
                 self.call_on_exit(s.#region_id);
             });

@@ -65,7 +65,9 @@ pub fn derive_fsm(input: TokenStream) -> TokenStream {
     //let q = q.to_string().parse().unwrap();    
     //q
 
-    q.to_string().parse().unwrap()
+    q.into()
+
+    //q.to_string().parse().unwrap()
 
     //quote!(#fsm).to_string().parse().unwrap()        
 }

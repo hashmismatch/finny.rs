@@ -15,7 +15,7 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
         let mut states = vec![];
         let mut state_types = vec![];
         for state in &region.get_all_internal_states() {
-            let state_name = &state;
+            let state_name = syn::LitStr::new(&syn_to_string(state), ::quote::__rt::Span::def_site());
             let is_initial_state = state == &region.initial_state_ty;
             let is_interrupt_state = region.interrupt_states.iter().any(|x| &x.interrupt_state_ty == state);
 
@@ -77,8 +77,8 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             });
         }
         
-        let region_name: syn::Lit = syn::parse_str(&region.id.to_string()).unwrap();
-        let initial_state = &region.initial_state_ty;
+        let region_name: syn::LitStr = syn::LitStr::new(&region.id.to_string(), ::quote::__rt::Span::def_site());
+        let initial_state = syn::LitStr::new(&syn_to_string(&region.initial_state_ty), ::quote::__rt::Span::def_site());
 
         regions.push(quote! {
             FsmInfoRegion {
