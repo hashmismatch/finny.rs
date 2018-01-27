@@ -19,11 +19,18 @@ pub struct FsmDescription {
 
     pub regions: Vec<FsmRegion>,
     pub context_ty: syn::Type,
+    pub inline_states: Vec<FsmInlineState>,
 
     pub timeout_timers: Vec<FsmTimeoutTimer>,
 
     pub copyable_events: bool
 }
+
+#[derive(Debug, Clone)]
+pub struct FsmInlineState {
+    pub ty: syn::Type
+}
+
 
 #[derive(Debug, Clone)]
 pub struct FsmTimeoutTimer {

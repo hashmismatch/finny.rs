@@ -435,3 +435,67 @@ pub enum FsmInfoTransitionType {
     SelfTransition,
     Internal
 }
+
+
+
+
+
+
+
+
+
+
+
+
+//// fsm fn decl style
+pub struct FsmDecl;
+
+impl FsmDecl {
+	pub fn new_fsm<F>() -> FsmDecl2<F> where F: Fsm {
+		FsmDecl2 {
+			fsm_ty: PhantomData::default()
+		}
+	}
+}
+
+pub struct FsmDecl2<F> {
+	fsm_ty: PhantomData<F>
+}
+
+impl<F> FsmDecl2<F> where F: Fsm {
+	pub fn initial_state<InitialState>(&self) -> FsmDeclComplete<F, InitialState> where InitialState: FsmState<F> {
+		FsmDeclComplete {
+			fsm_ty: PhantomData::default(),
+			initial_state: PhantomData::default()
+		}
+	}
+}
+
+pub struct FsmDeclComplete<F, InitialState> {
+	fsm_ty: PhantomData<F>,
+	initial_state: PhantomData<InitialState>
+}
+
+impl<F, InitialState> FsmDeclComplete<F, InitialState> where F: Fsm, InitialState: FsmState<F> {
+	pub fn new_unit_state<S>(&self) -> FsmDeclState<F, S> where S: FsmState<F> {
+		FsmDeclState {
+			fsm_ty: PhantomData::default(),
+			state_ty: PhantomData::default()
+		}
+	}
+}
+
+pub struct FsmDeclState<F, S> {
+	fsm_ty: PhantomData<F>,
+	state_ty: PhantomData<S>
+}
+
+impl<F, S> FsmDeclState<F, S> {
+	pub fn on_entry<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) {
+
+	}
+
+	pub fn on_exit<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) {
+
+	}
+}

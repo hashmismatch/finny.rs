@@ -1178,3 +1178,21 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
         }
     }
 }
+
+
+
+pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
+    let mut q = quote! {};
+
+    for state in &fsm.inline_states {
+        let fsm_ty = &fsm.name_ident;
+        let state_ty = &state.ty;
+        q.append_all(quote! {
+            #[derive(Clone, PartialEq, Default, Debug, Serialize)]
+            pub struct #state_ty;
+            impl FsmState<#fsm_ty> for #state_ty { }
+        });
+    }
+
+    q
+}

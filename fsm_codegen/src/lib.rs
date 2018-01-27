@@ -27,11 +27,13 @@ mod codegen;
 mod codegen_info;
 mod fsm_def;
 mod parse;
+mod parse_fn;
 mod viz;
 mod graph;
 
 use codegen::*;
 use parse::*;
+use parse_fn::*;
 use fsm_def::*;
 use viz::*;
 
@@ -74,7 +76,30 @@ pub fn derive_fsm(input: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
-    panic!("todo");
+    let fn_body: syn::ItemFn = syn::parse(item).unwrap();
+    
+
+    let desc = parse_definition_fn(&fn_body);
+    
+    let inline_states = build_inline_states(&desc);
+    let enums = build_enums(&desc);    
+    let main = build_main_struct(&desc);
+    let state_store = build_state_store(&desc);
+
+    let viz_test = build_test_viz_build(&desc);
+
+    let q = quote! {        
+        #inline_states
+        #enums
+        #state_store
+        #main
+
+        #viz_test
+    };
+
+
+    q.into()
+
     /*
     //panic!("attr: {:?}", attr);
     let ast = syn::parse_token_trees(&item.to_string()).unwrap();
