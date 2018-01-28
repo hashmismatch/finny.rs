@@ -4,15 +4,16 @@ extern crate syn;
 use fsm_def::*;
 use graph::*;
 
+use parse_fn_visitors::extract_method_generic_ty;
 
 use syn::visit::*;
 
 #[derive(Debug, Clone)]
-struct LetFsmDeclaration {
-    fsm_let_ident: syn::Ident,
-    fsm_ty: syn::Type,
-    fsm_ctx_ty: syn::Type,
-    fsm_initial_state_ty: syn::Type
+pub struct LetFsmDeclaration {
+    pub fsm_let_ident: syn::Ident,
+    pub fsm_ty: syn::Type,
+    pub fsm_ctx_ty: syn::Type,
+    pub fsm_initial_state_ty: syn::Type
 }
 
 fn let_fsm_local(fn_body: &syn::ItemFn) -> LetFsmDeclaration {
@@ -272,6 +273,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
 
     let inline_states = find_inline_states(fn_body, &fsm_decl);
+    let mut inline_actions = vec![];
 
     //let mut inline_states = vec![];
 
@@ -280,6 +282,71 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
         ty: syn::parse_str("StaticA").unwrap()
     });
     */
+
+    {        
+        let method_calls = ::parse_fn_visitors::find_fsm_method_calls(fn_body, &fsm_decl);        
+        for st in &method_calls {
+            //panic!("calls: {:#?}", st.calls.iter().map(|m| m.method).collect::<Vec<_>>());
+
+            if let Some(first) = st.calls.get(0) {                
+                if first.method.as_ref() == "on_event" {
+                    let event_ty = extract_method_generic_ty(first);
+                    let mut transition_from = None;
+                    let mut transition_to = None;
+                    let mut action = None;
+
+                    for call in &st.calls[1..] {
+                        match call.method.as_ref() {
+                            "transition_from" => {
+                                transition_from = Some(extract_method_generic_ty(&call));
+                            },
+                            "to" => {
+                                transition_to = Some(extract_method_generic_ty(&call));
+                            },
+                            "action" => {
+                                let transition_action_name = format!("{}{}{}Action",
+                                    syn_to_string(&event_ty),
+                                    syn_to_string(&transition_from.clone().unwrap()),
+                                    syn_to_string(&transition_to.clone().unwrap())
+                                );
+                                
+                                let action_closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure?");
+                                };
+
+                                let ty: syn::Type = syn::parse_str(&transition_action_name).unwrap();
+                                action = Some(ty.clone());
+
+                                inline_actions.push(FsmInlineAction {
+                                    ty: ty,
+                                    action_closure: Some(action_closure),
+                                    transition_id: transition_id
+                                });
+                            },
+                            &_ => { }
+                        }
+                    }
+
+                    let entry = TransitionEntry {
+                        id: transition_id,
+                        source_state: transition_from.expect("Missing source state?"),
+                        event: event_ty,
+                        target_state: transition_to.expect("Missing target state?"),
+                        action: action.unwrap_or(syn::parse_str("NoAction").unwrap()),
+                        transition_type: TransitionType::Normal,
+                        guard: None
+                    };
+
+                    transitions.push(entry);
+
+                    transition_id += 1;
+                }
+            }
+        }
+
+    }
 
 
 
@@ -356,7 +423,8 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
         timeout_timers: timeout_timers,
 
-        inline_states: inline_states,        
+        inline_states: inline_states,
+        inline_actions: inline_actions,
 
         submachines: submachines,
         shallow_history_events: shallow_history_events,

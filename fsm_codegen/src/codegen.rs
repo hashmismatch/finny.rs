@@ -1179,7 +1179,25 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
     }
 }
 
+pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>, p: &[quote::Tokens]) -> quote::Tokens {
+    let input_remap: Vec<_> = inputs.iter().enumerate().map(|(idx, input)| {
+        match *input {
+            syn::FnArg::Inferred(ref pat) => {
+                let arg = pat;
+                if let Some(rep) = p.get(idx) {
+                    quote! { let #arg = #rep; }
+                } else {
+                    panic!("unsupported number of args");
+                }
+            },
+            _ => { panic!("unsupported closure arg"); }
+        }
+    }).collect();
 
+    quote! {
+        #(#input_remap)*
+    }
+}
 
 pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
     let mut q = quote! {};
@@ -1191,26 +1209,35 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
 
         let mut impls = quote! {};
         if let Some(ref on_entry) = state.on_entry_closure {
-
-            let input_remap: Vec<_> = on_entry.inputs.iter().enumerate().map(|(idx, input)| {
-                match *input {
-                    syn::FnArg::Inferred(ref pat) => {
-                        let arg = pat;
-                        match idx {
-                            0 => quote! { let #arg = self; },
-                            1 => quote! { let #arg = event_context; },
-                            _ => { panic!("unsupported number of args"); }
-                        }
-                    },
-                    _ => { panic!("unsupported closure arg"); }
-                }
-            }).collect();
+            let remap = remap_closure_inputs(&on_entry.inputs, &vec![
+                quote! { self },
+                quote! { event_context }
+            ]);
 
             let body = &on_entry.body;
             let fsm_ty = &fsm.fsm_ty;
             impls.append_all(quote! {
                 fn on_entry(&mut self, event_context: &mut EventContext<#fsm_ty>) {
-                    #(#input_remap)*
+                    #(#remap)*
+
+                    {
+                        #body
+                    }
+                }
+            });
+        }
+
+        if let Some(ref on_exit) = state.on_exit_closure {
+            let remap = remap_closure_inputs(&on_exit.inputs, &vec![
+                quote! { self },
+                quote! { event_context }
+            ]);
+
+            let body = &on_exit.body;
+            let fsm_ty = &fsm.fsm_ty;
+            impls.append_all(quote! {
+                fn on_exit(&mut self, event_context: &mut EventContext<#fsm_ty>) {
+                    #(#remap)*
 
                     {
                         #body
@@ -1227,6 +1254,44 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
                 #impls
             }
         });
+    }
+
+    q
+}
+
+pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
+    let mut q = quote! {};
+
+    for action in &fsm.inline_actions {
+        let fsm_ty = &fsm.name_ident;
+        let action_ty = &action.ty;
+
+        let transition = fsm.find_transition(action.transition_id).unwrap();
+        let from = &transition.source_state;
+        let event = &transition.event;
+        let to = &transition.target_state;
+
+        if let Some(ref c) = action.action_closure {
+            let body = &c.body;
+            let remap = remap_closure_inputs(&c.inputs, &vec![
+                quote! { event },
+                quote! { event_context },
+                quote! { source_state },
+                quote! { target_state }
+            ]);
+            
+            q.append_all(quote! {
+                pub struct #action_ty;
+                impl FsmAction<#fsm_ty, #from, #event, #to> for #action_ty {
+                    fn action(event: &#event, event_context: &mut EventContext<#fsm_ty>, source_state: &mut #from, target_state: &mut #to) {                        
+                        #remap
+                        {
+                            #body
+                        }
+                    }
+                }
+            });
+        }
     }
 
     q

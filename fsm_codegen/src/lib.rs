@@ -28,6 +28,7 @@ mod codegen_info;
 mod fsm_def;
 mod parse;
 mod parse_fn;
+mod parse_fn_visitors;
 mod viz;
 mod graph;
 
@@ -82,6 +83,7 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     let desc = parse_definition_fn(&fn_body);
     
     let inline_states = build_inline_states(&desc);
+    let inline_actions = build_inline_actions(&desc);
     let enums = build_enums(&desc);    
     let main = build_main_struct(&desc);
     let state_store = build_state_store(&desc);
@@ -90,6 +92,7 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let q = quote! {        
         #inline_states
+        #inline_actions
         #enums
         #state_store
         #main

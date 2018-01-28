@@ -21,6 +21,7 @@ pub struct FsmDescription {
     pub regions: Vec<FsmRegion>,
     pub context_ty: syn::Type,
     pub inline_states: Vec<FsmInlineState>,
+    pub inline_actions: Vec<FsmInlineAction>,
 
     pub timeout_timers: Vec<FsmTimeoutTimer>,
 
@@ -32,6 +33,13 @@ pub struct FsmInlineState {
     pub ty: syn::Type,
     pub on_entry_closure: Option<syn::ExprClosure>,
     pub on_exit_closure: Option<syn::ExprClosure>
+}
+
+#[derive(Debug, Clone)]
+pub struct FsmInlineAction {
+    pub ty: syn::Type,
+    pub action_closure: Option<syn::ExprClosure>,
+    pub transition_id: u32
 }
 
 
@@ -312,6 +320,16 @@ impl FsmDescription {
 
     pub fn has_timers(&self) -> bool {
         self.timeout_timers.len() > 0
+    }
+
+    pub fn find_transition(&self, transition_id: u32) -> Option<&TransitionEntry> {
+        for region in &self.regions {
+            if let Some(t) = region.transitions.iter().find(|t| t.id == transition_id) {
+                return Some(t);
+            }
+        }
+
+        None
     }
 }
 

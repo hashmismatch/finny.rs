@@ -494,6 +494,59 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 			state_ty: PhantomData::default()
 		}
 	}
+
+	pub fn on_event<E>(&self) -> FsmDeclOnEvent<F, E> where E: FsmEvent {
+		FsmDeclOnEvent {
+			fsm_ty: PhantomData::default(),
+			event_ty: PhantomData::default()
+		}
+	}
+}
+
+pub struct FsmDeclOnEvent<F, E> {
+	fsm_ty: PhantomData<F>,
+	event_ty: PhantomData<E>
+}
+
+impl<F, E> FsmDeclOnEvent<F, E> {
+	pub fn transition_from<StateFrom>(&self) -> FsmlDeclTransitionFrom<F, E, StateFrom> where F: Fsm, E: FsmEvent, StateFrom: FsmState<F> {
+		FsmlDeclTransitionFrom {
+			fsm_ty: PhantomData::default(),
+			event_ty: PhantomData::default(),
+			state_from: PhantomData::default()
+		}
+	}
+}
+
+pub struct FsmlDeclTransitionFrom<F, E, StateFrom> {
+	fsm_ty: PhantomData<F>,
+	event_ty: PhantomData<E>,
+	state_from: PhantomData<StateFrom>
+}
+
+impl<F, E, StateFrom> FsmlDeclTransitionFrom<F, E, StateFrom> where F: Fsm, E: FsmEvent, StateFrom: FsmState<F> {
+	pub fn to<StateTo>(&self) -> FsmDeclTransition<F, E, StateFrom, StateTo> where StateTo: FsmState<F> {
+		FsmDeclTransition {
+			fsm_ty: PhantomData::default(),
+			event_ty: PhantomData::default(),
+			state_from: PhantomData::default(),
+			state_to: PhantomData::default()
+		}
+	}
+}
+
+pub struct FsmDeclTransition<F, E, StateFrom, StateTo> {
+	fsm_ty: PhantomData<F>,
+	event_ty: PhantomData<E>,
+	state_from: PhantomData<StateFrom>,
+	state_to: PhantomData<StateTo>
+}
+
+impl<F, E, StateFrom, StateTo> FsmDeclTransition<F, E, StateFrom, StateTo> {
+	// fn action(event: &E, event_context: &mut EventContext<F>, source_state: &mut S, target_state: &mut T);
+	pub fn action<FnAction: Fn(&E, &mut EventContext<F>, &mut StateFrom, &mut StateTo)>(&self, action: FnAction) -> &Self {
+		self
+	}
 }
 
 pub struct FsmDeclState<F, S> {
@@ -503,7 +556,7 @@ pub struct FsmDeclState<F, S> {
 
 impl<F, S> FsmDeclState<F, S> {
 	pub fn on_entry<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) {
-
+		
 	}
 
 	pub fn on_exit<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) {

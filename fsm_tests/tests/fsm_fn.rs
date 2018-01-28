@@ -16,8 +16,11 @@ use fsm_codegen::fsm_fn;
 #[derive(Debug, Default, Serialize)]
 pub struct FsmFnCtx {
     entry: usize,
-    exit: usize
+    exit: usize,
+    action: usize
 }
+
+fsm_event_unit!(EventA);
 
 #[fsm_fn]
 fn create_it() -> () {
@@ -33,9 +36,18 @@ fn create_it() -> () {
         })
         .on_exit(|state, ctx| {
             println!("Exiting state.");
+            ctx.context.exit += 1;
         });
 
     fsm.new_unit_state::<StateB>();
+
+    
+    fsm.on_event::<EventA>()
+       .transition_from::<StateA>()
+       .to::<StateB>()
+       .action(|event, event_ctx, state_a, state_b| {
+           event_ctx.context.action += 1;
+       });
 
     //foo
 }
@@ -46,6 +58,11 @@ fn test_fsm_min1() {
     fsm.start();
     assert_eq!(FsmMinOneStates::StateA, fsm.get_current_state());
     assert_eq!(1, fsm.get_context().entry);
+
+    fsm.process_event(EventA);
+    assert_eq!(FsmMinOneStates::StateB, fsm.get_current_state());
+    assert_eq!(1, fsm.get_context().exit);
+    assert_eq!(1, fsm.get_context().action);
 }
 
 /*
