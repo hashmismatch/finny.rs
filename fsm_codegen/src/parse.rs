@@ -273,8 +273,9 @@ pub fn parse_description(ast: &syn::DeriveInput) -> FsmDescription {
 
 
     FsmDescription {
-        name: fsm_name,
+        name: fsm_name.clone(),
         name_ident: fsm_name_ident,
+        fsm_ty: syn::parse_str(&fsm_name).unwrap(),
         generics: generics,
         runtime_generics: runtime_generics,
 

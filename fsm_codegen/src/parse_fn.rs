@@ -7,10 +7,11 @@ use graph::*;
 
 use syn::visit::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LetFsmDeclaration {
     fsm_let_ident: syn::Ident,
     fsm_ty: syn::Type,
+    fsm_ctx_ty: syn::Type,
     fsm_initial_state_ty: syn::Type
 }
 
@@ -19,6 +20,7 @@ fn let_fsm_local(fn_body: &syn::ItemFn) -> LetFsmDeclaration {
     struct FindDeclStmnt {
         fsm_let_ident: Option<syn::Ident>,
         fsm_ty: Option<syn::Type>,
+        fsm_ctx_ty: Option<syn::Type>,
         fsm_initial_state_ty: Option<syn::Type>,
         expr_call: bool,
         expr_path: bool,
@@ -103,8 +105,16 @@ fn let_fsm_local(fn_body: &syn::ItemFn) -> LetFsmDeclaration {
                             }
                         }
 
+                        if i.method.as_ref() == "context_ty" {
+                            if let Some(ref turbofish) = i.turbofish {                                
+                                if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
+                                    self.fsm_ctx_ty = Some(ty.clone());
+                                }
+                            }
+                        }
+
                     }
-                }
+                }                
             }
             
             visit_expr_method_call(self, i);
@@ -117,22 +127,133 @@ fn let_fsm_local(fn_body: &syn::ItemFn) -> LetFsmDeclaration {
     LetFsmDeclaration {
         fsm_let_ident: finder.fsm_let_ident.expect("Missing FSM declaration local"),
         fsm_ty: finder.fsm_ty.expect("Missing FSM type"),
+        fsm_ctx_ty: finder.fsm_ctx_ty.unwrap_or(syn::parse_str("()").unwrap()),
         fsm_initial_state_ty: finder.fsm_initial_state_ty.expect("Missing FSM initial state")
     }
 }
 
 
+struct IdentFinder {
+    ident: syn::Ident,
+    found: bool
+}
+
+impl<'ast> syn::visit::Visit<'ast> for IdentFinder {
+    fn visit_ident(&mut self, i: &'ast syn::Ident) {
+        if self.ident == i {
+            self.found = true;
+        }
+
+        visit_ident(self, i);
+    }
+}
 
 
 
+fn find_inline_states(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Vec<FsmInlineState> {
+    #[derive(Debug)]
+    struct FindInlineStates<'a> {
+        fsm_decl: &'a LetFsmDeclaration,
+        calls: Vec<syn::ExprMethodCall>,
+        level: usize
+    }
+
+    impl<'a, 'ast> syn::visit::Visit<'ast> for FindInlineStates<'a> {
+        fn visit_expr_method_call(&mut self, i: &'ast syn::ExprMethodCall) {
+            let is_on_fsm = {
+                let mut f = IdentFinder {
+                    ident: self.fsm_decl.fsm_let_ident.clone(),
+                    found: false
+                };
+
+                f.visit_expr(&i.receiver);
+
+                f.found
+            };
+
+            if is_on_fsm && self.level == 0 {
+                //panic!("us: {:#?}", i);
+                self.calls.push(i.clone());
+            }
+
+            self.level += 1;
+            visit_expr_method_call(self, i);
+            self.level -= 1;
+        }
+    }
+
+    let mut finder = FindInlineStates {
+        fsm_decl: fsm_decl,
+        calls: vec![],
+        level: 0
+    };
+    finder.visit_item_fn(fn_body);
+
+    //panic!("calls ({}): {:#?}", finder.calls.len(), finder.calls);
+
+
+    #[derive(Debug)]
+    struct DecodeInlineState {
+        inline_unit_state_ty: Option<syn::Type>,
+        on_entry_closure: Option<syn::ExprClosure>,
+        on_exit_closure: Option<syn::ExprClosure>
+    }
+
+    impl<'ast> syn::visit::Visit<'ast> for DecodeInlineState {
+        fn visit_expr_method_call(&mut self, i: &'ast syn::ExprMethodCall) {
+            if i.method.as_ref() == "new_unit_state" {
+                if let Some(ref turbofish) = i.turbofish {
+                    if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
+                        self.inline_unit_state_ty = Some(ty.clone());
+                    }
+                }
+            }
+
+            if i.method.as_ref() == "on_entry" {
+                if let syn::Expr::Closure(ref closure) = i.args[0] {
+                    self.on_entry_closure = Some(closure.clone());
+                }
+            }
+
+            if i.method.as_ref() == "on_exit" {
+                if let syn::Expr::Closure(ref closure) = i.args[0] {
+                    self.on_exit_closure = Some(closure.clone());
+                }
+            }
+
+            visit_expr_method_call(self, i);
+        }
+    }
+
+    let mut ret = vec![];
+
+    for call in &finder.calls {
+        let mut decoder = DecodeInlineState {
+            inline_unit_state_ty: None,
+            on_entry_closure: None,
+            on_exit_closure: None
+        };
+
+        decoder.visit_expr_method_call(call);
+
+        if let Some(ty) = decoder.inline_unit_state_ty {
+            ret.push(FsmInlineState {
+                ty: ty.clone(),
+                on_entry_closure: decoder.on_entry_closure,
+                on_exit_closure: decoder.on_exit_closure,
+            });
+        }
+    }
+    
+    ret
+}
 
 
 
 
 pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     
-    let mut copyable_events = false;
-    let mut context_ty = syn::parse_str("()").unwrap();
+    let mut copyable_events = false;    
     let mut transitions = vec![];
     let mut submachines = vec![];
     let mut shallow_history_events = vec![];
@@ -150,14 +271,15 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     let fsm_name_ident = syn::Ident::from(fsm_name.clone());
 
 
+    let inline_states = find_inline_states(fn_body, &fsm_decl);
 
+    //let mut inline_states = vec![];
 
-    let mut inline_states = vec![];
-
+    /*
     inline_states.push(FsmInlineState {
         ty: syn::parse_str("StaticA").unwrap()
     });
-
+    */
 
 
 
@@ -226,8 +348,9 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
 
     FsmDescription {
+        fsm_ty: syn::parse_str(&fsm_name).unwrap(),
         name: fsm_name.into(),
-        name_ident: fsm_name_ident,
+        name_ident: fsm_name_ident,        
         generics: generics,
         runtime_generics: runtime_generics,
 
@@ -238,7 +361,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
         submachines: submachines,
         shallow_history_events: shallow_history_events,
         
-        context_ty: context_ty,
+        context_ty: fsm_decl.fsm_ctx_ty,
         regions: regions,
 
         copyable_events: copyable_events

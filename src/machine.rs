@@ -451,32 +451,43 @@ pub enum FsmInfoTransitionType {
 pub struct FsmDecl;
 
 impl FsmDecl {
-	pub fn new_fsm<F>() -> FsmDecl2<F> where F: Fsm {
+	pub fn new_fsm<F>() -> FsmDecl2<F, ()> where F: Fsm {
 		FsmDecl2 {
-			fsm_ty: PhantomData::default()
+			fsm_ty: PhantomData::default(),
+			fsm_ctx_ty: PhantomData::default()
 		}
 	}
 }
 
-pub struct FsmDecl2<F> {
-	fsm_ty: PhantomData<F>
+pub struct FsmDecl2<F, Ctx> {
+	fsm_ty: PhantomData<F>,
+	fsm_ctx_ty: PhantomData<Ctx>
 }
 
-impl<F> FsmDecl2<F> where F: Fsm {
-	pub fn initial_state<InitialState>(&self) -> FsmDeclComplete<F, InitialState> where InitialState: FsmState<F> {
+impl<F, Ctx> FsmDecl2<F, Ctx> where F: Fsm {	
+	pub fn context_ty<C>(&self) -> FsmDecl2<F, C> {
+		FsmDecl2 {
+			fsm_ty: Default::default(),
+			fsm_ctx_ty: Default::default()
+		}
+	}
+
+	pub fn initial_state<InitialState>(&self) -> FsmDeclComplete<F, Ctx, InitialState> where InitialState: FsmState<F> {
 		FsmDeclComplete {
 			fsm_ty: PhantomData::default(),
+			fsm_ctx_ty: PhantomData::default(),
 			initial_state: PhantomData::default()
 		}
 	}
 }
 
-pub struct FsmDeclComplete<F, InitialState> {
+pub struct FsmDeclComplete<F, Ctx, InitialState> {
 	fsm_ty: PhantomData<F>,
+	fsm_ctx_ty: PhantomData<Ctx>,
 	initial_state: PhantomData<InitialState>
 }
 
-impl<F, InitialState> FsmDeclComplete<F, InitialState> where F: Fsm, InitialState: FsmState<F> {
+impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, InitialState: FsmState<F> {
 	pub fn new_unit_state<S>(&self) -> FsmDeclState<F, S> where S: FsmState<F> {
 		FsmDeclState {
 			fsm_ty: PhantomData::default(),

@@ -10,6 +10,7 @@ use itertools::Itertools;
 pub struct FsmDescription {
     pub name: String,
     pub name_ident: syn::Ident,
+    pub fsm_ty: syn::Type,
     pub generics: syn::Generics,
 
     pub runtime_generics: syn::Generics,
@@ -28,7 +29,9 @@ pub struct FsmDescription {
 
 #[derive(Debug, Clone)]
 pub struct FsmInlineState {
-    pub ty: syn::Type
+    pub ty: syn::Type,
+    pub on_entry_closure: Option<syn::ExprClosure>,
+    pub on_exit_closure: Option<syn::ExprClosure>
 }
 
 

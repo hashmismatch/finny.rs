@@ -1187,10 +1187,45 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
     for state in &fsm.inline_states {
         let fsm_ty = &fsm.name_ident;
         let state_ty = &state.ty;
+
+
+        let mut impls = quote! {};
+        if let Some(ref on_entry) = state.on_entry_closure {
+
+            let input_remap: Vec<_> = on_entry.inputs.iter().enumerate().map(|(idx, input)| {
+                match *input {
+                    syn::FnArg::Inferred(ref pat) => {
+                        let arg = pat;
+                        match idx {
+                            0 => quote! { let #arg = self; },
+                            1 => quote! { let #arg = event_context; },
+                            _ => { panic!("unsupported number of args"); }
+                        }
+                    },
+                    _ => { panic!("unsupported closure arg"); }
+                }
+            }).collect();
+
+            let body = &on_entry.body;
+            let fsm_ty = &fsm.fsm_ty;
+            impls.append_all(quote! {
+                fn on_entry(&mut self, event_context: &mut EventContext<#fsm_ty>) {
+                    #(#input_remap)*
+
+                    {
+                        #body
+                    }
+                }
+            });
+        }
+
+
         q.append_all(quote! {
             #[derive(Clone, PartialEq, Default, Debug, Serialize)]
             pub struct #state_ty;
-            impl FsmState<#fsm_ty> for #state_ty { }
+            impl FsmState<#fsm_ty> for #state_ty {
+                #impls
+            }
         });
     }
 
