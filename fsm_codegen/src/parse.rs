@@ -282,6 +282,7 @@ pub fn parse_description(ast: &syn::DeriveInput) -> FsmDescription {
         timeout_timers: timeout_timers,
         inline_states: vec![],
         inline_actions: vec![],
+        inline_guards: vec![],
         
 
         submachines: submachines,

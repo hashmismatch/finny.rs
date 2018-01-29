@@ -274,6 +274,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
     let inline_states = find_inline_states(fn_body, &fsm_decl);
     let mut inline_actions = vec![];
+    let mut inline_guards = vec![];
 
     //let mut inline_states = vec![];
 
@@ -294,6 +295,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     let mut transition_from = None;
                     let mut transition_to = None;
                     let mut action = None;
+                    let mut guard = None;
 
                     for call in &st.calls[1..] {
                         match call.method.as_ref() {
@@ -325,6 +327,28 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                     transition_id: transition_id
                                 });
                             },
+                            "guard" => {
+                                let transition_guard_name = format!("{}{}{}Guard",
+                                    syn_to_string(&event_ty),
+                                    syn_to_string(&transition_from.clone().unwrap()),
+                                    syn_to_string(&transition_to.clone().unwrap())
+                                );
+
+                                let guard_closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure?");
+                                };
+
+                                let ty: syn::Type = syn::parse_str(&transition_guard_name).unwrap();
+                                guard = Some(ty.clone());
+
+                                inline_guards.push(FsmInlineGuard {
+                                    ty: ty,
+                                    guard_closure: Some(guard_closure),
+                                    transition_id: transition_id
+                                });
+                            }
                             &_ => { }
                         }
                     }
@@ -336,7 +360,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                         target_state: transition_to.expect("Missing target state?"),
                         action: action.unwrap_or(syn::parse_str("NoAction").unwrap()),
                         transition_type: TransitionType::Normal,
-                        guard: None
+                        guard: guard
                     };
 
                     transitions.push(entry);
@@ -425,6 +449,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
         inline_states: inline_states,
         inline_actions: inline_actions,
+        inline_guards: inline_guards,
 
         submachines: submachines,
         shallow_history_events: shallow_history_events,

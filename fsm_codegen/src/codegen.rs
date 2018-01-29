@@ -1296,3 +1296,39 @@ pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
 
     q
 }
+
+pub fn build_inline_guards(fsm: &FsmDescription) -> quote::Tokens {
+    let mut q = quote! {};
+
+    for guard in &fsm.inline_guards {
+        let fsm_ty = &fsm.name_ident;
+        let guard_ty = &guard.ty;
+        let states_store_ty = fsm.get_states_store_ty();
+
+        let transition = fsm.find_transition(guard.transition_id).unwrap();
+        let event = &transition.event;
+
+        if let Some(ref c) = guard.guard_closure {
+            let body = &c.body;
+            let remap = remap_closure_inputs(&c.inputs, &vec![
+                quote! { event },
+                quote! { event_context },
+                quote! { states }
+            ]);
+            
+            q.append_all(quote! {
+                pub struct #guard_ty;
+                impl FsmGuard<#fsm_ty, #event> for #guard_ty {
+                    fn guard(event: &#event, event_context: &EventContext<#fsm_ty>, states: &#states_store_ty) -> bool {
+                        #remap
+                        {
+                            #body
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    q
+}

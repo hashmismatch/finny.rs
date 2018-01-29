@@ -22,6 +22,7 @@ pub struct FsmDescription {
     pub context_ty: syn::Type,
     pub inline_states: Vec<FsmInlineState>,
     pub inline_actions: Vec<FsmInlineAction>,
+    pub inline_guards: Vec<FsmInlineGuard>,
 
     pub timeout_timers: Vec<FsmTimeoutTimer>,
 
@@ -39,6 +40,13 @@ pub struct FsmInlineState {
 pub struct FsmInlineAction {
     pub ty: syn::Type,
     pub action_closure: Option<syn::ExprClosure>,
+    pub transition_id: u32
+}
+
+#[derive(Debug, Clone)]
+pub struct FsmInlineGuard {
+    pub ty: syn::Type,
+    pub guard_closure: Option<syn::ExprClosure>,
     pub transition_id: u32
 }
 

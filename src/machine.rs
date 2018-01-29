@@ -542,9 +542,13 @@ pub struct FsmDeclTransition<F, E, StateFrom, StateTo> {
 	state_to: PhantomData<StateTo>
 }
 
-impl<F, E, StateFrom, StateTo> FsmDeclTransition<F, E, StateFrom, StateTo> {
+impl<F, E, StateFrom, StateTo> FsmDeclTransition<F, E, StateFrom, StateTo> where F: Fsm {
 	// fn action(event: &E, event_context: &mut EventContext<F>, source_state: &mut S, target_state: &mut T);
 	pub fn action<FnAction: Fn(&E, &mut EventContext<F>, &mut StateFrom, &mut StateTo)>(&self, action: FnAction) -> &Self {
+		self
+	}
+
+	pub fn guard<FnGuard: Fn(&E, &mut EventContext<F>, &F::SS) -> bool>(&self, guard: FnGuard) -> &Self {
 		self
 	}
 }

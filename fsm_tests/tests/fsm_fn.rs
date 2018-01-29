@@ -47,6 +47,9 @@ fn create_it() -> () {
        .to::<StateB>()
        .action(|event, event_ctx, state_a, state_b| {
            event_ctx.context.action += 1;
+       })
+       .guard(|event, event_ctx, states| {
+           event_ctx.context.entry == 1 && event_ctx.context.exit == 0
        });
 
     //foo
