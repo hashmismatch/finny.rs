@@ -447,7 +447,23 @@ pub enum FsmInfoTransitionType {
 
 
 
-//// fsm fn decl style
+/// fsm fn decl style
+
+
+/*
+pub struct SubMachine<F: Fsm>(F);
+pub struct ShallowHistory<F: Fsm, E: FsmEvent, StateTarget: FsmState<F> + Fsm>(PhantomData<F>, E, StateTarget);
+pub struct InterruptState<F: Fsm, S: FsmState<F>, E: FsmEvent>(PhantomData<F>, S, E);
+pub struct StopState<F: Fsm, S: FsmState<F>>(PhantomData<F>, S);
+pub struct CopyableEvents;
+*/
+
+pub trait FsmOptions {
+	fn copy_events(&self) -> &Self { self }
+}
+
+
+
 pub struct FsmDecl;
 
 impl FsmDecl {
@@ -480,6 +496,7 @@ impl<F, Ctx> FsmDecl2<F, Ctx> where F: Fsm {
 		}
 	}
 }
+impl<F, Ctx> FsmOptions for FsmDecl2<F, Ctx> { }
 
 pub struct FsmDeclComplete<F, Ctx, InitialState> {
 	fsm_ty: PhantomData<F>,
@@ -502,6 +519,7 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 		}
 	}
 }
+impl<F, Ctx, InitialState> FsmOptions for FsmDeclComplete<F, Ctx, InitialState> { }
 
 pub struct FsmDeclOnEvent<F, E> {
 	fsm_ty: PhantomData<F>,

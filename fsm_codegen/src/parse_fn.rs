@@ -296,7 +296,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     let mut transition_from = None;
                     let mut transition_to = None;
                     let mut action = None;
-                    let mut guard = None;                    
+                    let mut guard = None;
 
                     for call in &st.calls[1..] {
                         match call.method.as_ref() {
