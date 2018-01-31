@@ -1272,25 +1272,50 @@ pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
         let to = &transition.target_state;
 
         if let Some(ref c) = action.action_closure {
-            let body = &c.body;
-            let remap = remap_closure_inputs(&c.inputs, &vec![
-                quote! { event },
-                quote! { event_context },
-                quote! { source_state },
-                quote! { target_state }
-            ]);
-            
-            q.append_all(quote! {
-                pub struct #action_ty;
-                impl FsmAction<#fsm_ty, #from, #event, #to> for #action_ty {
-                    fn action(event: &#event, event_context: &mut EventContext<#fsm_ty>, source_state: &mut #from, target_state: &mut #to) {                        
-                        #remap
-                        {
-                            #body
+
+            match transition.transition_type {
+                TransitionType::Normal => {
+                    let body = &c.body;
+                    let remap = remap_closure_inputs(&c.inputs, &vec![
+                        quote! { event },
+                        quote! { event_context },
+                        quote! { source_state },
+                        quote! { target_state }
+                    ]);
+                    
+                    q.append_all(quote! {
+                        pub struct #action_ty;
+                        impl FsmAction<#fsm_ty, #from, #event, #to> for #action_ty {
+                            fn action(event: &#event, event_context: &mut EventContext<#fsm_ty>, source_state: &mut #from, target_state: &mut #to) {
+                                #remap
+                                {
+                                    #body
+                                }
+                            }
                         }
-                    }
+                    });
+                },
+                TransitionType::Internal | TransitionType::SelfTransition => {
+                    let body = &c.body;
+                    let remap = remap_closure_inputs(&c.inputs, &vec![
+                        quote! { event },
+                        quote! { event_context },
+                        quote! { state }
+                    ]);
+                    
+                    q.append_all(quote! {
+                        pub struct #action_ty;
+                        impl FsmActionSelf<#fsm_ty, #from, #event> for #action_ty {
+                            fn action(event: &#event, event_context: &mut EventContext<#fsm_ty>, state: &mut #from) {
+                                #remap
+                                {
+                                    #body
+                                }
+                            }
+                        }
+                    });
                 }
-            });
+            }
         }
     }
 

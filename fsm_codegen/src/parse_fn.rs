@@ -292,13 +292,22 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
             if let Some(first) = st.calls.get(0) {                
                 if first.method.as_ref() == "on_event" {
                     let event_ty = extract_method_generic_ty(first);
+                    let mut transition_type = TransitionType::Normal;
                     let mut transition_from = None;
                     let mut transition_to = None;
                     let mut action = None;
-                    let mut guard = None;
+                    let mut guard = None;                    
 
                     for call in &st.calls[1..] {
                         match call.method.as_ref() {
+                            "transition_internal" => {
+                                transition_type = TransitionType::Internal;
+                                transition_from = Some(extract_method_generic_ty(&call));
+                            },
+                            "transition_self" => {
+                                transition_type = TransitionType::SelfTransition;
+                                transition_from = Some(extract_method_generic_ty(&call));
+                            },
                             "transition_from" => {
                                 transition_from = Some(extract_method_generic_ty(&call));
                             },
@@ -306,26 +315,50 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                 transition_to = Some(extract_method_generic_ty(&call));
                             },
                             "action" => {
-                                let transition_action_name = format!("{}{}{}Action",
-                                    syn_to_string(&event_ty),
-                                    syn_to_string(&transition_from.clone().unwrap()),
-                                    syn_to_string(&transition_to.clone().unwrap())
-                                );
-                                
                                 let action_closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
                                     closure.clone()
                                 } else {
                                     panic!("missing closure?");
                                 };
 
-                                let ty: syn::Type = syn::parse_str(&transition_action_name).unwrap();
-                                action = Some(ty.clone());
+                                match transition_type {
+                                    TransitionType::Normal => {
+                                        let transition_action_name = format!("{}{}{}Action",
+                                            syn_to_string(&event_ty),
+                                            syn_to_string(&transition_from.clone().unwrap()),
+                                            syn_to_string(&transition_to.clone().unwrap())
+                                        );
+                                                                        
+                                        let ty: syn::Type = syn::parse_str(&transition_action_name).unwrap();
+                                        action = Some(ty.clone());
 
-                                inline_actions.push(FsmInlineAction {
-                                    ty: ty,
-                                    action_closure: Some(action_closure),
-                                    transition_id: transition_id
-                                });
+                                        inline_actions.push(FsmInlineAction {
+                                            ty: ty,
+                                            action_closure: Some(action_closure),
+                                            transition_id: transition_id
+                                        });
+                                    },
+                                    TransitionType::Internal | TransitionType::SelfTransition => {
+                                        let transition_action_name = format!("{}{}{}",
+                                            syn_to_string(&event_ty),
+                                            syn_to_string(&transition_from.clone().unwrap()),
+                                            match transition_type {
+                                                TransitionType::Internal => "InternalAction",
+                                                TransitionType::SelfTransition => "SelfAction",
+                                                _ => panic!("nope")
+                                            }
+                                        );
+                                                                        
+                                        let ty: syn::Type = syn::parse_str(&transition_action_name).unwrap();
+                                        action = Some(ty.clone());
+
+                                        inline_actions.push(FsmInlineAction {
+                                            ty: ty,
+                                            action_closure: Some(action_closure),
+                                            transition_id: transition_id
+                                        });
+                                    }
+                                }                                
                             },
                             "guard" => {
                                 let transition_guard_name = format!("{}{}{}Guard",
@@ -355,11 +388,14 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
                     let entry = TransitionEntry {
                         id: transition_id,
-                        source_state: transition_from.expect("Missing source state?"),
+                        source_state: transition_from.clone().expect("Missing source state?"),
                         event: event_ty,
-                        target_state: transition_to.expect("Missing target state?"),
+                        target_state: match transition_type {
+                            TransitionType::Normal => { transition_to.expect("Missing target state?") },
+                            _ => { transition_from.expect("Missing source state?") }
+                        },
                         action: action.unwrap_or(syn::parse_str("NoAction").unwrap()),
-                        transition_type: TransitionType::Normal,
+                        transition_type: transition_type,
                         guard: guard
                     };
 
