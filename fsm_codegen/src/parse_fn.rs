@@ -193,9 +193,10 @@ fn find_inline_states(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Ve
     //panic!("calls ({}): {:#?}", finder.calls.len(), finder.calls);
 
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     struct DecodeInlineState {
         inline_unit_state_ty: Option<syn::Type>,
+        inline_state_ty: Option<syn::Type>,
         on_entry_closure: Option<syn::ExprClosure>,
         on_exit_closure: Option<syn::ExprClosure>
     }
@@ -206,6 +207,14 @@ fn find_inline_states(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Ve
                 if let Some(ref turbofish) = i.turbofish {
                     if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
                         self.inline_unit_state_ty = Some(ty.clone());
+                    }
+                }
+            }
+
+            if i.method.as_ref() == "new_state" {
+                if let Some(ref turbofish) = i.turbofish {
+                    if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
+                        self.inline_state_ty = Some(ty.clone());
                     }
                 }
             }
@@ -229,17 +238,21 @@ fn find_inline_states(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Ve
     let mut ret = vec![];
 
     for call in &finder.calls {
-        let mut decoder = DecodeInlineState {
-            inline_unit_state_ty: None,
-            on_entry_closure: None,
-            on_exit_closure: None
-        };
-
+        let mut decoder = DecodeInlineState::default();
         decoder.visit_expr_method_call(call);
-
+        
         if let Some(ty) = decoder.inline_unit_state_ty {
             ret.push(FsmInlineState {
                 ty: ty.clone(),
+                unit: true,
+                on_entry_closure: decoder.on_entry_closure.clone(),
+                on_exit_closure: decoder.on_exit_closure.clone(),
+            });
+        }
+        if let Some(ty) = decoder.inline_state_ty {
+            ret.push(FsmInlineState {
+                ty: ty.clone(),
+                unit: false,
                 on_entry_closure: decoder.on_entry_closure,
                 on_exit_closure: decoder.on_exit_closure,
             });
@@ -275,6 +288,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     let inline_states = find_inline_states(fn_body, &fsm_decl);
     let mut inline_actions = vec![];
     let mut inline_guards = vec![];
+    let mut inline_events = vec![];
 
     //let mut inline_states = vec![];
 
@@ -290,7 +304,13 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
             //panic!("calls: {:#?}", st.calls.iter().map(|m| m.method).collect::<Vec<_>>());
 
             if let Some(first) = st.calls.get(0) {
-                if first.method.as_ref() == "copyable_events" {
+                if first.method.as_ref() == "new_event" {
+                    let event_ty = extract_method_generic_ty(first);
+
+                    inline_events.push(FsmInlineEvent {
+                        ty: event_ty
+                    });
+                } else if first.method.as_ref() == "copyable_events" {
                     copyable_events = true;
                 } else if first.method.as_ref() == "on_event" {
                     let event_ty = extract_method_generic_ty(first);
@@ -410,7 +430,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
     }
 
-
+    let inline_structs = ::parse_fn_visitors::find_inline_structs(fn_body, &fsm_decl);
 
     let (generics, runtime_generics) = {
         use syn::*;
@@ -488,6 +508,8 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
         inline_states: inline_states,
         inline_actions: inline_actions,
         inline_guards: inline_guards,
+        inline_structs: inline_structs,
+        inline_events: inline_events,
 
         submachines: submachines,
         shallow_history_events: shallow_history_events,

@@ -97,26 +97,3 @@ fn test_fsm_min1() {
     assert_eq!(1, fsm.get_context().action_self);
     assert_eq!(3, fsm.get_context().state_b);
 }
-
-/*
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct StaticA;
-impl FsmState<FsmMinOne> for StaticA {
-
-}
-
-#[derive(Fsm)]
-struct FsmMinOneDefinition(
-	InitialState<FsmMinOne, StaticA>
-);
-
-
-#[cfg(test)]
-#[test]
-fn test_fsm_min1() {
-
-    let mut fsm = FsmMinOne::new(()).unwrap();
-    fsm.start();
-    assert_eq!(FsmMinOneStates::StaticA, fsm.get_current_state());
-}
-*/

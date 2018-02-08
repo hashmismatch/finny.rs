@@ -283,6 +283,8 @@ pub fn parse_description(ast: &syn::DeriveInput) -> FsmDescription {
         inline_states: vec![],
         inline_actions: vec![],
         inline_guards: vec![],
+        inline_structs: vec![],
+        inline_events: vec![],
         
 
         submachines: submachines,

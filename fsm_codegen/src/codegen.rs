@@ -1278,13 +1278,21 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
         }
 
 
-        q.append_all(quote! {
-            #[derive(Clone, PartialEq, Default, Debug, Serialize)]
-            pub struct #state_ty;
-            impl FsmState<#fsm_ty> for #state_ty {
-                #impls
-            }
-        });
+        if state.unit {
+            q.append_all(quote! {
+                #[derive(Clone, PartialEq, Default, Debug, Serialize)]
+                pub struct #state_ty;
+                impl FsmState<#fsm_ty> for #state_ty {
+                    #impls
+                }
+            });
+        } else {
+            q.append_all(quote! {
+                impl FsmState<#fsm_ty> for #state_ty {
+                    #impls
+                }
+            });
+        }        
     }
 
     q
@@ -1384,6 +1392,34 @@ pub fn build_inline_guards(fsm: &FsmDescription) -> quote::Tokens {
                 }
             });
         }
+    }
+
+    q
+}
+
+pub fn build_inline_structs(fsm: &FsmDescription) -> quote::Tokens {
+    let mut q = quote! {};
+
+    for st in &fsm.inline_structs {
+        q.append_all(quote! {
+            #st
+        });
+    }
+
+    q
+}
+
+pub fn build_inline_events(fsm: &FsmDescription) -> quote::Tokens {
+    let mut q = quote! {};
+
+    for ev in &fsm.inline_events {
+        let ty = &ev.ty;
+        
+        q.append_all(quote! {
+            impl FsmEvent for #ty {
+
+            }
+        });
     }
 
     q

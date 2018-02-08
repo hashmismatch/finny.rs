@@ -108,3 +108,22 @@ impl<'ast> syn::visit::Visit<'ast> for IdentFinder {
         visit_ident(self, i);
     }
 }
+
+#[derive(Default)]
+struct StructFinder {
+    structs: Vec<syn::ItemStruct>
+}
+
+impl<'ast> syn::visit::Visit<'ast> for StructFinder {
+    fn visit_item_struct(&mut self, i: &'ast syn::ItemStruct) {
+        self.structs.push(i.clone());
+        visit_item_struct(self, i);
+    }
+}
+
+
+pub fn find_inline_structs(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Vec<syn::ItemStruct> {
+    let mut finder = StructFinder::default();
+    finder.visit_item_fn(fn_body);
+    finder.structs
+}

@@ -83,16 +83,20 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     let inline_states = build_inline_states(&desc);
     let inline_actions = build_inline_actions(&desc);
     let inline_guards = build_inline_guards(&desc);
+    let inline_structs = build_inline_structs(&desc);
+    let inline_events = build_inline_events(&desc);
     let enums = build_enums(&desc);    
     let main = build_main_struct(&desc);
     let state_store = build_state_store(&desc);
 
     let viz_test = build_test_viz_build(&desc);
 
-    let q = quote! {        
+    let q = quote! {  
+        #inline_structs      
         #inline_states
         #inline_actions
         #inline_guards
+        #inline_events
         #enums
         #state_store
         #main
