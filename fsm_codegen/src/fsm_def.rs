@@ -100,20 +100,20 @@ impl ShallowHistoryEvent {
         let mut t = quote::Tokens::new();
         self.target_state_ty.to_tokens(&mut t);
         
-        syn::parse_str(&format!("history_{}", syn_to_string(&t))).unwrap()
+        syn::parse_str(&format!("history_{}", syn_to_string(&t))).expect("30")
     }
 
     pub fn get_field_ty(&self) -> syn::Type {
         let mut t = quote::Tokens::new();
         self.target_state_ty.to_tokens(&mut t);
 
-        syn::parse_str(&format!("Option<{}>", syn_to_string(&t))).unwrap()
+        syn::parse_str(&format!("Option<{}>", syn_to_string(&t))).expect("31")
     }
 }
 
 impl FsmDescription {
     pub fn get_fsm_runtime_ty_inline(&self) -> syn::Type {
-        syn::parse_str(&format!("{}Runtime", &self.name)).unwrap()
+        syn::parse_str(&format!("{}Runtime", &self.name)).expect("32")
     }
 
     pub fn get_fsm_ty(&self) -> syn::Type {
@@ -126,11 +126,11 @@ impl FsmDescription {
     }
 
     pub fn get_fsm_viz_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}{}", &self.name, "Viz")).unwrap()
+        syn::parse_str(&format!("{}{}", &self.name, "Viz")).expect("33")
     } 
 
     pub fn get_fsm_ty_inline(&self) -> syn::Type {        
-        syn::parse_str(&self.name).unwrap()
+        syn::parse_str(&self.name).expect("34")
     }
 
     pub fn get_impl_suffix(&self) -> quote::Tokens {
@@ -146,19 +146,19 @@ impl FsmDescription {
     }
 
     pub fn get_events_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}Events", self.name)).unwrap()
+        syn::parse_str(&format!("{}Events", self.name)).expect("35")
     }
 
     pub fn get_event_kind_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}EventKind", self.name)).unwrap()
+        syn::parse_str(&format!("{}EventKind", self.name)).expect("36")
     }    
 
     pub fn get_events_ref_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}EventsRef", self.name)).unwrap()
+        syn::parse_str(&format!("{}EventsRef", self.name)).expect("37")
     }
 
     pub fn get_states_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}States", self.name)).unwrap()
+        syn::parse_str(&format!("{}States", self.name)).expect("38")
     }
 
     pub fn get_current_state_ty(&self) -> syn::Type {
@@ -184,27 +184,27 @@ impl FsmDescription {
     }
 
     pub fn get_states_store_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}StatesStore", self.name)).unwrap()
+        syn::parse_str(&format!("{}StatesStore", self.name)).expect("39")
     }
 
     pub fn get_actions_ty(&self) -> syn::Type {
-        syn::parse_str(&format!("{}Actions", self.name)).unwrap()
+        syn::parse_str(&format!("{}Actions", self.name)).expect("50")
     }
 
     pub fn get_history_ty(&self) -> syn::Type {
         if self.shallow_history_events.len() == 0 {
             syn::parse_str("()").unwrap()
         } else {
-            syn::parse_str(&format!("{}History", self.name)).unwrap()
+            syn::parse_str(&format!("{}History", self.name)).expect("51")
         }
     }
 
     pub fn get_build_viz_fn(&self) -> syn::Type {
-        syn::parse_str(&format!("build_viz_{}", self.name)).unwrap()
+        syn::parse_str(&format!("build_viz_{}", self.name)).expect("52")
     }
 
     pub fn get_build_viz_docs_fn(&self) -> syn::Type {
-        syn::parse_str(&format!("build_viz_docs_{}", self.name)).unwrap()
+        syn::parse_str(&format!("build_viz_docs_{}", self.name)).expect("53")
     }
 
     pub fn get_submachine_types(&self) -> &[syn::Type] {
@@ -239,7 +239,7 @@ impl FsmDescription {
     pub fn to_state_field_access(&self, state: &syn::Type) -> Tokens {
         if self.is_submachine(&state) {
             let field_name = format!("fsm_sub_{}", syn_to_string(&state).to_lowercase());
-            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
+            let field_name: syn::Expr = syn::parse_str(&field_name).expect(&format!("Failed to parse field name '{}'.", field_name));
 
             quote! {
                 self.#field_name.fsm
@@ -256,7 +256,7 @@ impl FsmDescription {
     pub fn to_sub_runtime(&self, state: &syn::Type) -> Tokens {
         if self.is_submachine(&state) {
             let field_name = format!("fsm_sub_{}", syn_to_string(&state).to_lowercase());
-            let field_name: syn::Lit = syn::parse_str(&field_name).unwrap();
+            let field_name: syn::Expr = syn::parse_str(&field_name).expect("44");
 
             quote! {
                 self.#field_name
@@ -269,12 +269,12 @@ impl FsmDescription {
 
     pub fn to_state_field_name(state: &syn::Type) -> syn::Type {
         let t = syn_to_string(state).to_lowercase();
-        syn::parse_str(&t).unwrap()
+        syn::parse_str(&t).expect("57")
     }
 
     pub fn to_state_sub_started_field_name(state: &syn::Type) -> syn::Type {
         let t = &format!("{}_started", syn_to_string(state).to_lowercase());
-        syn::parse_str(&t).unwrap()
+        syn::parse_str(&t).expect("58")
     }
 
     pub fn has_multiple_regions(&self) -> bool {
@@ -323,7 +323,7 @@ impl FsmDescription {
             }
         );
 
-        syn::parse_str(&t).unwrap()
+        syn::parse_str(&t).expect("60")
     }
 
     pub fn has_timers(&self) -> bool {

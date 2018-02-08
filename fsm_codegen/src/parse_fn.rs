@@ -289,8 +289,10 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
         for st in &method_calls {
             //panic!("calls: {:#?}", st.calls.iter().map(|m| m.method).collect::<Vec<_>>());
 
-            if let Some(first) = st.calls.get(0) {                
-                if first.method.as_ref() == "on_event" {
+            if let Some(first) = st.calls.get(0) {
+                if first.method.as_ref() == "copyable_events" {
+                    copyable_events = true;
+                } else if first.method.as_ref() == "on_event" {
                     let event_ty = extract_method_generic_ty(first);
                     let mut transition_type = TransitionType::Normal;
                     let mut transition_from = None;

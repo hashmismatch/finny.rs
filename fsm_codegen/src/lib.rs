@@ -42,13 +42,11 @@ use viz::*;
 
 #[proc_macro_derive(Fsm)]
 pub fn derive_fsm(input: TokenStream) -> TokenStream {    
-    let ast: syn::DeriveInput = syn::parse(input).unwrap();
+    let ast: syn::DeriveInput = syn::parse(input).expect("failed to parse input");
 
     let desc = parse_description(&ast);
-
-    //panic!("fsm: {:?}", fsm);
-
-    let enums = build_enums(&desc);    
+    
+    let enums = build_enums(&desc);        
     let main = build_main_struct(&desc);
     let state_store = build_state_store(&desc);
 
