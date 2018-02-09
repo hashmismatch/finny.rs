@@ -84,7 +84,9 @@ fn let_fsm_local(fn_body: &syn::ItemFn) -> LetFsmDeclaration {
             
             if self.in_new_fsm {
                 if let &syn::GenericArgument::Type(ref ty) = &i.args[0] {
-                    self.fsm_ty = Some(ty.clone());
+                    if self.fsm_ty.is_none() {
+                        self.fsm_ty = Some(ty.clone());
+                    }
                 }
             }
 
@@ -279,8 +281,13 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     let fsm_decl = let_fsm_local(fn_body);
         
 
-    let fsm_name = syn_to_string(&fsm_decl.fsm_ty);
-    let fsm_name_ident = syn::Ident::from(fsm_name.clone());
+    let fsm_name_ident = ::parse_fn_visitors::get_base_name(&fsm_decl.fsm_ty);
+    let fsm_name = syn_to_string(&fsm_name_ident);
+    //let fsm_name = syn_to_string(&fsm_decl.fsm_ty);
+    //panic!("fsm_ty: {:?}", fsm_decl.fsm_ty);
+    //panic!("fsm_name: {:?}", fsm_name);
+    //let fsm_name_ident = syn::Ident::from(fsm_name.clone());
+
 
 
     let inline_states = find_inline_states(fn_body, &fsm_decl);
@@ -491,17 +498,24 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     let (generics, runtime_generics) = {
         use syn::*;
 
-        let generics: syn::Generics = Default::default();
-
-        //let mut g: syn::Generics = ast.generics.clone();
+        let generics = fn_body.decl.generics.clone();
+        
         let mut g = generics.clone();
+        //g.params.clear();
+        //g.params = syn::punctuated::Punctuated::new();
+
         let gt = g.clone();
         let (impl_generics, ty_generics, where_clause) = gt.split_for_impl();
 
-        let fsm_ty: syn::Type = syn::parse_str(&format!("{} {}", fsm_name, syn_to_string(&ty_generics))).unwrap();
+        //panic!("g: {:#?}", g);
+
+        //let fsm_ty: syn::Type = syn::parse_str(&format!("{} {}", fsm_name, syn_to_string(&ty_generics))).unwrap();
+        //panic!("fsm_ty: {:#?}", fsm_ty);
 
         let all_fsm_types = {
-            let mut f = vec![syn_to_string(&fsm_ty)];
+            //let mut f = vec![syn_to_string(&fsm_ty)];
+            let mut f = vec![syn_to_string(&fsm_decl.fsm_ty)];
+            //let mut f = vec![];
             f.extend(submachines.iter().map(|sub| syn_to_string(sub)));
             f
         };
@@ -540,9 +554,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
         (generics, g)
     };
-
-
-
+    
 
 
     let regions = create_regions(&transitions,

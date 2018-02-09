@@ -45,6 +45,7 @@ pub fn derive_fsm(input: TokenStream) -> TokenStream {
     let ast: syn::DeriveInput = syn::parse(input).expect("failed to parse input");
 
     let desc = parse_description(&ast);
+    //panic!("desc: {:#?}", desc);
     
     let enums = build_enums(&desc);        
     let main = build_main_struct(&desc);
@@ -79,6 +80,7 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     
 
     let desc = parse_definition_fn(&fn_body);
+    //panic!("desc: {:#?}", desc);
     
     let inline_states = build_inline_states(&desc);
     let inline_actions = build_inline_actions(&desc);

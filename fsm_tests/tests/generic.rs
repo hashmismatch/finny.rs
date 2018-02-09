@@ -1,3 +1,5 @@
+#![feature(proc_macro)]
+
 extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
@@ -23,12 +25,13 @@ impl<G: SomeTrait + std::fmt::Debug + serde::Serialize> FsmState<FsmMinOne<G>> f
 
 }
 
-#[derive(Fsm)]
-struct FsmMinOneDefinition<G: SomeTrait + std::fmt::Debug + serde::Serialize>(
-    ContextType<Context<G>>,
-	InitialState<FsmMinOne<G>, StaticA>
-);
-
+use fsm_codegen::fsm_fn;
+#[fsm_fn]
+fn fsm_create_it<G: SomeTrait + std::fmt::Debug + serde::Serialize>() -> () {
+    let fsm = FsmDecl::new_fsm::<FsmMinOne<G>>()
+        .context_ty::<Context<G>>()
+        .initial_state::<StaticA>();
+}
 
 #[cfg(test)]
 #[test]

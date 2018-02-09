@@ -127,3 +127,23 @@ pub fn find_inline_structs(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) 
     finder.visit_item_fn(fn_body);
     finder.structs
 }
+
+pub fn get_base_name(ty: &syn::Type) -> syn::Ident {
+    #[derive(Default)]
+    struct FirstIdent {
+        ident: Option<syn::Ident>
+    }
+
+    impl<'ast> syn::visit::Visit<'ast> for FirstIdent {
+        fn visit_ident(&mut self, i: &'ast syn::Ident) {
+            if self.ident.is_none() {
+                self.ident = Some(i.clone());
+            }
+            visit_ident(self, i);
+        }
+    }
+
+    let mut f = FirstIdent::default();
+    f.visit_type(ty);
+    f.ident.expect("No ident found")
+}
