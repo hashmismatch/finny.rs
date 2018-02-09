@@ -352,21 +352,27 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     let mut action = None;
                     let mut guard = None;
 
+                    let mut transition_entry = false;
+
                     for call in &st.calls[1..] {
                         match call.method.as_ref() {
                             "transition_internal" => {
                                 transition_type = TransitionType::Internal;
                                 transition_from = Some(extract_method_generic_ty(&call));
+                                transition_entry = true;
                             },
                             "transition_self" => {
                                 transition_type = TransitionType::SelfTransition;
                                 transition_from = Some(extract_method_generic_ty(&call));
+                                transition_entry = true;
                             },
                             "transition_from" => {
                                 transition_from = Some(extract_method_generic_ty(&call));
+                                transition_entry = true;
                             },
                             "to" => {
                                 transition_to = Some(extract_method_generic_ty(&call));
+                                transition_entry = true;
                             },
                             "interrupt_state" => {
                                 let state = extract_method_generic_ty(&call);
@@ -454,22 +460,24 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                         }
                     }
 
-                    let entry = TransitionEntry {
-                        id: transition_id,
-                        source_state: transition_from.clone().expect("Missing source state?"),
-                        event: event_ty,
-                        target_state: match transition_type {
-                            TransitionType::Normal => { transition_to.expect("Missing target state?") },
-                            _ => { transition_from.expect("Missing source state?") }
-                        },
-                        action: action.unwrap_or(syn::parse_str("NoAction").unwrap()),
-                        transition_type: transition_type,
-                        guard: guard
-                    };
+                    if transition_entry {
+                        let entry = TransitionEntry {
+                            id: transition_id,
+                            source_state: transition_from.clone().expect("Missing source state?"),
+                            event: event_ty,
+                            target_state: match transition_type {
+                                TransitionType::Normal => { transition_to.expect("Missing target state?") },
+                                _ => { transition_from.expect("Missing source state?") }
+                            },
+                            action: action.unwrap_or(syn::parse_str("NoAction").unwrap()),
+                            transition_type: transition_type,
+                            guard: guard
+                        };
 
-                    transitions.push(entry);
+                        transitions.push(entry);
 
-                    transition_id += 1;
+                        transition_id += 1;
+                    }
                 }
             }
         }
