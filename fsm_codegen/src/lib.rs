@@ -85,6 +85,7 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     let inline_guards = build_inline_guards(&desc);
     let inline_structs = build_inline_structs(&desc);
     let inline_events = build_inline_events(&desc);
+    let inline_subs = build_inline_submachines(&desc);
     let enums = build_enums(&desc);    
     let main = build_main_struct(&desc);
     let state_store = build_state_store(&desc);
@@ -97,6 +98,7 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
         #inline_actions
         #inline_guards
         #inline_events
+        #inline_subs
         #enums
         #state_store
         #main

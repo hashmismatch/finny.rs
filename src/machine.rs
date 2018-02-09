@@ -460,6 +460,7 @@ pub struct CopyableEvents;
 
 pub trait FsmOptions {
 	fn copy_events(&self) -> &Self { self }
+	fn sub_machine<FSub: Fsm>(&self) -> &Self { self }
 }
 
 
@@ -517,6 +518,10 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 			fsm_ty: PhantomData::default(),
 			event_ty: PhantomData::default()
 		}
+	}
+
+	pub fn add_sub_machine<FSub>(&self) -> () where FSub: Fsm {
+		()
 	}
 }
 impl<F, Ctx, InitialState> FsmOptions for FsmDeclComplete<F, Ctx, InitialState> { }

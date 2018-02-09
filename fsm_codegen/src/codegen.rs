@@ -928,7 +928,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
             q.append_all(quote! {
                 impl #runtime_impl_generics FsmProcessor<#fsm_ty, #ev> for #fsm_runtime_ty_inline #runtime_ty_generics #runtime_where_clause {
-                    fn process_event(&mut self, event: PlayingEvents) -> Result<(), FsmError> {
+                    fn process_event(&mut self, event: #ev) -> Result<(), FsmError> {
                         self.#field_name.process_tagged_event(event)
                     }
                 }
@@ -1414,9 +1414,42 @@ pub fn build_inline_events(fsm: &FsmDescription) -> quote::Tokens {
 
     for ev in &fsm.inline_events {
         let ty = &ev.ty;
-        
+
+        if ev.unit {
+            q.append_all(quote! {
+                #[derive(Copy, Clone, PartialEq, Default, Debug)]
+                pub struct #ty;
+                                        
+                impl ::serde::Serialize for #ty {
+                    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+                        where S: ::serde::Serializer
+                    {
+                        use ::serde::ser::SerializeStruct;
+                        serializer.serialize_unit()
+                    }
+                }
+            });
+        }
+
         q.append_all(quote! {
             impl FsmEvent for #ty {
+
+            }
+        });
+    }
+
+    q
+}
+
+pub fn build_inline_submachines(fsm: &FsmDescription) -> quote::Tokens {
+    let mut q = quote! {};
+
+    for sub in &fsm.inline_submachines {
+        let fsm_ty = fsm.get_fsm_ty();
+        let ty = &sub.ty;
+
+        q.append_all(quote! {
+            impl FsmState<#fsm_ty> for #ty {
 
             }
         });

@@ -17,6 +17,8 @@ use fsm_codegen::fsm_fn;
 pub struct FsmFnCtx {
 }
 
+
+
 #[fsm_fn]
 fn create_it() -> () {
     let fsm = FsmDecl::new_fsm::<FsmTwo>()

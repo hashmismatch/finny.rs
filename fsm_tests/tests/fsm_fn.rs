@@ -23,13 +23,8 @@ pub struct FsmFnCtx {
     state_b: usize
 }
 
-fsm_event_unit!(EventA);
-fsm_event_unit!(EventInternal);
-fsm_event_unit!(EventSelf);
-
 #[fsm_fn]
 fn create_it() -> () {
-    //let foo = ();
     let fsm = FsmDecl::new_fsm::<FsmMinOne>()
         .context_ty::<FsmFnCtx>()
         .initial_state::<StateA>();
@@ -52,7 +47,7 @@ fn create_it() -> () {
             ctx.context.state_b += 1;
         });
 
-    
+    fsm.new_unit_event::<EventA>();
     fsm.on_event::<EventA>()
        .transition_from::<StateA>()
        .to::<StateB>()
@@ -63,12 +58,14 @@ fn create_it() -> () {
            event_ctx.context.entry == 1 && event_ctx.context.exit == 0
        });
     
+    fsm.new_unit_event::<EventInternal>();
     fsm.on_event::<EventInternal>()
         .transition_internal::<StateB>()
         .action(|event, event_ctx, state| {
             event_ctx.context.action_internal += 1;
         });
 
+    fsm.new_unit_event::<EventSelf>();
     fsm.on_event::<EventSelf>()
         .transition_self::<StateB>()
         .action(|event, event_ctx, state| {

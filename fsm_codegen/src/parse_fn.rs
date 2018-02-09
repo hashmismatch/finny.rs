@@ -113,7 +113,7 @@ fn let_fsm_local(fn_body: &syn::ItemFn) -> LetFsmDeclaration {
                                 }
                             }
                         }
-
+                        
                     }
                 }                
             }
@@ -189,9 +189,7 @@ fn find_inline_states(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Ve
         level: 0
     };
     finder.visit_item_fn(fn_body);
-
-    //panic!("calls ({}): {:#?}", finder.calls.len(), finder.calls);
-
+    
 
     #[derive(Debug, Default)]
     struct DecodeInlineState {
@@ -269,7 +267,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     
     let mut copyable_events = false;    
     let mut transitions = vec![];
-    let mut submachines = vec![];
+    let mut inline_submachines = vec![];
     let mut shallow_history_events = vec![];
     let mut interrupt_states: Vec<FsmInterruptState> = vec![];
     let mut timeout_timers = vec![];
@@ -289,27 +287,33 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     let mut inline_actions = vec![];
     let mut inline_guards = vec![];
     let mut inline_events = vec![];
-
-    //let mut inline_states = vec![];
-
-    /*
-    inline_states.push(FsmInlineState {
-        ty: syn::parse_str("StaticA").unwrap()
-    });
-    */
+    
 
     {        
         let method_calls = ::parse_fn_visitors::find_fsm_method_calls(fn_body, &fsm_decl);        
         for st in &method_calls {
-            //panic!("calls: {:#?}", st.calls.iter().map(|m| m.method).collect::<Vec<_>>());
-
             if let Some(first) = st.calls.get(0) {
                 if first.method.as_ref() == "new_event" {
                     let event_ty = extract_method_generic_ty(first);
 
                     inline_events.push(FsmInlineEvent {
-                        ty: event_ty
+                        ty: event_ty,
+                        unit: false
                     });
+                } else if first.method.as_ref() == "add_sub_machine" {
+                    let sub_ty = extract_method_generic_ty(first);
+
+                    inline_submachines.push(FsmInlineSubMachine {
+                        ty: sub_ty
+                    });
+                } else if first.method.as_ref() == "new_unit_event" {
+                    let event_ty = extract_method_generic_ty(first);
+
+                    inline_events.push(FsmInlineEvent {
+                        ty: event_ty,
+                        unit: true
+                    });
+
                 } else if first.method.as_ref() == "copyable_events" {
                     copyable_events = true;
                 } else if first.method.as_ref() == "on_event" {
@@ -335,6 +339,20 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                             },
                             "to" => {
                                 transition_to = Some(extract_method_generic_ty(&call));
+                            },
+                            "interrupt_state" => {
+                                let state = extract_method_generic_ty(&call);
+                                interrupt_states.push(FsmInterruptState {
+                                    interrupt_state_ty: state,
+                                    resume_event_ty: vec![event_ty.clone()]
+                                });
+                            },
+                            "shallow_history" => {
+                                let state = extract_method_generic_ty(&call);
+                                shallow_history_events.push(ShallowHistoryEvent {
+                                    event_ty: event_ty.clone(),
+                                    target_state_ty: state
+                                });
                             },
                             "action" => {
                                 let action_closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
@@ -430,6 +448,8 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
     }
 
+    let submachines: Vec<_> = inline_submachines.iter().map(|s| s.ty.clone()).collect();
+
     let inline_structs = ::parse_fn_visitors::find_inline_structs(fn_body, &fsm_decl);
 
     let (generics, runtime_generics) = {
@@ -510,8 +530,9 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
         inline_guards: inline_guards,
         inline_structs: inline_structs,
         inline_events: inline_events,
+        inline_submachines: inline_submachines,
 
-        submachines: submachines,
+        submachines: submachines.clone(),
         shallow_history_events: shallow_history_events,
         
         context_ty: fsm_decl.fsm_ctx_ty,
