@@ -43,8 +43,8 @@ pub struct FsmInlineState {
 #[derive(Debug, Clone)]
 pub struct FsmInlineSubMachine {
     pub ty: syn::Type,
-    //pub on_entry_closure: Option<syn::ExprClosure>,
-    //pub on_exit_closure: Option<syn::ExprClosure>
+    pub on_entry_closure: Option<syn::ExprClosure>,
+    pub on_exit_closure: Option<syn::ExprClosure>
 }
 
 

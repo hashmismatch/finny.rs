@@ -1448,9 +1448,49 @@ pub fn build_inline_submachines(fsm: &FsmDescription) -> quote::Tokens {
         let fsm_ty = fsm.get_fsm_ty();
         let ty = &sub.ty;
 
+        let mut impls = quote! {};
+        if let Some(ref on_entry) = sub.on_entry_closure {
+            let remap = remap_closure_inputs(&on_entry.inputs, &vec![
+                quote! { self },
+                quote! { event_context }
+            ]);
+
+            let body = &on_entry.body;
+            let fsm_ty = &fsm.fsm_ty;
+            impls.append_all(quote! {
+                fn on_entry(&mut self, event_context: &mut EventContext<#fsm_ty>) {
+                    #(#remap)*
+
+                    {
+                        #body
+                    }
+                }
+            });
+        }
+
+        if let Some(ref on_exit) = sub.on_exit_closure {
+            let remap = remap_closure_inputs(&on_exit.inputs, &vec![
+                quote! { self },
+                quote! { event_context }
+            ]);
+
+            let body = &on_exit.body;
+            let fsm_ty = &fsm.fsm_ty;
+            impls.append_all(quote! {
+                fn on_exit(&mut self, event_context: &mut EventContext<#fsm_ty>) {
+                    #(#remap)*
+
+                    {
+                        #body
+                    }
+                }
+            });
+        }
+        
+
         q.append_all(quote! {
             impl FsmState<#fsm_ty> for #ty {
-
+                #impls
             }
         });
     }

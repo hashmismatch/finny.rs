@@ -302,9 +302,37 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     });
                 } else if first.method.as_ref() == "add_sub_machine" {
                     let sub_ty = extract_method_generic_ty(first);
+                    let mut on_entry = None;
+                    let mut on_exit = None;
+
+                    for call in &st.calls[1..] {
+                        match call.method.as_ref() {
+                            "on_entry" => {
+                                let closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure?");
+                                };
+
+                                on_entry = Some(closure);
+                            },
+                            "on_exit" => {
+                                let closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure?");
+                                };
+
+                                on_exit = Some(closure);
+                            },
+                            _ => { panic!("unsupported add_sub_machine method: {:?}", call); }
+                        }
+                    }
 
                     inline_submachines.push(FsmInlineSubMachine {
-                        ty: sub_ty
+                        ty: sub_ty,
+                        on_entry_closure: on_entry,
+                        on_exit_closure: on_exit
                     });
                 } else if first.method.as_ref() == "new_unit_event" {
                     let event_ty = extract_method_generic_ty(first);
