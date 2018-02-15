@@ -470,7 +470,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
             bounds: {
                 let mut p = syn::punctuated::Punctuated::new();
                 for t in all_fsm_types.iter().map(|t| {
-                    let t = syn::parse_str(&format!("FsmInspect<{}>", t)).unwrap();
+                    let t = syn::parse_str(&format!("::fsm::FsmInspect<{}>", t)).unwrap();
                     t
                 })
                 {
@@ -488,7 +488,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
             ident: "FT".into(),
             bounds: {
                 let mut p = syn::punctuated::Punctuated::new();
-                p.push(syn::parse_str(&"FsmTimers").unwrap());
+                p.push(syn::parse_str(&"::fsm::FsmTimers").unwrap());
                 p
             },
             default: None,

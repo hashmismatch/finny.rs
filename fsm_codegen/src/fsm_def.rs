@@ -5,6 +5,7 @@ use quote::*;
 use fsm::RegionId;
 
 use itertools::Itertools;
+use proc_macro2::Span;
 
 #[derive(Debug)]
 pub struct FsmDescription {
@@ -165,7 +166,8 @@ impl FsmDescription {
     }
 
     pub fn get_fsm_where_ty(&self) -> quote::Tokens {
-        let mut q = quote! {};
+        let span = Span::call_site();
+        let mut q = quote_spanned! { span => };
         let (impl_generics, ty_generics, where_clause) = self.generics.split_for_impl();
         append_to_tokens(&where_clause, &mut q);
         q
@@ -201,9 +203,10 @@ impl FsmDescription {
     }
 
     pub fn get_current_region_state(&self, region_id: RegionId) -> quote::Tokens {
+        let span = Span::call_site();
         if self.has_multiple_regions() {
             let region_id = syn::Index::from(region_id as usize);
-            quote! { .#region_id }
+            quote_spanned! { span => .#region_id }
         } else {
             quote! {}
         }
@@ -263,28 +266,32 @@ impl FsmDescription {
     }
 
     pub fn to_state_field_access(&self, state: &syn::Type) -> Tokens {
+        let span = Span::call_site();
+
         if self.is_submachine(&state) {
             let field_name = format!("fsm_sub_{}", syn_to_string(&state).to_lowercase());
             let field_name: syn::Expr = syn::parse_str(&field_name).expect(&format!("Failed to parse field name '{}'.", field_name));
 
-            quote! {
+            quote_spanned! { span =>
                 self.#field_name.fsm
             }
 
         } else {
             let f = Self::to_state_field_name(state);
-            quote! {
+            quote_spanned! { span =>
                 self.fsm.states.#f
             }
         }
     }
 
     pub fn to_sub_runtime(&self, state: &syn::Type) -> Tokens {
+        let span = Span::call_site();
+
         if self.is_submachine(&state) {
             let field_name = format!("fsm_sub_{}", syn_to_string(&state).to_lowercase());
             let field_name: syn::Expr = syn::parse_str(&field_name).expect("44");
 
-            quote! {
+            quote_spanned! { span =>
                 self.#field_name
             }
 

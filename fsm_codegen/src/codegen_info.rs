@@ -3,8 +3,10 @@ extern crate syn;
 use fsm_def::*;
 
 use quote::*;
+use proc_macro2::Span;
 
 pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
+    let span = Span::call_site();
     let fsm_ty = fsm.get_fsm_ty();
     let fsm_name = &fsm.name;
     let impl_suffix = fsm.get_impl_suffix();
@@ -19,8 +21,8 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             let is_initial_state = state == &region.initial_state_ty;
             let is_interrupt_state = region.interrupt_states.iter().any(|x| &x.interrupt_state_ty == state);
 
-            states.push(quote! {
-                FsmInfoState {
+            states.push(quote_spanned! { span =>
+                ::fsm::FsmInfoState {
                     state_name: #state_name,
                     is_initial_state: #is_initial_state,
                     is_interrupt_state: #is_interrupt_state
@@ -55,9 +57,9 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             //let state_from_idx: usize = state_types.iter().position(|t| t == &transition.source_state).expect("State from not found");
             //let state_to_idx: usize = state_types.iter().position(|t| t == &transition.target_state).expect("State to not found");
 
-            transitions.push(quote! {
-                FsmInfoTransition {
-                    transition_id: TransitionId::Table(#id),
+            transitions.push(quote_spanned! { span =>
+                ::fsm::FsmInfoTransition {
+                    transition_id: ::fsm::TransitionId::Table(#id),
 
                     state_from: #s_from,
                     state_from_is_submachine: #state_from_is_submachine,
@@ -80,8 +82,8 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
         let region_name: syn::LitStr = syn::LitStr::new(&region.id.to_string(), ::quote::__rt::Span::def_site());
         let initial_state = syn::LitStr::new(&syn_to_string(&region.initial_state_ty), ::quote::__rt::Span::def_site());
 
-        regions.push(quote! {
-            FsmInfoRegion {
+        regions.push(quote_spanned! { span =>
+            ::fsm::FsmInfoRegion {
                 region_name: #region_name,
                 initial_state: #initial_state,
                 states: vec![#(#states),*],
@@ -91,9 +93,9 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
     }
     
     
-    quote! {
-        impl #impl_suffix FsmInfo for #fsm_ty #fsm_where_ty {
-            fn fsm_info_regions() -> Vec<FsmInfoRegion> {
+    quote_spanned! { span =>
+        impl #impl_suffix ::fsm::FsmInfo for #fsm_ty #fsm_where_ty {
+            fn fsm_info_regions() -> Vec<::fsm::FsmInfoRegion> {
                 vec![ #(#regions),* ]
             }
 
