@@ -2,7 +2,6 @@
 #![feature(proc_macro)]
 
 extern crate proc_macro;
-extern crate proc_macro2;
 extern crate fsm;
 
 extern crate petgraph;
@@ -14,7 +13,6 @@ use itertools::Itertools;
 
 use fsm::*;
 use proc_macro::TokenStream;
-use proc_macro2::Span;
 use quote::ToTokens;
 
 extern crate syn;
@@ -96,8 +94,6 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let viz_test = build_test_viz_build(&desc);
 
-    let call_site = Span::call_site();
-
     let q = quote! {
         #inline_structs      
         #inline_states
@@ -109,10 +105,8 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
         #state_store
         #main
 
-        
+        #viz_test
     };
-
-    //#viz_test
 
 
     q.into()
