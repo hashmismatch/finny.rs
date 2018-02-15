@@ -193,7 +193,8 @@ pub fn parse_description(ast: &syn::DeriveInput) -> FsmDescription {
                         FsmTimeoutTimer {
                             id: timer_id,
                             state: g.get(1).unwrap().clone(),
-                            event_on_timeout: g.get(2).unwrap().clone()
+                            event_on_timeout: g.get(2).unwrap().clone(),
+                            timer_settings_closure: None
                         }
                     );
 

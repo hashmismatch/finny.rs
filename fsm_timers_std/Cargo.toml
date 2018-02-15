@@ -10,3 +10,5 @@ fsm = {path="../"}
 
 [dev-dependencies]
 fsm_codegen = { path="../fsm_codegen/" }
+serde = "^1.0"
+serde_derive = "^1.0"

@@ -19,9 +19,17 @@ use fsm_timers_std::*;
 
 use fsm_codegen::fsm_fn;
 
+
+#[derive(Debug, Serialize, Default)]
+pub struct LightsContext {
+    timer_off: usize,
+    timer_on: usize
+}
+
 #[fsm_fn]
 fn create_it() -> () {
     let fsm = FsmDecl::new_fsm::<Lights>()
+        .context_ty::<LightsContext>()
         .initial_state::<LightOff>();
 
     fsm.new_unit_event::<LightOffTimedOut>();
@@ -49,18 +57,24 @@ fn create_it() -> () {
 
     fsm.on_event::<LightOffTimedOut>()
         .transition_from::<LightOff>()
-        .to::<LightOn>();
+        .to::<LightOn>()
+        .action(|event, ctx, state_from, state_to| {
+            ctx.context.timer_off += 1;
+        });
 
     fsm.on_event::<LightOnTimedOut>()
         .transition_from::<LightOn>()
-        .to::<LightOff>();
+        .to::<LightOff>()
+        .action(|event, ctx, state_from, state_to| {
+            ctx.context.timer_on += 1;
+        });
 }
 
-
-fn main() {
+#[test]
+fn test_lights_timers() {
     use std::time::*;
 
-    let mut lights = Lights::new_custom((), FsmInspectStdOut, FsmTimersStd::new()).unwrap();
+    let mut lights = Lights::new_custom(Default::default(), FsmInspectStdOut, FsmTimersStd::new()).unwrap();
     lights.start();
 
     let run_time = Duration::from_secs(3);
@@ -73,8 +87,6 @@ fn main() {
         };
 
         if events.len() > 0 {
-            //println!("events: {:#?}", events);
-
             for event in events {
                 lights.process_timer_event(&event);
             }
@@ -83,7 +95,8 @@ fn main() {
         std::thread::sleep_ms(50);
 
         if started_at.elapsed() > run_time {
-            println!("example finished.");
+            assert_eq!(6, lights.get_context().timer_off);
+            assert_eq!(6, lights.get_context().timer_on);
             return;
         }
     }

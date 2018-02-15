@@ -11,11 +11,22 @@ use parse_fn::LetFsmDeclaration;
 
 
 pub fn extract_method_generic_ty(i: &syn::ExprMethodCall) -> syn::Type {
+    let mut gens = extract_method_generic_ty_all(i);
+    if gens.len() != 1 {
+        panic!("Expected a single generic argument");
+    }
+    gens.pop().expect("Missing argument?")
+}
+
+pub fn extract_method_generic_ty_all(i: &syn::ExprMethodCall) -> Vec<syn::Type> {
     if let Some(ref turbofish) = i.turbofish {
-        if turbofish.args.len() != 1 { panic!("Expected a single generic argument"); }
-        if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
-            return ty.clone();
+        let mut ret = vec![];
+        for arg in &turbofish.args {
+            if let syn::GenericMethodArgument::Type(ref ty) = *arg {
+                ret.push(ty.clone())
+            }
         }
+        return ret;
     }
 
     panic!("Turbofish missing?");

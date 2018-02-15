@@ -4,7 +4,7 @@ extern crate syn;
 use fsm_def::*;
 use graph::*;
 
-use parse_fn_visitors::extract_method_generic_ty;
+use parse_fn_visitors::{extract_method_generic_ty, extract_method_generic_ty_all};
 
 use syn::visit::*;
 
@@ -152,119 +152,6 @@ impl<'ast> syn::visit::Visit<'ast> for IdentFinder {
 }
 
 
-
-fn find_inline_states(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration) -> Vec<FsmInlineState> {
-    #[derive(Debug)]
-    struct FindInlineStates<'a> {
-        fsm_decl: &'a LetFsmDeclaration,
-        calls: Vec<syn::ExprMethodCall>,
-        level: usize
-    }
-
-    impl<'a, 'ast> syn::visit::Visit<'ast> for FindInlineStates<'a> {
-        fn visit_expr_method_call(&mut self, i: &'ast syn::ExprMethodCall) {
-            let is_on_fsm = {
-                let mut f = IdentFinder {
-                    ident: self.fsm_decl.fsm_let_ident.clone(),
-                    found: false
-                };
-
-                f.visit_expr(&i.receiver);
-
-                f.found
-            };
-
-            if is_on_fsm && self.level == 0 {
-                //panic!("us: {:#?}", i);
-                self.calls.push(i.clone());
-            }
-
-            self.level += 1;
-            visit_expr_method_call(self, i);
-            self.level -= 1;
-        }
-    }
-
-    let mut finder = FindInlineStates {
-        fsm_decl: fsm_decl,
-        calls: vec![],
-        level: 0
-    };
-    finder.visit_item_fn(fn_body);
-    
-
-    #[derive(Debug, Default)]
-    struct DecodeInlineState {
-        inline_unit_state_ty: Option<syn::Type>,
-        inline_state_ty: Option<syn::Type>,
-        on_entry_closure: Option<syn::ExprClosure>,
-        on_exit_closure: Option<syn::ExprClosure>
-    }
-
-    impl<'ast> syn::visit::Visit<'ast> for DecodeInlineState {
-        fn visit_expr_method_call(&mut self, i: &'ast syn::ExprMethodCall) {
-            if i.method.as_ref() == "new_unit_state" {
-                if let Some(ref turbofish) = i.turbofish {
-                    if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
-                        self.inline_unit_state_ty = Some(ty.clone());
-                    }
-                }
-            }
-
-            if i.method.as_ref() == "new_state" {
-                if let Some(ref turbofish) = i.turbofish {
-                    if let syn::GenericMethodArgument::Type(ref ty) = turbofish.args[0] {
-                        self.inline_state_ty = Some(ty.clone());
-                    }
-                }
-            }
-
-            if i.method.as_ref() == "on_entry" {
-                if let syn::Expr::Closure(ref closure) = i.args[0] {
-                    self.on_entry_closure = Some(closure.clone());
-                }
-            }
-
-            if i.method.as_ref() == "on_exit" {
-                if let syn::Expr::Closure(ref closure) = i.args[0] {
-                    self.on_exit_closure = Some(closure.clone());
-                }
-            }
-
-            visit_expr_method_call(self, i);
-        }
-    }
-
-    let mut ret = vec![];
-
-    for call in &finder.calls {
-        let mut decoder = DecodeInlineState::default();
-        decoder.visit_expr_method_call(call);
-        
-        if let Some(ty) = decoder.inline_unit_state_ty {
-            ret.push(FsmInlineState {
-                ty: ty.clone(),
-                unit: true,
-                on_entry_closure: decoder.on_entry_closure.clone(),
-                on_exit_closure: decoder.on_exit_closure.clone(),
-            });
-        }
-        if let Some(ty) = decoder.inline_state_ty {
-            ret.push(FsmInlineState {
-                ty: ty.clone(),
-                unit: false,
-                on_entry_closure: decoder.on_entry_closure,
-                on_exit_closure: decoder.on_exit_closure,
-            });
-        }
-    }
-    
-    ret
-}
-
-
-
-
 pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     
     let mut copyable_events = false;    
@@ -290,10 +177,11 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
 
 
-    let inline_states = find_inline_states(fn_body, &fsm_decl);
+    //let inline_states = find_inline_states(fn_body, &fsm_decl);
     let mut inline_actions = vec![];
     let mut inline_guards = vec![];
     let mut inline_events = vec![];
+    let mut inline_states = vec![];
     
 
     {        
@@ -351,6 +239,62 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
                 } else if first.method.as_ref() == "copyable_events" {
                     copyable_events = true;
+
+                } else if first.method.as_ref() == "new_state_timeout" {
+                    let generics = extract_method_generic_ty_all(first);
+                    
+                    let closure = if let syn::Expr::Closure(ref closure) = first.args[0] {
+                        closure.clone()
+                    } else {
+                        panic!("missing timer closure?");
+                    };
+                    
+                    timeout_timers.push(FsmTimeoutTimer {
+                        id: timer_id,
+                        state: generics[0].clone(),
+                        event_on_timeout: generics[1].clone(),
+                        timer_settings_closure: Some(closure)
+                    });
+
+                    timer_id += 1;                    
+
+                } else if (first.method.as_ref() == "new_unit_state" || first.method.as_ref() == "new_state") {
+                    let unit = first.method.as_ref() == "new_unit_state";
+                    let state_ty = extract_method_generic_ty(first);
+
+                    let mut on_entry = None;
+                    let mut on_exit = None;
+
+                    for call in &st.calls[1..] {
+                        match call.method.as_ref() {
+                            "on_entry" => {
+                                let closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure?");
+                                };
+
+                                on_entry = Some(closure);
+                            },
+                            "on_exit" => {
+                                let closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure?");
+                                };
+
+                                on_exit = Some(closure);
+                            },
+                            _ => { panic!("unsupported new_*_state method: {:?}", call); }
+                        }
+                    }
+
+                    inline_states.push(FsmInlineState {
+                        ty: state_ty,
+                        unit: unit,
+                        on_entry_closure: on_entry,
+                        on_exit_closure: on_exit
+                    });
                 } else if first.method.as_ref() == "on_event" {
                     let event_ty = extract_method_generic_ty(first);
                     let mut transition_type = TransitionType::Normal;

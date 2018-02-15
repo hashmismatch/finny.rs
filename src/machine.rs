@@ -311,14 +311,15 @@ pub struct TransitionInternalGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: F
 
 
 
-pub trait StateTimeout<F: Fsm> : FsmState<F> {
-	fn timeout_on_entry(&self, event_context: &mut EventContext<F>) -> Option<TimerSettings>;
+pub trait StateTimeout<E: FsmEvent, F: Fsm> : FsmState<F> {
+	fn timeout_on_entry(&self, event_context: &mut EventContext<F>) -> Option<TimerSettings<E>>;
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct TimerSettings {
+pub struct TimerSettings<E: FsmEvent> {
 	pub timeout: TimerDuration,
-	pub cancel_on_state_exit: bool
+	pub cancel_on_state_exit: bool,
+	pub event_on_timeout: E
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -333,7 +334,7 @@ impl TimerDuration {
 }
 
 
-pub struct TimerStateTimeout<F: Fsm, S: StateTimeout<F>, E: FsmEvent + Default>(PhantomData<F>, S, E);
+// pub struct TimerStateTimeout<F: Fsm, S: StateTimeout<F>, E: FsmEvent + Default>(PhantomData<F>, S, E);
 
 
 

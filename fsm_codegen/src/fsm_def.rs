@@ -74,7 +74,14 @@ pub struct FsmInlineGuard {
 pub struct FsmTimeoutTimer {
     pub id: u32,
     pub state: syn::Type,
-    pub event_on_timeout: syn::Type
+    pub event_on_timeout: syn::Type,
+    pub timer_settings_closure: Option<syn::ExprClosure>
+}
+
+impl FsmTimeoutTimer {
+    pub fn get_ident(&self) -> syn::Ident {
+        syn::parse_str(&format!("timeout_timer_{}", self.id)).expect("timeout timer ident parse error")
+    }
 }
 
 #[derive(Debug, Clone)]

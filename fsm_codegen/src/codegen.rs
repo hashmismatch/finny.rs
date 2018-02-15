@@ -208,16 +208,33 @@ pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Type)
     let start_timeout_timers = fsm.timeout_timers.iter().filter(|t| &t.state == state);
     for timer in start_timeout_timers {
         let n = timer.id as usize;
-        q.append_all(quote! {
-            if self.timeout_timers[#n].is_some() {
-                panic!("This timer wasn't properly disposed!");
-            }
+        let ident = timer.get_ident();
+        
+        if let Some(ref create_timer_settings) = timer.timer_settings_closure {
 
-            self.timeout_timers[#n] = #state_field.timeout_on_entry(&mut event_ctx);
-            if let Some(ref timer) = self.timeout_timers[#n] {                                
-                self.timers.create_timeout_timer(TimerId(#n as u32), timer.timeout);
-            }
-        });
+            let remap = remap_closure_inputs(&create_timer_settings.inputs, &vec![
+                quote! { event_ctx }
+            ]);
+
+            let body = &create_timer_settings.body;
+
+            q.append_all(quote! {
+                if self.#ident.is_some() {
+                    panic!("This timer (#n) wasn't properly disposed!");
+                }
+
+                self.#ident = {
+                    let event_ctx = &mut event_ctx;
+                    #(#remap)*
+                    {
+                        #body
+                    }
+                };
+                if let Some(ref timer) = self.#ident {
+                    self.timers.create_timeout_timer(TimerId(#n as u32), timer.timeout);
+                }
+            });
+        }
     }
 
     q
@@ -229,8 +246,9 @@ pub fn build_state_timeout_timers_exit(fsm: &FsmDescription, state: &syn::Type) 
     let stop_timeout_timers = fsm.timeout_timers.iter().filter(|t| &t.state == state);
     for timer in stop_timeout_timers {
         let n = timer.id as usize;
+        let ident = timer.get_ident();
         q.append_all(quote! {
-            if let Some(mut timer) = self.timeout_timers[#n].take() {
+            if let Some(mut timer) = self.#ident.take() {
                 if timer.cancel_on_state_exit {
                     // this timer hasn't timed out. announce its cancellation to the outside API
                     self.timers.cancel_timer(TimerId(#n as u32));
@@ -818,11 +836,11 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             });
         }
 
-
-        if fsm.timeout_timers.len() > 0 {
-            let l = fsm.timeout_timers.len();
+        for timer in &fsm.timeout_timers {
+            let ident = timer.get_ident();
+            let ev = &timer.event_on_timeout;
             q.append_all(quote! {
-                timeout_timers: [Option<TimerSettings>; #l ],
+                #ident: Option<TimerSettings<#ev>>,
             });
         }
 
@@ -847,9 +865,10 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
         let fsm_additional_field_inits = {
             let mut q = quote!{};
 
-            if fsm.timeout_timers.len() > 0 {
+            for timer in &fsm.timeout_timers {
+                let ident = timer.get_ident();
                 q.append_all(quote! {
-                    timeout_timers: Default::default(),
+                    #ident: None,
                 });
             }
 
@@ -944,13 +963,14 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
         for timer in &fsm.timeout_timers {
             let id = timer.id as u32;
             let event = &timer.event_on_timeout;
+            let ident = timer.get_ident();
 
             timer_timeouts.append_all(quote! {
                 #id => {
-                    let timer = self.timeout_timers[#id as usize].take();
-
-                    let event: #event = Default::default();                    
-                    self.process_event(event)?;                    
+                    let timer = self.#ident.take();
+                    if let Some(timer) = timer {
+                        self.process_event(timer.event_on_timeout)?;
+                    }
                 }
             })
         }
