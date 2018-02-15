@@ -1,3 +1,6 @@
+#![feature(proc_macro)]
+
+
 #[macro_use]
 extern crate fsm;
 #[macro_use]
@@ -8,8 +11,9 @@ extern crate serde;
 extern crate serde_derive;
 
 use fsm::*;
+use fsm_codegen::fsm_fn;
 
-
+/*
 // events
 
 #[derive(Clone, PartialEq, Default, Debug, Serialize)]
@@ -67,14 +71,15 @@ impl<'a> FsmState<Ortho<'a>> for AllOk { }
 #[derive(Clone, PartialEq, Default, Debug, Serialize)]
 pub struct ErrorMode;
 impl<'a> FsmState<Ortho<'a>> for ErrorMode { }
-
+*/
 
 #[derive(Debug, Serialize)]
-pub struct OrthoContext<'a> {
-    id: &'a str   
+pub struct OrthoContext {
+    id: &'static str   
 }
 
 
+/*
 #[derive(Fsm)]
 struct OrthoDefinition<'a>(
     InitialState<Ortho<'a>, (InitialA, InitialB, FixedC, AllOk)>,
@@ -92,6 +97,56 @@ struct OrthoDefinition<'a>(
     // In case the current state is "ErrorMode", every other event other than "ErrorFixed" is blocked.
     InterruptState    < Ortho<'a>,  ErrorMode, ErrorFixed >
 );
+*/
+
+
+#[fsm_fn]
+fn ortho_fsm() {
+    let fsm = FsmDecl::new_fsm::<Ortho>()
+        .context_ty::<OrthoContext>()
+        .initial_state::<(InitialA, InitialB, FixedC, AllOk)>();
+    
+    fsm.new_unit_event::<EventA>();
+    fsm.new_unit_event::<EventA2>();
+    fsm.new_unit_event::<EventB>();
+    fsm.new_unit_event::<ErrorDetected>();
+    fsm.new_unit_event::<ErrorFixed>();
+
+    fsm.new_unit_state::<InitialA>();
+    fsm.new_unit_state::<InitialB>();
+    fsm.new_unit_state::<StateA>();
+    fsm.new_unit_state::<StateB>();
+    fsm.new_unit_state::<FixedC>();
+    fsm.new_unit_state::<AllOk>();
+    fsm.new_unit_state::<ErrorMode>();
+
+    fsm.on_event::<EventA>()
+       .transition_from::<InitialA>()
+       .to::<StateA>();
+
+    fsm.on_event::<EventA2>()
+       .transition_from::<StateA>()
+       .to::<InitialA>();
+
+    fsm.on_event::<EventB>()
+       .transition_from::<InitialB>()
+       .to::<StateB>();
+
+    fsm.on_event::<ErrorDetected>()
+       .transition_from::<AllOk>()
+       .to::<ErrorMode>();
+
+    fsm.on_event::<ErrorFixed>()
+       .transition_from::<ErrorMode>()
+       .to::<AllOk>();
+
+    // todo: reverse these API semantics, they are silly... .interrupted_state::<>().resume_on::<>()
+
+    // In case the current state is "ErrorMode", every other event other than "ErrorFixed" is blocked.
+    fsm.on_event::<ErrorFixed>()
+       .interrupt_state::<ErrorMode>();
+}
+
 
 
 #[cfg(test)]

@@ -603,6 +603,10 @@ impl<F, E> FsmDeclOnEvent<F, E> where F: Fsm, E: FsmEvent {
 	pub fn shallow_history<State>(&self) -> &Self where State: FsmState<F> {
 		self
 	}
+
+	pub fn interrupt_state<State>(&self) where State: FsmState<F> {
+		
+	}
 }
 
 pub struct FsmDeclTransitionSingle<F, E, State> {
