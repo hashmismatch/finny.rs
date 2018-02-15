@@ -514,6 +514,17 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 		}
 	}
 
+	pub fn new_unit_event<E>(&self) where E: FsmEvent {
+
+	}
+
+	pub fn new_state_timeout<State, E, FnTimer>(&self, create_timer: FnTimer)
+		where State: FsmState<F>, E: FsmEvent,
+		      FnTimer: Fn(EventContext<F>) -> Option<TimerSettings<E>>
+	{
+
+	}
+
 	pub fn on_event<E>(&self) -> FsmDeclOnEvent<F, E> where E: FsmEvent {
 		FsmDeclOnEvent {
 			fsm_ty: PhantomData::default(),

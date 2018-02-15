@@ -38,7 +38,7 @@ fn create_it() -> () {
     fsm.new_unit_state::<LightOff>();
     fsm.new_unit_state::<LightOn>();
 
-    fsm.new_state_timeout::<LightOff, LightOffTimedOut>(|ctx| {
+    fsm.new_state_timeout::<LightOff, LightOffTimedOut, _>(|ctx| {
         Some(TimerSettings {
             timeout: TimerDuration::from_millis(500),
             cancel_on_state_exit: true,
@@ -46,7 +46,7 @@ fn create_it() -> () {
         })
     });
 
-    fsm.new_state_timeout::<LightOn, LightOnTimedOut>(|ctx| {
+    fsm.new_state_timeout::<LightOn, LightOnTimedOut, _>(|ctx| {
         Some(TimerSettings {
             timeout: TimerDuration::from_millis(100),
             cancel_on_state_exit: true,

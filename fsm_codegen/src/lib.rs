@@ -94,7 +94,23 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let viz_test = build_test_viz_build(&desc);
 
+
+    let fn_syn_check = {
+        let mut f = fn_body.clone();
+        f.attrs.clear();
+        f.vis = syn::Visibility::Inherited;
+        f
+    };
+    let mod_priv: syn::Ident = syn::parse_str(&format!("{}Private", &desc.name)).expect("mod priv parse");
+
     let q = quote! {
+        #[allow(dead_code)]
+        mod #mod_priv {
+            #fn_syn_check
+        }
+
+
+
         #inline_structs      
         #inline_states
         #inline_actions
