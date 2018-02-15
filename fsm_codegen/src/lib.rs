@@ -99,15 +99,22 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
         let mut f = fn_body.clone();
         f.attrs.clear();
         f.vis = syn::Visibility::Inherited;
+
+        // remove all local structures, since they will copied to outside the fn scope by inline codegens
+        f.block.stmts.retain(|x| {
+            match x {
+                &syn::Stmt::Item(syn::Item::Struct(_)) => false,
+                _ => true
+            }
+        });
+
         f
     };
     let mod_priv: syn::Ident = syn::parse_str(&format!("{}Private", &desc.name)).expect("mod priv parse");
 
     let q = quote! {
         #[allow(dead_code)]
-        mod #mod_priv {
-            #fn_syn_check
-        }
+        #fn_syn_check
 
 
 

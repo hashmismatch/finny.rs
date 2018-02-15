@@ -514,7 +514,18 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 		}
 	}
 
+	pub fn new_state<S>(&self) -> FsmDeclState<F, S> where S: FsmState<F> {
+		FsmDeclState {
+			fsm_ty: PhantomData::default(),
+			state_ty: PhantomData::default()
+		}
+	}
+
 	pub fn new_unit_event<E>(&self) where E: FsmEvent {
+
+	}
+
+	pub fn new_event<E>(&self) where E: FsmEvent {
 
 	}
 
@@ -532,10 +543,31 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 		}
 	}
 
-	pub fn add_sub_machine<FSub>(&self) -> () where FSub: Fsm {
-		()
+	pub fn add_sub_machine<FSub>(&self) -> FsmDeclSubMachine<F, FSub> where FSub: Fsm {
+		FsmDeclSubMachine {
+			fsm: PhantomData::default(),
+			fsm_sub: PhantomData::default()
+		}
 	}
 }
+
+
+pub struct FsmDeclSubMachine<F, FSub> {
+	fsm: PhantomData<F>,
+	fsm_sub: PhantomData<FSub>
+}
+
+impl<F, FSub> FsmDeclSubMachine<F, FSub> where F: Fsm, FSub: Fsm + FsmState<F> {
+	pub fn on_entry<B: Fn(&mut FSub, &mut EventContext<F>)>(&self, body: B) -> &Self {
+		self
+	}
+
+	pub fn on_exit<B: Fn(&mut FSub, &mut EventContext<F>)>(&self, body: B) -> &Self {
+		self
+	}	
+}
+
+
 impl<F, Ctx, InitialState> FsmOptions for FsmDeclComplete<F, Ctx, InitialState> { }
 
 pub struct FsmDeclOnEvent<F, E> {
@@ -543,8 +575,8 @@ pub struct FsmDeclOnEvent<F, E> {
 	event_ty: PhantomData<E>
 }
 
-impl<F, E> FsmDeclOnEvent<F, E> {
-	pub fn transition_from<StateFrom>(&self) -> FsmlDeclTransitionFrom<F, E, StateFrom> where F: Fsm, E: FsmEvent, StateFrom: FsmState<F> {
+impl<F, E> FsmDeclOnEvent<F, E> where F: Fsm, E: FsmEvent {
+	pub fn transition_from<StateFrom>(&self) -> FsmlDeclTransitionFrom<F, E, StateFrom> where StateFrom: FsmState<F> {
 		FsmlDeclTransitionFrom {
 			fsm_ty: PhantomData::default(),
 			event_ty: PhantomData::default(),
@@ -552,7 +584,7 @@ impl<F, E> FsmDeclOnEvent<F, E> {
 		}
 	}
 
-	pub fn transition_self<State>(&self) -> FsmDeclTransitionSingle<F, E, State> where F: Fsm, E: FsmEvent, State: FsmState<F> {
+	pub fn transition_self<State>(&self) -> FsmDeclTransitionSingle<F, E, State> where State: FsmState<F> {
 		FsmDeclTransitionSingle {
 			fsm_ty: PhantomData::default(),
 			event_ty: PhantomData::default(),
@@ -560,12 +592,16 @@ impl<F, E> FsmDeclOnEvent<F, E> {
 		}
 	}
 
-	pub fn transition_internal<State>(&self) -> FsmDeclTransitionSingle<F, E, State> where F: Fsm, E: FsmEvent, State: FsmState<F> {
+	pub fn transition_internal<State>(&self) -> FsmDeclTransitionSingle<F, E, State> where State: FsmState<F> {
 		FsmDeclTransitionSingle {
 			fsm_ty: PhantomData::default(),
 			event_ty: PhantomData::default(),
 			state: PhantomData::default()
 		}
+	}
+
+	pub fn shallow_history<State>(&self) -> &Self where State: FsmState<F> {
+		self
 	}
 }
 
@@ -627,11 +663,11 @@ pub struct FsmDeclState<F, S> {
 }
 
 impl<F, S> FsmDeclState<F, S> {
-	pub fn on_entry<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) {
-		
+	pub fn on_entry<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) -> &Self {
+		self
 	}
 
-	pub fn on_exit<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) {
-
+	pub fn on_exit<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) -> &Self {
+		self
 	}
 }
