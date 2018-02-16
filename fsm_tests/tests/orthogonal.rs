@@ -140,11 +140,9 @@ fn ortho_fsm() {
        .transition_from::<ErrorMode>()
        .to::<AllOk>();
 
-    // todo: reverse these API semantics, they are silly... .interrupted_state::<>().resume_on::<>()
-
     // In case the current state is "ErrorMode", every other event other than "ErrorFixed" is blocked.
-    fsm.on_event::<ErrorFixed>()
-       .interrupt_state::<ErrorMode>();
+    fsm.interrupt_state::<ErrorMode>()
+       .resume_on::<ErrorFixed>();
 }
 
 

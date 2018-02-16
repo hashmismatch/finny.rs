@@ -256,7 +256,26 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                         timer_settings_closure: Some(closure)
                     });
 
-                    timer_id += 1;                    
+                    timer_id += 1;
+
+                } else if first.method.as_ref() == "interrupt_state" {
+
+                    let mut resume_events = vec![];
+                    for call in &st.calls[1..] {
+                        match call.method.as_ref() {
+                            "resume_on" => {
+                                let event_ty = extract_method_generic_ty(call);
+                                resume_events.push(event_ty);
+                            },
+                            _ => { panic!("Unsupported method for interrupt_state: {:?}", call); }
+                        }
+                    }
+
+                    let state = extract_method_generic_ty(&first);
+                    interrupt_states.push(FsmInterruptState {
+                        interrupt_state_ty: state,
+                        resume_event_ty: resume_events
+                    });
 
                 } else if (first.method.as_ref() == "new_unit_state" || first.method.as_ref() == "new_state") {
                     let unit = first.method.as_ref() == "new_unit_state";
@@ -324,14 +343,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                             "to" => {
                                 transition_to = Some(extract_method_generic_ty(&call));
                                 transition_entry = true;
-                            },
-                            "interrupt_state" => {
-                                let state = extract_method_generic_ty(&call);
-                                interrupt_states.push(FsmInterruptState {
-                                    interrupt_state_ty: state,
-                                    resume_event_ty: vec![event_ty.clone()]
-                                });
-                            },
+                            },                            
                             "shallow_history" => {
                                 let state = extract_method_generic_ty(&call);
                                 shallow_history_events.push(ShallowHistoryEvent {

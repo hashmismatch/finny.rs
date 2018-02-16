@@ -529,6 +529,13 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 
 	}
 
+	pub fn interrupt_state<S>(&self) -> FsmDeclInterruptState<F, S> where S: FsmState<F> {
+		FsmDeclInterruptState {
+			fsm_ty: PhantomData::default(),
+			state_ty: PhantomData::default()
+		}
+	}
+
 	pub fn new_state_timeout<State, E, FnTimer>(&self, create_timer: FnTimer)
 		where State: FsmState<F>, E: FsmEvent,
 		      FnTimer: Fn(EventContext<F>) -> Option<TimerSettings<E>>
@@ -603,10 +610,6 @@ impl<F, E> FsmDeclOnEvent<F, E> where F: Fsm, E: FsmEvent {
 	pub fn shallow_history<State>(&self) -> &Self where State: FsmState<F> {
 		self
 	}
-
-	pub fn interrupt_state<State>(&self) where State: FsmState<F> {
-		
-	}
 }
 
 pub struct FsmDeclTransitionSingle<F, E, State> {
@@ -672,6 +675,17 @@ impl<F, S> FsmDeclState<F, S> {
 	}
 
 	pub fn on_exit<B: Fn(&mut S, &mut EventContext<F>)>(&self, body: B) -> &Self {
+		self
+	}
+}
+
+pub struct FsmDeclInterruptState<F, S> {
+	fsm_ty: PhantomData<F>,
+	state_ty: PhantomData<S>
+}
+
+impl<F, S> FsmDeclInterruptState<F, S> {
+	pub fn resume_on<E>(&self) -> &Self where E: FsmEvent {
 		self
 	}
 }
