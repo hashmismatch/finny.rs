@@ -192,7 +192,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
         for st in &method_calls {
             if let Some(first) = st.calls.get(0) {
-                println!("first: {:?}", first.method.as_ref());
+                //println!("first: {:?}", first.method.as_ref());
                 if first.method.as_ref() == "new_event" {
                     let event_ty = extract_method_generic_ty(first);
 
@@ -321,7 +321,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     });
                 } else if first.method.as_ref() == "on_event" {
                     let event_ty = extract_method_generic_ty(first);
-                    println!("event_ty: {:?}", event_ty);
+                    //println!("event_ty: {:?}", event_ty);
                     let mut transition_type = TransitionType::Normal;
                     let mut transition_from = None;
                     let mut transition_to = None;
