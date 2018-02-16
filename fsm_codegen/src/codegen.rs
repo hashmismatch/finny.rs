@@ -414,6 +414,8 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
                         #state_exit
                         #sub_state_exit
                         
+
+                        event.on_dispatch(&mut event_ctx);
                         #action_call
                         //self.inspection.on_action(#transition_id, & #action_str, &event_ctx);
                         
@@ -1431,6 +1433,7 @@ pub fn build_inline_structs(fsm: &FsmDescription) -> quote::Tokens {
 
 pub fn build_inline_events(fsm: &FsmDescription) -> quote::Tokens {
     let mut q = quote! {};
+    let fsm_ty = fsm.get_fsm_ty_inline();
 
     for ev in &fsm.inline_events {
         let ty = &ev.ty;
@@ -1452,7 +1455,7 @@ pub fn build_inline_events(fsm: &FsmDescription) -> quote::Tokens {
         }
 
         q.append_all(quote! {
-            impl ::fsm::FsmEvent for #ty {
+            impl ::fsm::FsmEvent<#fsm_ty> for #ty {
 
             }
         });

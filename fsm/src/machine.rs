@@ -29,8 +29,8 @@ pub enum FsmQueueStatus {
 	MoreEventsQueued
 }
 
-pub trait FsmEvent {
-
+pub trait FsmEvent<F: Fsm> {
+	fn on_dispatch(&self, event_context: &mut EventContext<F>) { }
 }
 pub trait FsmEvents: Debug {
 	fn new_no_event() -> Self;
@@ -54,7 +54,7 @@ pub enum TransitionId {
 pub trait FsmInspect<F: Fsm>: Clone
 	where F::C : ::serde::Serialize + ::std::fmt::Debug
 {
-	fn on_process_event<Ev: FsmEvent + ::serde::Serialize + ::std::fmt::Debug>(&self, state: &F::CS, event_kind: F::EventKind, event: &Ev) { }
+	fn on_process_event<Ev: FsmEvent<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, state: &F::CS, event_kind: F::EventKind, event: &Ev) { }
 
 	/* the approximate order in which these methods get called */
 	
@@ -160,7 +160,7 @@ pub trait FsmActionSelf<F: Fsm, S, E> {
 
 #[derive(PartialEq, Copy, Clone, Debug, Serialize)]
 pub struct NoEvent;
-impl FsmEvent for NoEvent { }
+impl<F: Fsm> FsmEvent<F> for NoEvent { }
 
 pub struct NoAction;
 impl<F: Fsm, S, E, T> FsmAction<F, S, E, T> for NoAction {
@@ -290,33 +290,12 @@ pub trait FsmProcessor<F: Fsm, E> {
 }
 
 
-// codegen types
-
-pub struct InitialState<F: Fsm, S: FsmState<F>>(PhantomData<F>, S);
-pub struct ContextType<T>(T);
-pub struct SubMachine<F: Fsm>(F);
-pub struct ShallowHistory<F: Fsm, E: FsmEvent, StateTarget: FsmState<F> + Fsm>(PhantomData<F>, E, StateTarget);
-pub struct InterruptState<F: Fsm, S: FsmState<F>, E: FsmEvent>(PhantomData<F>, S, E);
-pub struct StopState<F: Fsm, S: FsmState<F>>(PhantomData<F>, S);
-pub struct CopyableEvents;
-
-
-pub struct Transition<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, E, StateTarget>>(PhantomData<F>, StateSource, E, StateTarget, A);
-pub struct TransitionSelf<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>>(PhantomData<F>, State, E, A);
-pub struct TransitionInternal<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>>(PhantomData<F>, State, E, A);
-
-pub struct TransitionGuard<F: Fsm, StateSource: FsmState<F>, E: FsmEvent, StateTarget: FsmState<F>, A: FsmAction<F, StateSource, E, StateTarget>, G: FsmGuard<F, E>>(PhantomData<F>, StateSource, E, StateTarget, A, G);
-pub struct TransitionSelfGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>, G: FsmGuard<F, E>>(PhantomData<F>, State, E, A, G);
-pub struct TransitionInternalGuard<F: Fsm, State: FsmState<F>, E: FsmEvent, A: FsmActionSelf<F, State, E>, G: FsmGuard<F, E>>(PhantomData<F>, State, E, A, G);
 
 
 
-pub trait StateTimeout<E: FsmEvent, F: Fsm> : FsmState<F> {
-	fn timeout_on_entry(&self, event_context: &mut EventContext<F>) -> Option<TimerSettings<E>>;
-}
 
 #[derive(Copy, Clone, Debug)]
-pub struct TimerSettings<E: FsmEvent> {
+pub struct TimerSettings<E> {
 	pub timeout: TimerDuration,
 	pub cancel_on_state_exit: bool,
 	pub event_on_timeout: E
@@ -521,11 +500,11 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 		}
 	}
 
-	pub fn new_unit_event<E>(&self) where E: FsmEvent {
+	pub fn new_unit_event<E>(&self) where E: FsmEvent<F> {
 
 	}
 
-	pub fn new_event<E>(&self) where E: FsmEvent {
+	pub fn new_event<E>(&self) where E: FsmEvent<F> {
 
 	}
 
@@ -537,13 +516,13 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 	}
 
 	pub fn new_state_timeout<State, E, FnTimer>(&self, create_timer: FnTimer)
-		where State: FsmState<F>, E: FsmEvent,
+		where State: FsmState<F>, E: FsmEvent<F>,
 		      FnTimer: Fn(EventContext<F>) -> Option<TimerSettings<E>>
 	{
 
 	}
 
-	pub fn on_event<E>(&self) -> FsmDeclOnEvent<F, E> where E: FsmEvent {
+	pub fn on_event<E>(&self) -> FsmDeclOnEvent<F, E> where E: FsmEvent<F> {
 		FsmDeclOnEvent {
 			fsm_ty: PhantomData::default(),
 			event_ty: PhantomData::default()
@@ -582,7 +561,7 @@ pub struct FsmDeclOnEvent<F, E> {
 	event_ty: PhantomData<E>
 }
 
-impl<F, E> FsmDeclOnEvent<F, E> where F: Fsm, E: FsmEvent {
+impl<F, E> FsmDeclOnEvent<F, E> where F: Fsm, E: FsmEvent<F> {
 	pub fn transition_from<StateFrom>(&self) -> FsmlDeclTransitionFrom<F, E, StateFrom> where StateFrom: FsmState<F> {
 		FsmlDeclTransitionFrom {
 			fsm_ty: PhantomData::default(),
@@ -618,7 +597,7 @@ pub struct FsmDeclTransitionSingle<F, E, State> {
 	state: PhantomData<State>
 }
 
-impl<F, E, State> FsmDeclTransitionSingle<F, E, State> where F: Fsm, E: FsmEvent, State: FsmState<F> {
+impl<F, E, State> FsmDeclTransitionSingle<F, E, State> where F: Fsm, E: FsmEvent<F>, State: FsmState<F> {
 	pub fn action<FnAction: Fn(&E, &mut EventContext<F>, &mut State)>(&self, action: FnAction) -> &Self {
 		self
 	}
@@ -635,7 +614,7 @@ pub struct FsmlDeclTransitionFrom<F, E, StateFrom> {
 	state_from: PhantomData<StateFrom>
 }
 
-impl<F, E, StateFrom> FsmlDeclTransitionFrom<F, E, StateFrom> where F: Fsm, E: FsmEvent, StateFrom: FsmState<F> {
+impl<F, E, StateFrom> FsmlDeclTransitionFrom<F, E, StateFrom> where F: Fsm, E: FsmEvent<F>, StateFrom: FsmState<F> {
 	pub fn to<StateTo>(&self) -> FsmDeclTransition<F, E, StateFrom, StateTo> where StateTo: FsmState<F> {
 		FsmDeclTransition {
 			fsm_ty: PhantomData::default(),
@@ -684,8 +663,8 @@ pub struct FsmDeclInterruptState<F, S> {
 	state_ty: PhantomData<S>
 }
 
-impl<F, S> FsmDeclInterruptState<F, S> {
-	pub fn resume_on<E>(&self) -> &Self where E: FsmEvent {
+impl<F, S> FsmDeclInterruptState<F, S> where F: Fsm {
+	pub fn resume_on<E>(&self) -> &Self where E: FsmEvent<F> {
 		self
 	}
 }
