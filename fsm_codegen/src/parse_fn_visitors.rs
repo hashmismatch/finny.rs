@@ -58,7 +58,8 @@ pub fn find_fsm_method_calls(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration
 
                 f.found
             };
-
+            
+            //println!("fsm: {}, level: {}, method {}", is_on_fsm, self.level, i.method.as_ref());
             if is_on_fsm && self.level == 0 {
                 //panic!("us: {:#?}", i);
                 self.calls.push(i.clone());
@@ -67,6 +68,10 @@ pub fn find_fsm_method_calls(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration
             self.level += 1;
             visit_expr_method_call(self, i);
             self.level -= 1;
+        }
+
+        fn visit_expr_closure(&mut self, i: &'ast syn::ExprClosure) {
+            // do not descend down closures
         }
     }
 
@@ -88,6 +93,10 @@ pub fn find_fsm_method_calls(fn_body: &syn::ItemFn, fsm_decl: &LetFsmDeclaration
         fn visit_expr_method_call(&mut self, i: &'ast syn::ExprMethodCall) {
             self.calls.push(i.clone());            
             visit_expr_method_call(self, i);
+        }
+
+        fn visit_expr_closure(&mut self, i: &'ast syn::ExprClosure) {
+            // do not descend down closures
         }
     }    
 

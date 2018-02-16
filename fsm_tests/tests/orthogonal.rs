@@ -13,92 +13,11 @@ extern crate serde_derive;
 use fsm::*;
 use fsm_codegen::fsm_fn;
 
-/*
-// events
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct EventA;
-impl FsmEvent for EventA {}
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct EventA2;
-impl FsmEvent for EventA2 {}
-
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct EventB;
-impl FsmEvent for EventB {}
-
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct ErrorDetected;
-impl FsmEvent for ErrorDetected {}
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct ErrorFixed;
-impl FsmEvent for ErrorFixed {}
-
-
-// states
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct InitialA;
-impl<'a> FsmState<Ortho<'a>> for InitialA { }
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct InitialB;
-impl<'a> FsmState<Ortho<'a>> for InitialB { }
-
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct StateA;
-impl<'a> FsmState<Ortho<'a>> for StateA { }
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct StateB;
-impl<'a> FsmState<Ortho<'a>> for StateB { }
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct FixedC;
-impl<'a> FsmState<Ortho<'a>> for FixedC { }
-
-
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct AllOk;
-impl<'a> FsmState<Ortho<'a>> for AllOk { }
-
-#[derive(Clone, PartialEq, Default, Debug, Serialize)]
-pub struct ErrorMode;
-impl<'a> FsmState<Ortho<'a>> for ErrorMode { }
-*/
 
 #[derive(Debug, Serialize)]
 pub struct OrthoContext {
     id: &'static str   
 }
-
-
-/*
-#[derive(Fsm)]
-struct OrthoDefinition<'a>(
-    InitialState<Ortho<'a>, (InitialA, InitialB, FixedC, AllOk)>,
-	ContextType<OrthoContext<'a>>,
-    
-
-    Transition        < Ortho<'a>,  InitialA,  EventA,   StateA,   NoAction>,
-    Transition        < Ortho<'a>,  StateA,    EventA2,  InitialA, NoAction>,
-
-    Transition        < Ortho<'a>,  InitialB,  EventB,   StateB, NoAction>,
-
-    Transition        < Ortho<'a>,  AllOk,     ErrorDetected, ErrorMode, NoAction >,
-	Transition        < Ortho<'a>,  ErrorMode, ErrorFixed,    AllOk,     NoAction >,
-
-    // In case the current state is "ErrorMode", every other event other than "ErrorFixed" is blocked.
-    InterruptState    < Ortho<'a>,  ErrorMode, ErrorFixed >
-);
-*/
-
 
 #[fsm_fn]
 fn ortho_fsm() {
