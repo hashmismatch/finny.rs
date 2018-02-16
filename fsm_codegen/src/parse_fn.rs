@@ -368,11 +368,11 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                     TransitionType::Normal => {
                                         let transition_action_name = format!("{}{}{}Action",
                                             syn_to_string(&event_ty),
-                                            syn_to_string(&transition_from.clone().unwrap()),
-                                            syn_to_string(&transition_to.clone().unwrap())
+                                            syn_to_string(&transition_from.clone().expect("Transition from normal")),
+                                            syn_to_string(&transition_to.clone().expect("Transition to normal"))
                                         );
                                                                         
-                                        let ty: syn::Type = syn::parse_str(&transition_action_name).unwrap();
+                                        let ty: syn::Type = syn::parse_str(&transition_action_name).expect("Transition normal action name");
                                         action = Some(ty.clone());
 
                                         inline_actions.push(FsmInlineAction {
@@ -384,7 +384,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                     TransitionType::Internal | TransitionType::SelfTransition => {
                                         let transition_action_name = format!("{}{}{}",
                                             syn_to_string(&event_ty),
-                                            syn_to_string(&transition_from.clone().unwrap()),
+                                            syn_to_string(&transition_from.clone().expect("transition int/from")),
                                             match transition_type {
                                                 TransitionType::Internal => "InternalAction",
                                                 TransitionType::SelfTransition => "SelfAction",
@@ -392,7 +392,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                             }
                                         );
                                                                         
-                                        let ty: syn::Type = syn::parse_str(&transition_action_name).unwrap();
+                                        let ty: syn::Type = syn::parse_str(&transition_action_name).expect("Transition int/self action ty");
                                         action = Some(ty.clone());
 
                                         inline_actions.push(FsmInlineAction {
@@ -406,8 +406,12 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                             "guard" => {
                                 let transition_guard_name = format!("{}{}{}Guard",
                                     syn_to_string(&event_ty),
-                                    syn_to_string(&transition_from.clone().unwrap()),
-                                    syn_to_string(&transition_to.clone().unwrap())
+                                    syn_to_string(&transition_from.clone().expect("guard from transition")),
+                                    if let Some(ref ty) = transition_to {
+                                        syn_to_string(ty)
+                                    } else {
+                                        "".into()
+                                    }
                                 );
 
                                 let guard_closure = if let syn::Expr::Closure(ref closure) = call.args[0] {

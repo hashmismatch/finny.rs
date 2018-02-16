@@ -19,7 +19,7 @@ version = "0.12"
 features = ["full", "parsing", "printing", "extra-traits", "visit"]
 
 [dependencies.fsm]
-path = "../"
+path = "../fsm/"
 default-features = false 
 
 [lib]

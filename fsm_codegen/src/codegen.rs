@@ -1227,6 +1227,10 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
 }
 
 pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>, p: &[quote::Tokens]) -> quote::Tokens {
+    if inputs.len() != p.len() {
+        panic!("Expected {} closure arguments, actually have {}.", p.len(), inputs.len());
+    }
+    
     let input_remap: Vec<_> = inputs.iter().enumerate().map(|(idx, input)| {
         match *input {
             syn::FnArg::Inferred(ref pat) => {

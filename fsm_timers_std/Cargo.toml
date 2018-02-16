@@ -6,7 +6,7 @@ authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 [dependencies]
 futures = "0.1.17"
 tokio-timer = "0.1.2"
-fsm = {path="../"}
+fsm = {path="../fsm/"}
 
 [dev-dependencies]
 fsm_codegen = { path="../fsm_codegen/" }
