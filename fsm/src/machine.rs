@@ -324,6 +324,20 @@ pub struct TimerSettings<E> {
 }
 
 #[derive(Copy, Clone, Debug)]
+pub struct TransitionTimerSettings {
+	pub timeout: TimerDuration
+}
+impl TransitionTimerSettings {
+	pub fn new(timeout: TimerDuration) -> Self {
+		TransitionTimerSettings {
+			timeout: timeout
+		}
+	}
+}
+
+
+
+#[derive(Copy, Clone, Debug)]
 pub struct TimerDuration {
 	pub ms: u64
 }
@@ -544,6 +558,17 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 
 	}
 
+	pub fn new_state_timeout_transition<StateFrom, StateTo, FnTimer>(&self, create_timer: FnTimer) -> FsmDeclStateTimeoutTransition<F, StateFrom, StateTo>
+		where StateFrom: FsmState<F>, StateTo: FsmState<F>,
+			  FnTimer: Fn(EventContext<F>) -> Option<TransitionTimerSettings>
+	{
+		FsmDeclStateTimeoutTransition {
+			fsm: PhantomData::default(),
+			state_from: PhantomData::default(),
+			state_to: PhantomData::default()
+		}
+	}
+
 	pub fn on_event<E>(&self) -> FsmDeclOnEvent<F, E> where E: FsmEvent<F> {
 		FsmDeclOnEvent {
 			fsm_ty: PhantomData::default(),
@@ -556,6 +581,18 @@ impl<F, Ctx, InitialState> FsmDeclComplete<F, Ctx, InitialState> where F: Fsm, I
 			fsm: PhantomData::default(),
 			fsm_sub: PhantomData::default()
 		}
+	}
+}
+
+pub struct FsmDeclStateTimeoutTransition<F, StateFrom, StateTo> {
+	fsm: PhantomData<F>,
+	state_from: PhantomData<StateFrom>,
+	state_to: PhantomData<StateTo>
+}
+
+impl<F, StateFrom, StateTo> FsmDeclStateTimeoutTransition<F, StateFrom, StateTo> where F: Fsm, StateFrom: FsmState<F>, StateTo: FsmState<F> {
+	pub fn action<A: Fn(&mut EventContext<F>, &mut StateFrom, &mut StateTo)>(&self, action: A) {
+		
 	}
 }
 

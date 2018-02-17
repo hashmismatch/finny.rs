@@ -216,7 +216,27 @@ pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Type)
                 quote! { event_ctx }
             ]);
 
-            let body = &create_timer_settings.body;
+            let body = if timer.transition_timer {
+                let body = &create_timer_settings.body;
+                let ev = &timer.event_on_timeout;
+                
+                quote! {
+                    {
+                        let t = #body;                        
+                        t.map(|t| {
+                            TimerSettings {
+                                timeout: t.timeout,
+                                cancel_on_state_exit: true,
+                                event_on_timeout: #ev
+                            }
+                        })
+                    }
+                }
+            } else {
+                let body = &create_timer_settings.body;
+                quote! { #body }
+            };
+            
 
             q.append_all(quote! {
                 if self.#ident.is_some() {
@@ -1338,12 +1358,24 @@ pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
             match transition.transition_type {
                 TransitionType::Normal => {
                     let body = &c.body;
-                    let remap = remap_closure_inputs(&c.inputs, &vec![
-                        quote! { event },
-                        quote! { event_context },
-                        quote! { source_state },
-                        quote! { target_state }
-                    ]);
+                    let remap = 
+                        if c.inputs.len() == 4 {
+                            remap_closure_inputs(&c.inputs, &vec![
+                                quote! { event },
+                                quote! { event_context },
+                                quote! { source_state },
+                                quote! { target_state }
+                            ])
+                        } else if c.inputs.len() == 3 {
+                            remap_closure_inputs(&c.inputs, &vec![
+                                quote! { event_context },
+                                quote! { source_state },
+                                quote! { target_state }
+                            ])
+                        } else {
+                            panic!("weird number of args?");
+                        };
+                    
                     
                     q.append_all(quote! {
                         pub struct #action_ty;

@@ -258,10 +258,75 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                         id: timer_id,
                         state: generics[0].clone(),
                         event_on_timeout: generics[1].clone(),
-                        timer_settings_closure: Some(closure)
+                        timer_settings_closure: Some(closure),
+                        transition_timer: false
                     });
 
                     timer_id += 1;
+
+                } else if first.method.as_ref() == "new_state_timeout_transition" {
+                    let generics = extract_method_generic_ty_all(first);
+
+                    let state_from = generics[0].clone();
+                    let state_to = generics[1].clone();
+
+                    let new_event_name = format!("{}Timeout{}", syn_to_string(&state_from), timer_id);
+                    let event_ty: syn::Type = syn::parse_str(&new_event_name).expect("timeout trans event ty");
+
+                    inline_events.push(FsmInlineEvent {
+                        ty: event_ty.clone(),
+                        unit: true
+                    });
+
+                    let closure = if let syn::Expr::Closure(ref closure) = first.args[0] {
+                        closure.clone()
+                    } else {
+                        panic!("missing timer closure for timeout trans?");
+                    };
+                    
+                    timeout_timers.push(FsmTimeoutTimer {
+                        id: timer_id,
+                        state: state_from.clone(),
+                        event_on_timeout: event_ty.clone(),
+                        timer_settings_closure: Some(closure),
+                        transition_timer: true
+                    });
+                    timer_id += 1;
+
+                    for call in &st.calls[1..] {
+                        match call.method.as_ref() {
+                            "action" => {
+                                let closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
+                                    closure.clone()
+                                } else {
+                                    panic!("missing closure for timeout trans?");
+                                };
+
+                                let action_name = format!("{}Action", new_event_name);                                                                
+                                let ty: syn::Type = syn::parse_str(&action_name).expect("Action name?");
+
+                                inline_actions.push(FsmInlineAction {
+                                    ty: ty,
+                                    action_closure: Some(closure),
+                                    transition_id: transition_id
+                                });
+                            },
+                            _ => { panic!("Unsupported method for new_state_timeout_transition: {:?}", call); }
+                        }
+                    }
+
+                    let entry = TransitionEntry {
+                        id: transition_id,
+                        source_state: state_from,
+                        event: event_ty,
+                        target_state: state_to,
+                        action: syn::parse_str("NoAction").expect("fsm tim trans noaction parse"),
+                        transition_type: TransitionType::Normal,
+                        guard: None
+                    };
+                    transitions.push(entry);
+                    transition_id += 1;
+
 
                 } else if first.method.as_ref() == "interrupt_state" {
 

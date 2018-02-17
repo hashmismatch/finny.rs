@@ -75,7 +75,8 @@ pub struct FsmTimeoutTimer {
     pub id: u32,
     pub state: syn::Type,
     pub event_on_timeout: syn::Type,
-    pub timer_settings_closure: Option<syn::ExprClosure>
+    pub timer_settings_closure: Option<syn::ExprClosure>,
+    pub transition_timer: bool
 }
 
 impl FsmTimeoutTimer {
