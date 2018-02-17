@@ -31,6 +31,9 @@ fn fsm_create_it<G: SomeTrait + std::fmt::Debug + serde::Serialize>() -> () {
     let fsm = FsmDecl::new_fsm::<FsmMinOne<G>>()
         .context_ty::<Context<G>>()
         .initial_state::<StaticA>();
+
+    fsm.new_unit_event::<SomeEvent>();
+    fsm.new_unit_state::<SomeState>();
 }
 
 #[cfg(test)]

@@ -30,3 +30,7 @@ potential
 =========
 - idea: for Fsm<I = Inspection> ... just generate type FsmImpl<I> and then typedef Fsm = FsmImpl<NullInspection> as a default?
     - kinda messy... currently resolving with a codegen type
+
+
+- new_state_timeout_transitition::<StateFrom, StateTo, _>(|| timeout settings)
+ - creates a new numbered event, etc...

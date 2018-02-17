@@ -1255,8 +1255,10 @@ pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::FnArg, syn
 pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
     let mut q = quote! { };
 
+    let fsm_ty = fsm.get_fsm_ty();
+    let (impl_generics, ty_generics, where_clause) = fsm.generics.split_for_impl();
+
     for state in &fsm.inline_states {
-        let fsm_ty = &fsm.name_ident;
         let state_ty = &state.ty;
 
 
@@ -1268,7 +1270,6 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
             ]);
 
             let body = &on_entry.body;
-            let fsm_ty = &fsm.fsm_ty;
             impls.append_all(quote! {
                 fn on_entry(&mut self, event_context: &mut ::fsm::EventContext<#fsm_ty>) {
                     #(#remap)*
@@ -1287,7 +1288,6 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
             ]);
 
             let body = &on_exit.body;
-            let fsm_ty = &fsm.fsm_ty;
             impls.append_all(quote! {
                 fn on_exit(&mut self, event_context: &mut ::fsm::EventContext<#fsm_ty>) {
                     #(#remap)*
@@ -1304,13 +1304,13 @@ pub fn build_inline_states(fsm: &FsmDescription) -> quote::Tokens {
             q.append_all(quote! {
                 #[derive(Clone, PartialEq, Default, Debug, Serialize)]
                 pub struct #state_ty;
-                impl ::fsm::FsmState<#fsm_ty> for #state_ty {
+                impl #impl_generics ::fsm::FsmState<#fsm_ty> for #state_ty #where_clause {
                     #impls
                 }
             });
         } else {
             q.append_all(quote! {
-                impl ::fsm::FsmState<#fsm_ty> for #state_ty {
+                impl #impl_generics ::fsm::FsmState<#fsm_ty> for #state_ty #where_clause {
                     #impls
                 }
             });
@@ -1324,7 +1324,8 @@ pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
     let mut q = quote! {};
 
     for action in &fsm.inline_actions {
-        let fsm_ty = &fsm.name_ident;
+        let fsm_ty = fsm.get_fsm_ty();
+        let (impl_generics, ty_generics, where_clause) = fsm.generics.split_for_impl();
         let action_ty = &action.ty;
 
         let transition = fsm.find_transition(action.transition_id).unwrap();
@@ -1346,7 +1347,7 @@ pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
                     
                     q.append_all(quote! {
                         pub struct #action_ty;
-                        impl ::fsm::FsmAction<#fsm_ty, #from, #event, #to> for #action_ty {
+                        impl #impl_generics ::fsm::FsmAction<#fsm_ty, #from, #event, #to> for #action_ty #where_clause{
                             fn action(event: &#event, event_context: &mut ::fsm::EventContext<#fsm_ty>, source_state: &mut #from, target_state: &mut #to) {
                                 #remap
                                 {
@@ -1366,7 +1367,7 @@ pub fn build_inline_actions(fsm: &FsmDescription) -> quote::Tokens {
                     
                     q.append_all(quote! {
                         pub struct #action_ty;
-                        impl ::fsm::FsmActionSelf<#fsm_ty, #from, #event> for #action_ty {
+                        impl #impl_generics ::fsm::FsmActionSelf<#fsm_ty, #from, #event> for #action_ty #where_clause {
                             fn action(event: &#event, event_context: &mut ::fsm::EventContext<#fsm_ty>, state: &mut #from) {
                                 #remap
                                 {
@@ -1387,7 +1388,9 @@ pub fn build_inline_guards(fsm: &FsmDescription) -> quote::Tokens {
     let mut q = quote! {};
 
     for guard in &fsm.inline_guards {
-        let fsm_ty = &fsm.name_ident;
+        let fsm_ty = fsm.get_fsm_ty();
+        let (impl_generics, ty_generics, where_clause) = fsm.generics.split_for_impl();
+
         let guard_ty = &guard.ty;
         let states_store_ty = fsm.get_states_store_ty();
 
@@ -1404,7 +1407,7 @@ pub fn build_inline_guards(fsm: &FsmDescription) -> quote::Tokens {
             
             q.append_all(quote! {
                 pub struct #guard_ty;
-                impl ::fsm::FsmGuard<#fsm_ty, #event> for #guard_ty {
+                impl #impl_generics ::fsm::FsmGuard<#fsm_ty, #event> for #guard_ty #where_clause {
                     fn guard(event: &#event, event_context: &::fsm::EventContext<#fsm_ty>, states: &#states_store_ty) -> bool {
                         #remap
                         {
@@ -1433,7 +1436,8 @@ pub fn build_inline_structs(fsm: &FsmDescription) -> quote::Tokens {
 
 pub fn build_inline_events(fsm: &FsmDescription) -> quote::Tokens {
     let mut q = quote! {};
-    let fsm_ty = fsm.get_fsm_ty_inline();
+    let fsm_ty = fsm.get_fsm_ty();
+    let (impl_generics, ty_generics, where_clause) = fsm.generics.split_for_impl();
 
     for ev in &fsm.inline_events {
         let ty = &ev.ty;
@@ -1455,7 +1459,7 @@ pub fn build_inline_events(fsm: &FsmDescription) -> quote::Tokens {
         }
 
         q.append_all(quote! {
-            impl ::fsm::FsmEvent<#fsm_ty> for #ty {
+            impl #impl_generics ::fsm::FsmEvent<#fsm_ty> for #ty #where_clause {
 
             }
         });

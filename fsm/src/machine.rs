@@ -175,11 +175,33 @@ impl<F: Fsm, S, E> FsmActionSelf<F, S, E> for NoAction {
 pub type RegionId = usize;
 
 pub struct EventContext<'a, F: Fsm + 'a> {
+	// todo: hide the queue object, just expose the API
 	pub queue: &'a mut FsmEventQueue<F>,
 	pub context: &'a mut F::C,
 	//pub current_state: F::CS,
 	pub region: RegionId
 }
+
+impl<'a, F: Fsm + 'a> EventContext<'a, F> {
+	pub fn enqueue_event(&mut self, event: F::E) -> Result<(), FsmError> {
+		self.queue.enqueue_event(event)
+	}
+}
+
+use std::ops::{Deref, DerefMut};
+impl<'a, F: Fsm + 'a> Deref for EventContext<'a, F> {
+	type Target = F::C;
+
+	fn deref(&self) -> &F::C {
+		&self.context
+	}
+}
+impl<'a, F: Fsm + 'a> DerefMut  for EventContext<'a, F> {
+	fn deref_mut(&mut self) -> &mut F::C {
+		&mut self.context
+	}
+}
+
 
 
 pub trait FsmEventQueue<F: Fsm> {

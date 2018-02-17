@@ -80,7 +80,6 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
         #fn_syn_check
 
 
-
         #inline_structs      
         #inline_states
         #inline_actions
