@@ -320,7 +320,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                         source_state: state_from,
                         event: event_ty,
                         target_state: state_to,
-                        action: syn::parse_str("NoAction").expect("fsm tim trans noaction parse"),
+                        action: None,
                         transition_type: TransitionType::Normal,
                         guard: None
                     };
@@ -386,7 +386,6 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     });
                 } else if first.method.as_ref() == "on_event" {
                     let event_ty = extract_method_generic_ty(first);
-                    //println!("event_ty: {:?}", event_ty);
                     let mut transition_type = TransitionType::Normal;
                     let mut transition_from = None;
                     let mut transition_to = None;
@@ -507,7 +506,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                 TransitionType::Normal => { transition_to.expect("Missing target state?") },
                                 _ => { transition_from.expect("Missing source state?") }
                             },
-                            action: action.unwrap_or(syn::parse_str("NoAction").unwrap()),
+                            action: action,
                             transition_type: transition_type,
                             guard: guard
                         };

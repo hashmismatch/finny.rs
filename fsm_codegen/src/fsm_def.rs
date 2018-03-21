@@ -399,7 +399,7 @@ pub struct TransitionEntry {
     pub source_state: syn::Type,
     pub event: syn::Type,
     pub target_state: syn::Type,
-    pub action: syn::Type,
+    pub action: Option<syn::Type>,
     pub transition_type: TransitionType,
     pub guard: Option<syn::Type>
 }

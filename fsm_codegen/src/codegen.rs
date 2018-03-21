@@ -323,31 +323,37 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
 
                 let event = &transition.event;
                 let target_state = &transition.target_state;
-                let action = &transition.action;
-                let action_str = syn_to_string(&action);
-                
                 let source_state_field = fsm.to_state_field_access(&state);
                 let target_state_field = fsm.to_state_field_access(&target_state);
 
-                let action_call = if transition.has_same_states() {
-                    quote! {
-                        <#action as ::fsm::FsmActionSelf<#fsm_ty, #state, #event>>::action(&event, &mut event_ctx, &mut #source_state_field);
-                        
-                        self.inspection.on_action(#transition_id, & #action_str,
-                                                  &#states_ty::#state, & #source_state_field,
-                                                  &#states_ty::#state, & #source_state_field,
-                                                  &event_ctx);
+                let action = &transition.action;
+
+                let action_call = if let &Some(ref action) = action {
+                    let action_str = syn_to_string(&action);
+
+                    if transition.has_same_states() {
+                        quote! {
+                            <#action as ::fsm::FsmActionSelf<#fsm_ty, #state, #event>>::action(&event, &mut event_ctx, &mut #source_state_field);
+                            
+                            self.inspection.on_action(#transition_id, & #action_str,
+                                                    &#states_ty::#state, & #source_state_field,
+                                                    &#states_ty::#state, & #source_state_field,
+                                                    &event_ctx);
+                        }
+                    } else {
+                        quote! {
+                            <#action as ::fsm::FsmAction<#fsm_ty, #state, #event, #target_state>>::action(&event, &mut event_ctx, &mut #source_state_field, &mut #target_state_field);
+
+                            self.inspection.on_action(#transition_id, & #action_str,
+                                                    &#states_ty::#state, & #source_state_field,
+                                                    &#states_ty::#target_state, & #target_state_field,
+                                                    &event_ctx);
+                        }
                     }
                 } else {
-                    quote! {
-                        <#action as ::fsm::FsmAction<#fsm_ty, #state, #event, #target_state>>::action(&event, &mut event_ctx, &mut #source_state_field, &mut #target_state_field);
-
-                        self.inspection.on_action(#transition_id, & #action_str,
-                                                  &#states_ty::#state, & #source_state_field,
-                                                  &#states_ty::#target_state, & #target_state_field,
-                                                  &event_ctx);
-                    }
-                };                
+                    // no action will be called
+                    quote! { }
+                };
 
                 let mut sub_init = quote! { };
                 if fsm.is_submachine(&target_state) {
