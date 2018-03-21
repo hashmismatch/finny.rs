@@ -18,7 +18,7 @@ pub use std::borrow::Cow;
 pub use std::str::FromStr;
 pub use std::io;
 pub use std::io::Write;
-pub use std::sync::Arc;
+pub use std::sync::{Arc, Mutex};
 pub use std::str::from_utf8;
 pub use std::ops::Deref;
 pub use std::slice;

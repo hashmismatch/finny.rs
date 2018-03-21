@@ -51,7 +51,11 @@ pub enum TransitionId {
 	Stop
 }
 
-pub trait FsmInspect<F: Fsm>: Clone
+pub trait FsmInspectClone {
+	fn add_fsm<FSub: Fsm>(&self) -> Self;
+}
+
+pub trait FsmInspect<F: Fsm>: FsmInspectClone
 	where F::C : ::serde::Serialize + ::std::fmt::Debug
 {
 	fn on_process_event<Ev: FsmEvent<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, state: &F::CS, event_kind: F::EventKind, event: &Ev) { }
@@ -68,12 +72,18 @@ pub trait FsmInspect<F: Fsm>: Clone
 	fn on_state_entry<S: FsmState<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, transition_id: TransitionId, region_state: &F::RegionState, state: &S, event_context: &EventContext<F>) { }
 	fn on_transition_finish(&self, transition_id: TransitionId, source_state: &F::RegionState, target_state: &F::RegionState, event_context: &EventContext<F>) { }
 	
-	//fn on_no_transition<F: Fsm>(&self, current_state: &F::CS, event_context: &EventContext<F>) { }
+	fn on_no_transition(&self) { }
+	fn on_event_processed(&self) { }
 }
 
 #[derive(Default, Clone, Copy)]
 pub struct FsmInspectNull;
 impl<F: Fsm> FsmInspect<F> for FsmInspectNull where F::C : ::serde::Serialize + ::std::fmt::Debug { }
+impl FsmInspectClone for FsmInspectNull {
+	fn add_fsm<FSub: Fsm>(&self) -> Self {
+		FsmInspectNull
+	}
+}
 
 /*
 impl<F: Fsm> FsmInspectNull<F> {
@@ -249,7 +259,7 @@ impl<F: Fsm> FsmEventQueue<F> for FsmEventQueueVec<F> {
 
 pub trait Fsm: FsmInfo where Self: Sized {
 	type E: FsmEvents;
-	type EventKind: Debug + PartialEq;
+	type EventKind: Debug + PartialEq + Clone + Copy;
 	type S;
 	type C;
 	type CS: Debug;

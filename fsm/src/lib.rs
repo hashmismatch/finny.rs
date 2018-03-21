@@ -19,6 +19,11 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
+#[cfg(feature="info_serializable")]
+#[macro_use]
+extern crate serde_json;
+
+
 mod prelude;
 
 mod machine;
@@ -29,3 +34,5 @@ pub use machine::*;
 mod macros;
 
 pub mod console_inspect;
+pub mod inspect_combinator;
+pub mod inspect_data;

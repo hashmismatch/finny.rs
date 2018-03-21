@@ -425,7 +425,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
                     quote! { self.fsm.state }
                 };
 
-                                
+                // Matched event processing codegen
                 let s = quote! {
                     #states_ty::#state #guard => {
 
@@ -437,7 +437,6 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
 
                         event.on_dispatch(&mut event_ctx);
                         #action_call
-                        //self.inspection.on_action(#transition_id, & #action_str, &event_ctx);
                         
 
                         let mut just_called_start = false;
@@ -539,7 +538,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
             
             return_result.append_all(quote! {
                 if #r == Err(::fsm::FsmError::NoTransition) {
-                    //self.inspection.on_no_transition(&#q, &event_ctx);
+                    <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection);
                 }
                 if res.is_none() && #r.is_ok() {
                     res = Some(#r);
@@ -556,7 +555,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
     } else {
         return_result = quote! {
             if res == Err(::fsm::FsmError::NoTransition) {
-                //self.inspection.on_no_transition(&self.fsm.state, &event_ctx);
+                <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection);
             }
         }
     }
@@ -589,6 +588,10 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
 
                     res
                 };
+
+                {
+                    <FI as ::fsm::FsmInspect<#fsm_ty>>::on_event_processed(&self.inspection);
+                }
 
                 if self.execute_queue_post {
                     self.execute_queued_events();
@@ -849,7 +852,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             fsm_sub_inits.push(quote! {
                 #field_name: <#sub_runtime_type>::new_custom(
                     Default::default() /* todo: create context from parent? */,
-                    inspection.clone(),
+                    inspection.add_fsm::<#sub>(),
                     timers.clone()
                 )?,
             });
@@ -935,7 +938,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
                     //inspection.init(&fsm);
 
-                    let runtime = #fsm_runtime_ty_inline {                        
+                    let runtime = #fsm_runtime_ty_inline {
                         fsm: fsm,
 
                         #fsm_sub_inits
@@ -1088,7 +1091,8 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             fn serialize<S>(&self, serializer: S) -> ::std::result::Result<S::Ok, S::Error>
                 where S: ::serde::Serializer
             {
-                panic!("FSM serialize todo");
+                serializer.serialize_unit()
+                //panic!("FSM serialize todo");
             }
         }
         

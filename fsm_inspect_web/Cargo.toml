@@ -5,14 +5,14 @@ authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 
 [dependencies]
 websocket = "0.20.2"
-rocket = "0.3.3"
-rocket_codegen = "0.3.3"
-rocket_cors = "0.2.1"
+rocket = "0.3.6"
+rocket_codegen = "0.3.6"
+rocket_cors = "0.2.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_json = "1.0"
 
-fsm = {path="../"}
+fsm = {path="../fsm/"}
 
 #[dependencies.rocket_contrib]
 #version = "0.3.3"

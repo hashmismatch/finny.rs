@@ -74,7 +74,7 @@ fn create_it() -> () {
 fn test_lights_timers() {
     use std::time::*;
 
-    let mut lights = Lights::new_custom(Default::default(), FsmInspectStdOut, FsmTimersStd::new()).unwrap();
+    let mut lights = Lights::new_custom(Default::default(), FsmInspectStdOut::new::<Lights>(), FsmTimersStd::new()).unwrap();
     lights.start();
 
     let run_time = Duration::from_secs(3);

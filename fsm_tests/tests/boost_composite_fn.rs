@@ -196,9 +196,14 @@ fn fsm_playing() {
 
 #[cfg(test)]
 #[test]
-fn test_player() {
+fn test_boost_composite_fn_player() {
 
-    let mut p = Player::new(Default::default()).unwrap();
+    use fsm::console_inspect::FsmInspectStdOut;
+
+    //let mut p = Player::new(Default::default()).unwrap();
+    let inspect = FsmInspectStdOut::new::<Player>();
+    //let inspect = ::fsm::FsmInspectNull;
+    let mut p = Player::new_custom(Default::default(), inspect, ::fsm::FsmTimersNull).unwrap();
 
 	p.start();
     assert_eq!(1, p.get_context().action_empty_entry_counter);

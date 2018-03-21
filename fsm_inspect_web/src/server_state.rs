@@ -109,6 +109,7 @@ impl FsmInspectWebServer {
                 modified_structures: modified_structures
             };
 
+            // todo: bug with missing_clients!
             let mut missing_clients = vec![];
             for (idx, client) in inspect.ws_clients.iter().enumerate() {
                 let msg = MessageToBrowserClient {
@@ -137,7 +138,7 @@ impl FsmInspectWebServer {
 impl<F: Fsm> FsmInspect<F> for FsmInspectWebServer
     where F::C : ::serde::Serialize + ::std::fmt::Debug
 {
-    fn on_process_event<Ev: FsmEvent + ::serde::Serialize + ::std::fmt::Debug>(&self, state: &F::CS, event_kind: F::EventKind, event: &Ev) {
+    fn on_process_event<Ev: FsmEvent<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, state: &F::CS, event_kind: F::EventKind, event: &Ev) {
         let ev = FsmEventProcessingEvent {
             event_kind: format!("{:?}", event_kind),
             event_data: ::serde_json::to_value(&event).unwrap_or(json!(null))

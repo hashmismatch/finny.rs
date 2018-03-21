@@ -6,9 +6,10 @@ authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 [dependencies]
 serde = { version = "1.0" }
 serde_derive = { version = "1.0", optional = true }
+serde_json = { version = "1.0", optional = true }
 
 [features]
 default = ["std", "info_serializable"]
 std = []
 core_collections = []
-info_serializable = ["serde_derive"]
+info_serializable = ["serde_derive", "serde_json"]
