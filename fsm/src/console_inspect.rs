@@ -38,9 +38,39 @@ impl FsmInspectStdOut {
                         _ => {
                             println!("{:width$}  {}",
                                 event.common.fsm,
-                                FsmInspectedEventConsole(event.event),
+                                FsmInspectedEventConsole(&event.event),
                                 width = max_fsm_name_len
                                 );
+
+                            match event.event {
+                                FsmInspectedEvent::ProcessingEvent(ref p) => {
+                                    if p.event_data != json!(null) {
+                                        println!("{:width$} {}", 
+                                            "",
+                                            p.event_data,
+                                            width = max_fsm_name_len + 5
+                                            );
+                                    }
+                                },
+                                _ => ()
+                            }
+
+                            // changed structures
+                            for structure in &event.common.modified_structures {
+                                println!("{:width$}|   {:?}",
+                                    "",
+                                    structure.id,
+                                    width = max_fsm_name_len + 4
+                                );
+
+                                {
+                                    let mut diff = ::json_diff::JsonDiff::new(&structure.old_value, &structure.value);
+                                    diff.padding = format!("{}|   ", " ".repeat(max_fsm_name_len + 4)).into();
+                                    diff.mode = ::json_diff::JsonDiffMode::DiffOnly;
+
+                                    print!("{}", diff);
+                                }
+                            }
                         }
                     }
                 }
@@ -50,38 +80,38 @@ impl FsmInspectStdOut {
 }
 
 
-pub struct FsmInspectedEventConsole(FsmInspectedEvent);
+pub struct FsmInspectedEventConsole<'a>(&'a FsmInspectedEvent);
 
-impl ::std::fmt::Display for FsmInspectedEventConsole {
+impl<'a> ::std::fmt::Display for FsmInspectedEventConsole<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result<(), ::std::fmt::Error> {
-        match self.0 {
+        match *self.0 {
             FsmInspectedEvent::ProcessingEvent(ref p) => {
                 write!(f, "* Processing event {}", p.event_kind)
             }
             FsmInspectedEvent::StateTransitionStart(ref t) => {
-                write!(f, " / Transitioning from {} to {}", t.from, t.to)
+                write!(f, "  / Transitioning from {} to {}", t.from, t.to)
             },
             FsmInspectedEvent::StateEvent(ref s) => {
                 match s.state_event_kind {
                     FsmEventStateKind::Enter => {
-                        write!(f, " | Entering state {}", s.state_name)
+                        write!(f, "  | Entering state {}", s.state_name)
                     },
                     FsmEventStateKind::Exit => {
-                        write!(f, " | Exiting state {}", s.state_name)
+                        write!(f, "  | Exiting state {}", s.state_name)
                     }
                 }                
             },
             FsmInspectedEvent::Action(ref a) => {
-                write!(f, " | Performing action {}", a.action_name)
+                write!(f, "  | Performing action {}", a.action_name)
             }
             FsmInspectedEvent::StateTransitioned(ref t) => {
-                write!(f, " \\ Transition finished.")
+                write!(f, "  \\ Transition finished.")
             },
             FsmInspectedEvent::EventProcessed => {
                 write!(f, "Event processed.")
             },
-            FsmInspectedEvent::NoTransition => {
-                write!(f, "No transition found.")
+            FsmInspectedEvent::NoTransition(ref n) => {
+                write!(f, "No transition found. Current state: {}", n.current_state)
             }
         }
     }
@@ -158,10 +188,10 @@ impl<F: Fsm> FsmInspect<F> for FsmInspectStdOut where F::C : ::serde::Serialize 
         }
     }
 
-	fn on_no_transition(&self) {
+	fn on_no_transition(&self, state: &F::CS) {
         if let Ok(shared) = self.shared.lock() {
             for fsm in &shared.data {
-                FsmInspect::<F>::on_no_transition(fsm);
+                FsmInspect::<F>::on_no_transition(fsm, state);
             }
         }
     }

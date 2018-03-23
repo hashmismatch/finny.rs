@@ -542,10 +542,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
             let rf = syn::Ident::from(format!("r{}", region.id));
             r.append_all(quote! { #rf });
             
-            return_result.append_all(quote! {
-                if #r == Err(::fsm::FsmError::NoTransition) {
-                    <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection);
-                }
+            return_result.append_all(quote! {                
                 if res.is_none() && #r.is_ok() {
                     res = Some(#r);
                 }
@@ -557,14 +554,18 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
 
         return_result.append_all(quote! {            
             let res = res.unwrap_or(Err(::fsm::FsmError::NoTransition));
+            if res == Err(::fsm::FsmError::NoTransition) {
+                <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection, &self.get_current_state());
+            }
         });
     } else {
         return_result = quote! {
             if res == Err(::fsm::FsmError::NoTransition) {
-                <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection);
+                <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection, &self.get_current_state());
             }
         }
     }
+
 
     let f = quote! {
         impl #runtime_impl_generics ::fsm::FsmProcessor<#fsm_ty, #event> for #fsm_runtime_ty_inline #runtime_ty_generics #runtime_where_clause {

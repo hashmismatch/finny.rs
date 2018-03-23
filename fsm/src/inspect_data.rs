@@ -18,7 +18,12 @@ pub enum FsmInspectedEvent {
     StateEvent(FsmEventState),
     Action(FsmEventAction),
     EventProcessed,
-    NoTransition
+    NoTransition(FsmEventNoTransition)
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct FsmEventNoTransition {
+    pub current_state: String
 }
 
 
@@ -71,10 +76,18 @@ pub struct FsmEventAction {
 }
 
 #[derive(Serialize, Debug, Clone)]
+struct FsmEventStructSnapshot {
+    id: FsmEventStructKind,
+    value: ::serde_json::Value
+}
+
+#[derive(Serialize, Debug, Clone)]
 pub struct FsmEventStruct {
     pub id: FsmEventStructKind,
+    pub old_value: ::serde_json::Value,
     pub value: ::serde_json::Value
 }
+
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FsmEventStructKind {
@@ -125,18 +138,24 @@ impl FsmDataState {
         ret
     }
 
-    fn push_event<F: Fsm>(&self, event: FsmInspectedEvent, structures: Vec<FsmEventStruct>) {
+    fn push_event<F: Fsm>(&self, event: FsmInspectedEvent, structures: Vec<FsmEventStructSnapshot>) {
         if let Ok(ref mut inner) = self.inner.lock() {
             if self.fsm_name != F::fsm_name() { return; }
 
             let mut modified_structures = vec![];    
             for s in structures {
                 if s.value == json!(null) { continue; }
+                let mut old_value = None;
 
-                if let Some(mut stored) = inner.structures.get_mut(&s.id) {
+                if let Some(mut stored) = inner.structures.get_mut(&s.id) {                    
                     if *stored != s.value {
+                        old_value = Some(stored.clone());
                         *stored = s.value.clone();
-                        modified_structures.push(s);
+                        modified_structures.push(FsmEventStruct {
+                            id: s.id,
+                            old_value: old_value.unwrap_or(json!(null)),
+                            value: s.value
+                        });
                     }
                     // rust's borrow checker snafu
                     continue;
@@ -144,7 +163,11 @@ impl FsmDataState {
                 
                 {
                     inner.structures.insert(s.id.clone(), s.value.clone());
-                    modified_structures.push(s);
+                    modified_structures.push(FsmEventStruct {
+                        id: s.id,
+                        old_value: old_value.unwrap_or(json!(null)),
+                        value: s.value
+                    });
                 }
             }
 
@@ -188,11 +211,11 @@ impl<F: Fsm> FsmInspect<F> for FsmDataState
         };
 
         let structs = vec![
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::Context,
                 value: ::serde_json::to_value(&event_context.context).unwrap_or(json!(null))
             },
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::State(ev.state_name.clone()),
                 value: ::serde_json::to_value(&state).unwrap_or(json!(null))
             }
@@ -209,11 +232,11 @@ impl<F: Fsm> FsmInspect<F> for FsmDataState
         };
 
         let structs = vec![
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::Context,
                 value: ::serde_json::to_value(&event_context.context).unwrap_or(json!(null))
             },
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::State(ev.state_name.clone()),
                 value: ::serde_json::to_value(&state).unwrap_or(json!(null))
             }
@@ -231,18 +254,18 @@ impl<F: Fsm> FsmInspect<F> for FsmDataState
         };
 
         let mut structs = vec![
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::Context,
                 value: ::serde_json::to_value(&event_context.context).unwrap_or(json!(null))
             },
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::State(format!("{:?}", source_state_kind)),
                 value: ::serde_json::to_value(&source_state).unwrap_or(json!(null))
             }
         ];
 
         if source_state_kind != target_state_kind {
-            structs.push(FsmEventStruct {
+            structs.push(FsmEventStructSnapshot {
                 id: FsmEventStructKind::State(format!("{:?}", target_state_kind)),
                 value: ::serde_json::to_value(&target_state).unwrap_or(json!(null))
             });
@@ -260,7 +283,7 @@ impl<F: Fsm> FsmInspect<F> for FsmDataState
         };
 
         let structs = vec![
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::Context,
                 value: ::serde_json::to_value(&event_context.context).unwrap_or(json!(null))
             }
@@ -278,7 +301,7 @@ impl<F: Fsm> FsmInspect<F> for FsmDataState
         };
 
         let structs = vec![
-            FsmEventStruct {
+            FsmEventStructSnapshot {
                 id: FsmEventStructKind::Context,
                 value: ::serde_json::to_value(&event_context.context).unwrap_or(json!(null))
             }
@@ -287,8 +310,12 @@ impl<F: Fsm> FsmInspect<F> for FsmDataState
         self.push_event::<F>(FsmInspectedEvent::StateTransitioned(ev), structs);
     }
 
-	fn on_no_transition(&self) {
-        self.push_event::<F>(FsmInspectedEvent::NoTransition, vec![]);
+	fn on_no_transition(&self, state: &F::CS) {
+        let ev = FsmEventNoTransition {
+            current_state: format!("{:?}", state)
+        };
+
+        self.push_event::<F>(FsmInspectedEvent::NoTransition(ev), vec![]);
     }
 
 	fn on_event_processed(&self) {

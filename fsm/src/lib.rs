@@ -36,3 +36,4 @@ mod macros;
 pub mod console_inspect;
 pub mod inspect_combinator;
 pub mod inspect_data;
+pub mod json_diff;

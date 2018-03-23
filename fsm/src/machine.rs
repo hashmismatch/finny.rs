@@ -72,7 +72,7 @@ pub trait FsmInspect<F: Fsm>: FsmInspectClone
 	fn on_state_entry<S: FsmState<F> + ::serde::Serialize + ::std::fmt::Debug>(&self, transition_id: TransitionId, region_state: &F::RegionState, state: &S, event_context: &EventContext<F>) { }
 	fn on_transition_finish(&self, transition_id: TransitionId, source_state: &F::RegionState, target_state: &F::RegionState, event_context: &EventContext<F>) { }
 	
-	fn on_no_transition(&self) { }
+	fn on_no_transition(&self, state: &F::CS) { }
 	fn on_event_processed(&self) { }
 }
 
