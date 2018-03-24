@@ -639,6 +639,13 @@ impl<F, E> FsmDeclOnEvent<F, E> where F: Fsm, E: FsmEvent<F> {
 		}
 	}
 
+	pub fn transition_from_any(&self) -> FsmDeclTransitionFromAny<F, E> {
+		FsmDeclTransitionFromAny {
+			fsm_ty: PhantomData::default(),
+			event_ty: PhantomData::default()
+		}
+	}
+
 	pub fn transition_self<State>(&self) -> FsmDeclTransitionSingle<F, E, State> where State: FsmState<F> {
 		FsmDeclTransitionSingle {
 			fsm_ty: PhantomData::default(),
@@ -676,6 +683,27 @@ impl<F, E, State> FsmDeclTransitionSingle<F, E, State> where F: Fsm, E: FsmEvent
 	}
 }
 
+pub struct FsmDeclTransitionFromAny<F, E> {
+	fsm_ty: PhantomData<F>,
+	event_ty: PhantomData<E>
+}
+
+impl<F, E> FsmDeclTransitionFromAny<F, E> where F: Fsm, E: FsmEvent<F> {
+	/*
+	pub fn to<StateTo>(&self) -> FsmDeclTransition<F, E, StateFrom, StateTo> where StateTo: FsmState<F> {
+		FsmDeclTransition {
+			fsm_ty: PhantomData::default(),
+			event_ty: PhantomData::default(),
+			state_from: PhantomData::default(),
+			state_to: PhantomData::default()
+		}
+	}
+	*/
+
+	pub fn to<StateTo>(&self) {
+
+	}
+}
 
 pub struct FsmlDeclTransitionFrom<F, E, StateFrom> {
 	fsm_ty: PhantomData<F>,

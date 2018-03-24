@@ -404,6 +404,13 @@ pub struct TransitionEntry {
     pub guard: Option<syn::Type>
 }
 
+#[derive(Debug, Clone)]
+pub struct TransitionAnyEntry {
+    pub id: u32,
+    pub event: syn::Type,
+    pub target_state: syn::Type
+}
+
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum TransitionType {
     Normal,

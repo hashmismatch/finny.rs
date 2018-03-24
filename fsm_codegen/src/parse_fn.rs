@@ -156,6 +156,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     
     let mut copyable_events = false;    
     let mut transitions = vec![];
+    let mut transitions_any = vec![];
     let mut inline_submachines = vec![];
     let mut shallow_history_events = vec![];
     let mut interrupt_states: Vec<FsmInterruptState> = vec![];
@@ -398,16 +399,20 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                         match call.method.as_ref() {
                             "transition_internal" => {
                                 transition_type = TransitionType::Internal;
-                                transition_from = Some(extract_method_generic_ty(&call));
+                                transition_from = Some(TransitionFromKind::Ty(extract_method_generic_ty(&call)));
                                 transition_entry = true;
                             },
                             "transition_self" => {
                                 transition_type = TransitionType::SelfTransition;
-                                transition_from = Some(extract_method_generic_ty(&call));
+                                transition_from = Some(TransitionFromKind::Ty(extract_method_generic_ty(&call)));
                                 transition_entry = true;
                             },
                             "transition_from" => {
-                                transition_from = Some(extract_method_generic_ty(&call));
+                                transition_from = Some(TransitionFromKind::Ty(extract_method_generic_ty(&call)));
+                                transition_entry = true;
+                            },
+                            "transition_from_any" => {
+                                transition_from = Some(TransitionFromKind::Any);
                                 transition_entry = true;
                             },
                             "to" => {
@@ -422,6 +427,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                 });
                             },
                             "action" => {
+                                let transition_from = transition_from.clone().expect("missing transition from 1?");
                                 let action_closure = if let syn::Expr::Closure(ref closure) = call.args[0] {
                                     closure.clone()
                                 } else {
@@ -432,7 +438,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                     TransitionType::Normal => {
                                         let transition_action_name = format!("{}{}{}Action",
                                             syn_to_string(&event_ty),
-                                            syn_to_string(&transition_from.clone().expect("Transition from normal")),
+                                            syn_to_string(&transition_from.get_ty().clone().expect("Transition from normal")),
                                             syn_to_string(&transition_to.clone().expect("Transition to normal"))
                                         );
                                                                         
@@ -448,7 +454,7 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                     TransitionType::Internal | TransitionType::SelfTransition => {
                                         let transition_action_name = format!("{}{}{}",
                                             syn_to_string(&event_ty),
-                                            syn_to_string(&transition_from.clone().expect("transition int/from")),
+                                            syn_to_string(&transition_from.get_ty().expect("transition int/from")),
                                             match transition_type {
                                                 TransitionType::Internal => "InternalAction",
                                                 TransitionType::SelfTransition => "SelfAction",
@@ -468,9 +474,10 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                                 }                                
                             },
                             "guard" => {
+                                let transition_from = transition_from.clone().expect("missing transition from 2?");                                
                                 let transition_guard_name = format!("{}{}{}Guard",
                                     syn_to_string(&event_ty),
-                                    syn_to_string(&transition_from.clone().expect("guard from transition")),
+                                    syn_to_string(&transition_from.get_ty().expect("guard from transition")),
                                     if let Some(ref ty) = transition_to {
                                         syn_to_string(ty)
                                     } else {
@@ -498,22 +505,38 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
                     }
 
                     if transition_entry {
-                        let entry = TransitionEntry {
-                            id: transition_id,
-                            source_state: transition_from.clone().expect("Missing source state?"),
-                            event: event_ty,
-                            target_state: match transition_type {
-                                TransitionType::Normal => { transition_to.expect("Missing target state?") },
-                                _ => { transition_from.expect("Missing source state?") }
+                        let transition_from = transition_from.clone().expect("missing transition from 3?");
+                        match transition_from {
+                            TransitionFromKind::Any => {
+                                let entry = TransitionAnyEntry {
+                                    id: transition_id,
+                                    event: event_ty,
+                                    target_state: transition_to.expect("Missing target state for any?")
+                                };
+
+                                transitions_any.push(entry);
+
+                                transition_id += 1;
                             },
-                            action: action,
-                            transition_type: transition_type,
-                            guard: guard
-                        };
+                            TransitionFromKind::Ty(transition_from) => {
+                                let entry = TransitionEntry {
+                                    id: transition_id,
+                                    source_state: transition_from.clone(),
+                                    event: event_ty,
+                                    target_state: match transition_type {
+                                        TransitionType::Normal => { transition_to.expect("Missing target state?") },
+                                        _ => { transition_from }
+                                    },
+                                    action: action,
+                                    transition_type: transition_type,
+                                    guard: guard
+                                };
 
-                        transitions.push(entry);
+                                transitions.push(entry);
 
-                        transition_id += 1;
+                                transition_id += 1;
+                            }
+                        }                        
                     }
                 }
             }
@@ -589,11 +612,43 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
     
 
 
-    let regions = create_regions(&transitions,
-                                 &ty_to_vec(&fsm_decl.fsm_initial_state_ty),
-                                 &submachines,
-                                 &interrupt_states
-                                );
+    let mut regions = create_regions(&transitions,
+                                     &ty_to_vec(&fsm_decl.fsm_initial_state_ty),
+                                     &submachines,
+                                     &interrupt_states
+                                    );
+
+
+    // fill in any transitions
+    for region in &mut regions {
+        for any_transition in &transitions_any {
+            let region_states = region.get_all_states();
+            if /* region.transitions.iter().any(|t| t.event == any_transition.event) && */
+               region_states.iter().any(|s| s == &any_transition.target_state)
+            {
+                let predefined_states: Vec<_> = region.transitions.iter().filter(|t| t.event == any_transition.event && t.id < any_transition.id).cloned().collect();
+                for potential_state in region_states {
+                    if predefined_states.iter().any(|t| t.source_state == potential_state) { continue; }
+
+                    region.transitions.push(TransitionEntry {
+                        id: transition_id,
+                        source_state: potential_state,
+                        event: any_transition.event.clone(),
+                        target_state: any_transition.target_state.clone(),
+                        action: None,
+                        transition_type: TransitionType::Normal,
+                        guard: None
+                    });
+
+                    transition_id += 1;
+                }
+            }
+        }        
+    }
+
+
+
+    // todo: check for duplicate transitions (same target state for one event)
 
 
     FsmDescription {
@@ -620,4 +675,20 @@ pub fn parse_definition_fn(fn_body: &syn::ItemFn) -> FsmDescription {
 
         copyable_events: copyable_events
     }    
+}
+
+
+#[derive(Debug, Clone)]
+enum TransitionFromKind {
+    Any,
+    Ty(::syn::Type)
+}
+
+impl TransitionFromKind {
+    pub fn get_ty(&self) -> Option<::syn::Type> {
+        match self {
+            &TransitionFromKind::Ty(ref ty) => Some(ty.clone()),
+            _ => None
+        }
+    }
 }
