@@ -9,6 +9,7 @@ extern crate serde;
 extern crate serde_derive;
 
 use fsm::*;
+use fsm::declaration::*;
 
 pub trait SomeTrait: Clone {
     fn some_stuff(&self);

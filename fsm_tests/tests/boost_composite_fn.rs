@@ -11,6 +11,7 @@ extern crate serde_derive;
 
 
 use fsm::*;
+use fsm::declaration::*;
 use fsm_codegen::fsm_fn;
 
 #[derive(Default, Debug, Serialize)]
@@ -203,7 +204,7 @@ fn test_boost_composite_fn_player() {
     //let mut p = Player::new(Default::default()).unwrap();
     let inspect = FsmInspectStdOut::new::<Player>();
     //let inspect = ::fsm::FsmInspectNull;
-    let mut p = Player::new_custom(Default::default(), inspect, ::fsm::FsmTimersNull).unwrap();
+    let mut p = Player::new_custom(Default::default(), inspect, ::fsm::timers::FsmTimersNull).unwrap();
 
 	p.start();
     assert_eq!(1, p.get_context().action_empty_entry_counter);

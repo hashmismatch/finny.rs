@@ -1,6 +1,6 @@
 # Hierarchical state machines for Rust
 
-Inspired by Boost MSM. Generates the transition tables using procedural macros. Requires at least Rust 1.16.
+Inspired by Boost MSM. Generates the compile-time transition table using a declarative, functional API. Requires Rust Nightly.
 
 Consider this a preview, undocumented, alpha-level release.
 
@@ -16,75 +16,171 @@ Consider this a preview, undocumented, alpha-level release.
 - Queued events
 - Enum generation for event and state types
 - Internal state transitions that don't trigger the entry and exit events
-- Helpers for multiple entry states	
-- Graphviz visualisation, the codegen generates a test that saves the graph file to the filesystem
 - Inspection trait for custom debugging	
 
 ## Example
 
 ```rust
+#![feature(proc_macro)]
+
 extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
 
 use fsm::*;
+use fsm_codegen::fsm_fn;
 
-#[derive(Clone, PartialEq, Default, Debug)]
-pub struct Event1 { v: usize }
-impl FsmEvent for Event1 {}
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
-#[derive(Clone, PartialEq, Default, Debug)]
-pub struct EventGo;
-impl FsmEvent for EventGo {}
+#[derive(Default, Debug, Serialize)]
+pub struct FsmOneContext {
+	guard1_exec: usize	
+}
 
-#[derive(Clone, PartialEq, Default, Debug)]
-pub struct EventRestart;
-impl FsmEvent for EventRestart {}
+#[fsm_fn]
+fn fsm_1() {
+    let fsm = FsmDecl::new_fsm::<FsmOne>()
+        .initial_state::<Initial>();
 
-#[derive(Clone, PartialEq, Default, Debug)]
-pub struct EventStart;
-impl FsmEvent for EventStart {}
+	#[derive(Clone, PartialEq, Default, Debug, Serialize)]
+	pub struct Initial {
+		entry: usize,
+		exit: usize
+	}
+	fsm.new_state::<Initial>()
+		.on_entry(|state, ctx| {
+			state.entry += 1;
+		})
+		.on_exit(|state, ctx| {
+			state.exit += 1;
+		});
 
-#[derive(Clone, PartialEq, Default, Debug)]
-pub struct EventStop;
-impl FsmEvent for EventStop {}
+	fsm.on_event::<NoEvent>()
+	   .transition_from::<Initial>().to::<State1>()
+	   .action(|ev, ctx, initial, state1| {
+		   println!("Init action!");
+	   });
 
-#[derive(Clone, PartialEq, Default)]
-pub struct StateA { a: usize }
-impl FsmState<FsmMinTwo> for StateA { }
+	#[derive(Clone, PartialEq, Default, Debug, Serialize)]
+	pub struct State1 {
+		entry: usize,
+		exit: usize,
+		internal_action: usize
+	}
+	fsm.new_state::<State1>()
+		.on_entry(|state, ctx| {
+			state.entry += 1;
+		})
+		.on_exit(|state, ctx| {
+			state.exit += 1;
+		});
 
-#[derive(Clone, PartialEq, Default)]
-pub struct StateB { b: usize }
-impl FsmState<FsmMinTwo> for StateB { }
+	fsm.new_unit_event::<Event1>();
+	fsm.on_event::<Event1>()
+		.transition_from::<State1>().to::<State1>();
+	
+	fsm.new_unit_state::<State2>();
 
-#[derive(Clone, PartialEq, Default)]
-pub struct StateC { c: usize }
-impl FsmState<FsmMinTwo> for StateC { }
+	fsm.new_unit_event::<Event2>();
+	fsm.on_event::<Event2>()
+	   .transition_internal::<State1>()
+	   .action(|ev, ctx, state1| {
+		   state1.internal_action += 1;
+	   });
 
-#[derive(Fsm)]
-struct FsmMinTwoDefinition(
-	InitialState<FsmMinTwo, StateA>,
+	fsm.new_unit_event::<Event3>();
+	fsm.on_event::<Event3>()
+		.transition_internal::<State1>()
+		.action(|ev, ctx, state1| {
+			ctx.queue.enqueue_event(FsmOneEvents::Event2(Event2));
+		});		
 
-    Transition         < FsmMinTwo,  StateA,        EventStart,        StateB,    NoAction >,
-    Transition         < FsmMinTwo,  StateB,        EventStop,         StateA,    NoAction >,
-    Transition         < FsmMinTwo,  StateB,        EventGo,           StateC,    NoAction >,
+	#[derive(Clone, PartialEq, Default, Debug, Serialize)]
+	pub struct MagicEvent(u32);
+	fsm.new_event::<MagicEvent>();
 
-    Transition         < FsmMinTwo, (StateA, StateB, StateC),
-                                                    EventRestart,      StateA,    NoAction >,
-
-    TransitionInternal < FsmMinTwo,  StateA,        Event1,                       NoAction >,
-
-    InterruptState     < FsmMinTwo,  StateB,        EventStop >
-);
+	fsm.on_event::<MagicEvent>()
+		.transition_from::<State1>().to::<State2>()
+		.guard(|ev, ctx, states| {
+			ev.0 == 42
+		});
+}
 
 #[cfg(test)]
 #[test]
-fn test_fsm_min2() {
-    let mut fsm = FsmMinTwo::new(());
-    fsm.start();
-    assert_eq!(FsmMinTwoStates::StateA, fsm.get_current_state());
+fn test_machine1() {
 
-    fsm.process_event(FsmMinTwoEvents::EventStart(EventStart)).unwrap();
-    assert_eq!(FsmMinTwoStates::StateB, fsm.get_current_state());    
+	let mut fsm1 = FsmOne::new(Default::default()).unwrap();
+	fsm1.execute_queue_pre = true;
+	fsm1.execute_queue_post = false;
+	
+	assert_eq!(fsm1.get_current_state(), FsmOneStates::Initial);
+	{
+		let initial: &Initial = fsm1.get_state();
+		assert_eq!(initial.entry, 0);
+		assert_eq!(initial.exit, 0);
+	}
+
+	fsm1.start();
+
+	assert_eq!(fsm1.get_current_state(), FsmOneStates::State1);
+
+	{
+		let initial: &Initial = fsm1.get_state();
+		assert_eq!(initial.entry, 1);
+		assert_eq!(initial.exit, 1);
+
+		let state1: &State1 = fsm1.get_state();
+		assert_eq!(state1.entry, 1);
+	}	
+	
+	fsm1.process_event(FsmOneEvents::Event1(Event1)).unwrap();
+
+	{
+		let state1: &State1 = fsm1.get_state();
+		assert_eq!(state1.exit, 1);
+		assert_eq!(state1.entry, 2);
+	}
+
+	fsm1.process_event(FsmOneEvents::Event2(Event2)).unwrap();
+
+	{
+		let state1: &State1 = fsm1.get_state();
+		assert_eq!(state1.exit, 1);
+		assert_eq!(state1.entry, 2);
+
+		assert_eq!(state1.internal_action, 1);
+	}
+
+	// event queueing, implicit and explicit execution
+	fsm1.process_event(Event3).unwrap();
+	
+	{
+		let state1: &State1 = fsm1.get_state();
+		assert_eq!(state1.internal_action, 1);
+	}	
+
+	fsm1.process_event(Event3).unwrap();
+
+	{
+		let state1: &State1 = fsm1.get_state();
+		assert_eq!(state1.internal_action, 2);
+	}
+
+	fsm1.execute_queued_events();
+
+	{
+		let state1: &State1 = fsm1.get_state();
+		assert_eq!(state1.internal_action, 3);
+	}
+
+	// event guards
+	assert_eq!(Err(FsmError::NoTransition), fsm1.process_event(FsmOneEvents::MagicEvent(MagicEvent(1))));
+	assert_eq!(FsmOneStates::State1, fsm1.get_current_state());
+
+	fsm1.process_event(FsmOneEvents::MagicEvent(MagicEvent(42))).unwrap();
+	assert_eq!(FsmOneStates::State2, fsm1.get_current_state());
 }
 ```

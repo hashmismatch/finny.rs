@@ -9,15 +9,14 @@ extern crate serde;
 extern crate serde_derive;
 
 use fsm::*;
-
+use fsm::declaration::*;
 use fsm_codegen::fsm_fn;
 
 
 #[derive(Debug, Default, Serialize)]
 pub struct FsmFnCtx {
+
 }
-
-
 
 #[fsm_fn]
 fn create_it() -> () {

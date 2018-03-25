@@ -6,6 +6,6 @@ members = [
     "fsm_timers_std/"
 ]
 
-[patch.crates-io]
-#packed_struct = { path="./packed_struct" }
-#packed_struct_codegen = { path="./packed_struct_codegen" }
+exclude = [
+    "fsm_inspect_web/"
+]

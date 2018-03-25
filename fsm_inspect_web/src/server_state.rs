@@ -7,7 +7,6 @@ use std::collections::HashMap;
 
 use server_ws::*;
 
-#[derive(Clone)]
 pub struct FsmInspectWebServer {
     pub inner: InspectShared
 }
@@ -28,21 +27,6 @@ impl InspectShared {
 }
 
 impl FsmInspectWebServer {
-    /*
-    fn init<F: Fsm>(&self, fsm: &F) {
-        println!("init?");
-        if let Ok(mut inner) = self.inner.inner.lock() {
-            let fsm_info = ::data::FsmInfo {
-                regions: F::fsm_info_regions(),
-                name: F::fsm_name()
-            };
-            inner.machines.push(fsm_info);
-
-            println!("stored data for type {}", stringify!(F));
-        }
-    }
-    */
-
     pub fn new<F: Fsm>() -> Result<Self, ()> {
 
         let mut inspect = Inspect::new();
@@ -134,6 +118,32 @@ impl FsmInspectWebServer {
     }
 }
 
+
+impl FsmInspectClone for FsmInspectWebServer {
+    fn add_fsm<F: Fsm>(&self) -> Self {
+        let fsm_info = ::data::FsmInfo {
+            regions: F::fsm_info_regions(),
+            name: F::fsm_name()
+        };
+        
+        let fsm_data_state = ::data::FsmDataState {
+            name: F::fsm_name(),
+            structures: HashMap::new()
+        };
+    
+        let inner = self.inner.clone();
+        if let Ok(ref mut inspect) = inner.inner.lock() {
+            inspect.machine_infos.push(fsm_info);
+            inspect.machine_state.push(fsm_data_state);
+        } else {
+            panic!("Couldn't lock the inner data");
+        }
+
+        FsmInspectWebServer {
+            inner: inner
+        }
+    }
+}
 
 impl<F: Fsm> FsmInspect<F> for FsmInspectWebServer
     where F::C : ::serde::Serialize + ::std::fmt::Debug

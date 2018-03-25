@@ -26,14 +26,11 @@ extern crate serde_json;
 
 mod prelude;
 
-mod machine;
-
-pub use machine::*;
-
-#[macro_use]
-mod macros;
+mod fsm;
+pub use fsm::*;
 
 pub mod console_inspect;
 pub mod inspect_combinator;
 pub mod inspect_data;
 pub mod json_diff;
+

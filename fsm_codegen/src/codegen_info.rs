@@ -20,7 +20,7 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             let is_interrupt_state = region.interrupt_states.iter().any(|x| &x.interrupt_state_ty == state);
 
             states.push(quote! {
-                ::fsm::FsmInfoState {
+                ::fsm::info::FsmInfoState {
                     state_name: #state_name,
                     is_initial_state: #is_initial_state,
                     is_interrupt_state: #is_interrupt_state
@@ -56,8 +56,8 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
             //let state_to_idx: usize = state_types.iter().position(|t| t == &transition.target_state).expect("State to not found");
 
             transitions.push(quote! {
-                ::fsm::FsmInfoTransition {
-                    transition_id: ::fsm::TransitionId::Table(#id),
+                ::fsm::info::FsmInfoTransition {
+                    transition_id: ::fsm::info::TransitionId::Table(#id),
 
                     state_from: #s_from,
                     state_from_is_submachine: #state_from_is_submachine,
@@ -81,7 +81,7 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
         let initial_state = syn::LitStr::new(&syn_to_string(&region.initial_state_ty), ::quote::__rt::Span::def_site());
 
         regions.push(quote! {
-            ::fsm::FsmInfoRegion {
+            ::fsm::info::FsmInfoRegion {
                 region_name: #region_name,
                 initial_state: #initial_state,
                 states: vec![#(#states),*],
@@ -92,8 +92,10 @@ pub fn build_fsm_info(fsm: &FsmDescription) -> Tokens {
     
     
     quote! {
-        impl #impl_suffix ::fsm::FsmInfo for #fsm_ty #fsm_where_ty {
-            fn fsm_info_regions() -> Vec<::fsm::FsmInfoRegion> {
+        impl #impl_suffix ::fsm::info::FsmInfo for #fsm_ty #fsm_where_ty {
+            fn fsm_info_regions() -> Vec<::fsm::info::FsmInfoRegion> {
+                use ::fsm::info::*;
+
                 vec![ #(#regions),* ]
             }
 

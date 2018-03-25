@@ -4,14 +4,13 @@ extern crate fsm;
 #[macro_use]
 extern crate fsm_codegen;
 
-
 use fsm::*;
+use fsm::declaration::*;
 use fsm_codegen::fsm_fn;
 
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
-
 
 #[derive(Default, Debug, Serialize)]
 pub struct FsmOneContext {
@@ -161,6 +160,4 @@ fn test_machine1() {
 
 	fsm1.process_event(FsmOneEvents::MagicEvent(MagicEvent(42))).unwrap();
 	assert_eq!(FsmOneStates::State2, fsm1.get_current_state());
-
-
 }

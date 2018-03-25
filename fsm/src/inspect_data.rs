@@ -1,6 +1,8 @@
 use prelude::v1::*;
 
-use machine::*;
+use fsm::*;
+use fsm::info::*;
+use fsm::inspect::*;
 
 use std::collections::HashMap;
 

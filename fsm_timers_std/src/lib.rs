@@ -3,6 +3,7 @@ extern crate tokio_timer;
 extern crate futures;
 
 use fsm::*;
+use fsm::timers::*;
 use tokio_timer::*;
 use futures::*;
 use std::time::*;

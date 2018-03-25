@@ -224,7 +224,7 @@ pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Type)
                     {
                         let t = #body;                        
                         t.map(|t| {
-                            TimerSettings {
+                            ::fsm::timers::TimerSettings {
                                 timeout: t.timeout,
                                 cancel_on_state_exit: true,
                                 event_on_timeout: #ev
@@ -251,7 +251,7 @@ pub fn build_state_timeout_timers_entry(fsm: &FsmDescription, state: &syn::Type)
                     }
                 };
                 if let Some(ref timer) = self.#ident {
-                    self.timers.create_timeout_timer(::fsm::TimerId(#n as u32), timer.timeout);
+                    self.timers.create_timeout_timer(::fsm::timers::TimerId(#n as u32), timer.timeout);
                 }
             });
         }
@@ -271,7 +271,7 @@ pub fn build_state_timeout_timers_exit(fsm: &FsmDescription, state: &syn::Type) 
             if let Some(mut timer) = self.#ident.take() {
                 if timer.cancel_on_state_exit {
                     // this timer hasn't timed out. announce its cancellation to the outside API
-                    self.timers.cancel_timer(::fsm::TimerId(#n as u32));
+                    self.timers.cancel_timer(::fsm::timers::TimerId(#n as u32));
                 }
             }
         });
@@ -317,7 +317,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
 
             for transition in t {
                 let transition_id = transition.id;
-                let transition_id = quote! { ::fsm::TransitionId::Table(#transition_id) };
+                let transition_id = quote! { ::fsm::info::TransitionId::Table(#transition_id) };
 
                 transitions_count += 1;
 
@@ -555,13 +555,13 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
         return_result.append_all(quote! {            
             let res = res.unwrap_or(Err(::fsm::FsmError::NoTransition));
             if res == Err(::fsm::FsmError::NoTransition) {
-                <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection, &self.get_current_state());
+                <FI as ::fsm::inspect::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection, &self.get_current_state());
             }
         });
     } else {
         return_result = quote! {
             if res == Err(::fsm::FsmError::NoTransition) {
-                <FI as ::fsm::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection, &self.get_current_state());
+                <FI as ::fsm::inspect::FsmInspect<#fsm_ty>>::on_no_transition(&self.inspection, &self.get_current_state());
             }
         }
     }
@@ -575,7 +575,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
                 }
 
                 {
-                    <FI as ::fsm::FsmInspect<#fsm_ty>>::on_process_event(&self.inspection, &self.fsm.get_current_state(), #event_kind_ty::#event, &event);
+                    <FI as ::fsm::inspect::FsmInspect<#fsm_ty>>::on_process_event(&self.inspection, &self.fsm.get_current_state(), #event_kind_ty::#event, &event);
                 }
 
                 let res = {
@@ -597,7 +597,7 @@ pub fn build_event_state_transitions(fsm: &FsmDescription, event: &syn::Type) ->
                 };
 
                 {
-                    <FI as ::fsm::FsmInspect<#fsm_ty>>::on_event_processed(&self.inspection);
+                    <FI as ::fsm::inspect::FsmInspect<#fsm_ty>>::on_event_processed(&self.inspection);
                 }
 
                 if self.execute_queue_post {
@@ -683,7 +683,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             };
             self.fsm.states.#initial_state_field.on_entry(&mut event_ctx);
             let current_region_state = self.fsm.state #get_current_region_state;
-            self.inspection.on_state_entry(::fsm::TransitionId::Start, &current_region_state, &self.fsm.states.#initial_state_field, &event_ctx);
+            self.inspection.on_state_entry(::fsm::info::TransitionId::Start, &current_region_state, &self.fsm.states.#initial_state_field, &event_ctx);
         };
 
         s.append_all(build_state_timeout_timers_entry(fsm, initial_state));
@@ -841,7 +841,6 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             let field_name: syn::Expr = syn::parse_str(&field_name).expect("field_name parse error");
 
             let sub_runtime_type: syn::Type = {
-                // FI: FsmInspection, FT: FsmTimers
                 let n = format!("{}Runtime < FI, FT >", syn_to_string(&sub));
                 syn::parse_str(&n).expect("runtime sub parse error")
             };
@@ -869,7 +868,7 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
             let ident = timer.get_ident();
             let ev = &timer.event_on_timeout;
             q.append_all(quote! {
-                #ident: Option<::fsm::TimerSettings<#ev>>,
+                #ident: Option<::fsm::timers::TimerSettings<#ev>>,
             });
         }
 
@@ -878,8 +877,8 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
     
     let new_runtime_fsm_null = {
         let g = fsm.get_fsm_runtime_generics(&[
-            ("FI", &syn::parse_str(&"::fsm::FsmInspectNull").unwrap()),
-            ("FT", &syn::parse_str(&"::fsm::FsmTimersNull").unwrap())
+            ("FI", &syn::parse_str(&"::fsm::inspect::FsmInspectNull").unwrap()),
+            ("FT", &syn::parse_str(&"::fsm::timers::FsmTimersNull").unwrap())
         ]);
 
         
@@ -921,10 +920,10 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
 
         let fi_bounds = {
             let mut q = vec![];
-            q.push(quote! { ::fsm::FsmInspect<#fsm_ty> });
+            q.push(quote! { ::fsm::inspect::FsmInspect<#fsm_ty> });
 
             for sub in fsm.get_submachine_types() {
-                q.push(quote! { ::fsm::FsmInspect<#sub> });
+                q.push(quote! { ::fsm::inspect::FsmInspect<#sub> });
             }
 
             quote! { #(#q)+* }
@@ -934,10 +933,10 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
         quote! {
             impl #impl_suffix #fsm_ty #fsm_where_ty {
                 pub fn new(context: #ctx) -> Result<#g, ::fsm::FsmError> {
-                    Self::new_custom(context, ::fsm::FsmInspectNull, ::fsm::FsmTimersNull)
+                    Self::new_custom(context, ::fsm::inspect::FsmInspectNull, ::fsm::timers::FsmTimersNull)
                 }
 
-                pub fn new_custom<FI: #fi_bounds, FT: ::fsm::FsmTimers>(context: #ctx, inspection: FI, timers: FT) -> Result<#g_custom, ::fsm::FsmError> {
+                pub fn new_custom<FI: #fi_bounds, FT: ::fsm::timers::FsmTimers>(context: #ctx, inspection: FI, timers: FT) -> Result<#g_custom, ::fsm::FsmError> {
                     let queue = ::fsm::FsmEventQueueVec::new();
                     let fsm = Self::new_fsm(context);
                     
@@ -1005,9 +1004,9 @@ pub fn build_main_struct(fsm: &FsmDescription) -> quote::Tokens {
         }
 
         quote! {
-            pub fn process_timer_event(&mut self, timer_event: &::fsm::FsmTimerEvent) -> Result<(), ::fsm::FsmError> {
+            pub fn process_timer_event(&mut self, timer_event: &::fsm::timers::FsmTimerEvent) -> Result<(), ::fsm::FsmError> {
                 match timer_event {
-                    &::fsm::FsmTimerEvent::TimedOut(ref timer) => {
+                    &::fsm::timers::FsmTimerEvent::TimedOut(ref timer) => {
                         match timer.timer_id.0 {
                             #timer_timeouts 
                             _ => {
@@ -1226,7 +1225,7 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
                 #states_ty::#state => {
                     #event_ctx
                     self.fsm.states.#f.on_entry(&mut event_ctx);
-                    self.inspection.on_state_entry(::fsm::TransitionId::Start, &state, &self.fsm.states.#f, &event_ctx);
+                    self.inspection.on_state_entry(::fsm::info::TransitionId::Start, &state, &self.fsm.states.#f, &event_ctx);
                 },
             });
 
@@ -1234,7 +1233,7 @@ pub fn build_on_handlers(fsm: &FsmDescription) -> quote::Tokens {
                 #states_ty::#state => {
                     #event_ctx
                     self.fsm.states.#f.on_exit(&mut event_ctx);
-                    self.inspection.on_state_exit(::fsm::TransitionId::Stop, &state, &self.fsm.states.#f, &event_ctx);
+                    self.inspection.on_state_exit(::fsm::info::TransitionId::Stop, &state, &self.fsm.states.#f, &event_ctx);
                 },
             });
         }

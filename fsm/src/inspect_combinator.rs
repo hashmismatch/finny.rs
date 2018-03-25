@@ -1,7 +1,9 @@
 //! Combine two FSM inspectors into one.
 
 use prelude::v1::*;
-use machine::*;
+use fsm::*;
+use fsm::info::*;
+use fsm::inspect::*;
 
 pub struct FsmInspectCombinator<F, InspectA, InspectB>
     where F: Fsm,

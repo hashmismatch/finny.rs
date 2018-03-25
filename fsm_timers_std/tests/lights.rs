@@ -12,6 +12,8 @@ extern crate serde_derive;
 extern crate fsm_timers_std;
 
 use fsm::*;
+use fsm::declaration::*;
+use fsm::timers::*;
 use fsm::console_inspect::*;
 
 use fsm_timers_std::*;
