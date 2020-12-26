@@ -7,7 +7,7 @@ extern crate quote;
 
 use parse::FsmFnInput;
 use proc_macro::TokenStream;
-use quote::quote_token_with_context;
+use quote::{TokenStreamExt, quote_token_with_context};
 use syn::{parse::{Parse, ParseStream}, parse_macro_input};
 
 mod codegen;
@@ -15,15 +15,21 @@ mod parse;
 
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let parsed = match FsmFnInput::parse(attr.into(), item.clone().into()) {
+    let item2: proc_macro2::TokenStream = item.into();
+
+    let parsed = match FsmFnInput::parse(attr.into(), item2.clone()) {
         Ok(p) => p,
         Err(e) => return e.to_compile_error().into()
     };
 
-    let q = quote! {
-        // hello
+    let fsm_ty = parsed.fsm_ty;
+    let mut q = quote! {
+        pub struct #fsm_ty {
+
+        }
     };
 
-    //q.into()
-    item.into()
+    q.append_all(item2);
+
+    q.into()
 }

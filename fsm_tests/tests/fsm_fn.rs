@@ -14,8 +14,7 @@ pub struct StateA;
 
 #[fsm_fn]
 fn build_fsm(fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
-    //fsm.build()
-    ()
+    fsm.build()
 }
 
 
