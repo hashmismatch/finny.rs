@@ -12,6 +12,7 @@ use syn::{parse::{Parse, ParseStream}, parse_macro_input};
 
 mod codegen;
 mod parse;
+mod parse_statements;
 
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -22,8 +23,8 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
         Err(e) => return e.to_compile_error().into()
     };
 
-    let fsm_ty = parsed.fsm_ty;
-    let ctx_ty = parsed.context_ty;
+    let fsm_ty = parsed.base.fsm_ty;
+    let ctx_ty = parsed.base.context_ty;
     let mut q = quote! {
         pub struct #fsm_ty {
 
