@@ -1,4 +1,7 @@
-use fsm_core::decl::{BuiltFsm, FsmBuilder};
+use std::marker::PhantomData;
+
+use fsm_core::{decl::fsm::{BuiltFsm, FsmBuilder}};
+
 
 extern crate fsm_core;
 #[macro_use]
@@ -10,13 +13,24 @@ pub struct StateMachineContext {
     count: usize
 }
 
-pub struct StateA;
-
-#[fsm_fn]
-fn build_fsm(fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
-    fsm.build()
+pub struct StateA {
+    counter: usize
 }
 
+pub struct StateB {
+    counter: usize
+}
+
+#[fsm_fn]
+fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
+    fsm.initial_state::<StateA>();
+
+    fsm.state::<StateA>().on_entry(|state_a, ctx| {
+        state_a.counter += 1;
+    });
+
+    fsm.build()
+}
 
 
 

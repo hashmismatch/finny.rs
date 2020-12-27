@@ -23,11 +23,21 @@ pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let fsm_ty = parsed.fsm_ty;
+    let ctx_ty = parsed.context_ty;
     let mut q = quote! {
         pub struct #fsm_ty {
 
         }
+
+        impl crate::fsm_core::Fsm for #fsm_ty {
+            type Context = #ctx_ty;
+        }
     };
+
+    // this goes in front of our definition function
+    q.append_all(quote! {
+        #[allow(dead_code)]
+    });
 
     q.append_all(item2);
 

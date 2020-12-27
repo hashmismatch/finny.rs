@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use syn::{parse::{self, Parse, ParseStream}, spanned::Spanned};
+use syn::{Error, GenericArgument, parse::{self, Parse, ParseStream}, spanned::Spanned};
 
 use crate::fsm_fn;
 
@@ -19,73 +19,53 @@ impl FsmFnInput {
             return Err(syn::Error::new(input_fn.sig.generics.span(), "Generics aren't supported!"));
         }
 
-        // input type check
-        // let (context_ty, fsm_ty) = {
-        let mut context_ty = None;
-        let mut fsm_ty = None;
-
-        {
-            if input_fn.sig.inputs.len() != 1 {
-                return Err(syn::Error::new(input_fn.sig.inputs.span(), "Only a single input parameter is supported!"));
-            }
-
-            if let Some(p) = input_fn.sig.inputs.first() {
-                match *p {
-                    syn::FnArg::Receiver(ref r) => {
-                        
-                    }
-                    syn::FnArg::Typed(ref r) => {
-
-                        match *r.pat {
-                            syn::Pat::Ident(ref p) => {
-                                if p.ident != "fsm" {
-                                    return Err(syn::Error::new(p.ident.span(), "The name of the input arg has to be 'fsm'."));
-                                }
-
-                                match *r.ty {
-                                    syn::Type::Path(ref p) => {
-                                        if p.path.segments.len() != 1 {
-                                            panic!("seg 1");
-                                        } else {
-                                            let s = p.path.segments.first().unwrap();
-                                            match s.arguments {
-                                                syn::PathArguments::AngleBracketed(ref args) => {
-                                                    if args.args.len() != 2 {
-                                                        panic!("nop");
-                                                    }
-
-                                                    for (i, a) in args.args.iter().enumerate() {
-                                                        match a {
-                                                            syn::GenericArgument::Type(ty) => {
-                                                                if i == 0 {
-                                                                    fsm_ty = Some(ty.clone());
-                                                                } else if i == 1 {
-                                                                    context_ty = Some(ty.clone());
-                                                                }
-                                                            }
-                                                            _ => panic!("3")
-                                                        }
-                                                    }
-                                                },
-                                                _ => panic!("nop")
-                                            }
-                                        }
-                                    }
-                                    _ => {
-                                        return Err(syn::Error::new(p.ident.span(), "The name of the input arg has to be 'fsm'."));
-                                    }
-                                }
-                            }
-                            _ => {
-                                return Err(syn::Error::new(r.pat.span(), "The name of the input arg has to be 'fsm'."));
-                            }
-                        }
-                    }
+        // builder name/generics
+        let (builder_ident, fsm_ty, context_ty) = {
+            let input_fsm_builder = match (input_fn.sig.inputs.len(), input_fn.sig.inputs.first()) {
+                (1, Some(p)) => {
+                    Ok(p)
+                },
+                (_, _) => {
+                    Err(Error::new(input_fn.sig.inputs.span(), "Only a single input parameter is supported!"))
                 }
-            } else {
-                panic!("foo");
-                //return Err(syn::Error::new(r.pat.span(), "The name of the input arg has to be 'fsm'."));
-            }
+            }?;
+
+            let builder_input = match input_fsm_builder {                
+                syn::FnArg::Typed(pt) => Ok(pt),
+                _ => Err(Error::new(input_fsm_builder.span(), "Only a typed input is supported!"))
+            }?;
+
+            let builder_input_pat_ident = match *builder_input.pat {
+                syn::Pat::Ident(ref pi) => Ok(pi),
+                _ => Err(Error::new(builder_input.pat.span(), "Only a type ascripted input arg is supported!"))
+            }?;
+            
+            let builder_input_type = match *builder_input.ty {
+                syn::Type::Path(ref type_path) => Ok(type_path),
+                _ => Err(Error::new(builder_input.ty.span(), "The builder's type is incorrect!"))
+            }?;
+
+            let path_segment = match (builder_input_type.path.segments.len(), builder_input_type.path.segments.first()) {
+                (1, Some(s)) => Ok(s),
+                (_, _) => Err(Error::new(builder_input_type.path.segments.span(), "Only one segment is supported!"))
+            }?;
+
+            let generic_arguments = match &path_segment.arguments {
+                syn::PathArguments::AngleBracketed(g) => Ok(g),
+                _ => Err(Error::new(path_segment.arguments.span(), "Only one segment is supported!"))
+            }?;
+
+
+            let generic_tys: Vec<_> = generic_arguments.args.iter().collect();
+
+            let (fsm_ty, context_ty) = match (generic_tys.get(0), generic_tys.get(1)) {
+                (Some(GenericArgument::Type(fsm_ty)), Some(GenericArgument::Type(context_ty))) => {
+                    Ok((fsm_ty, context_ty))
+                },
+                _ => Err(Error::new(generic_arguments.args.span(), "Expected a pair of generic arguments!"))
+            }?;
+
+            (builder_input_pat_ident.ident.clone(), fsm_ty.clone(), context_ty.clone())
         };
 
 
@@ -116,8 +96,8 @@ impl FsmFnInput {
 
         
         Ok(FsmFnInput {
-            context_ty: context_ty.expect("Failed to get context Ty"),
-            fsm_ty: fsm_ty.expect("Failed to get FSM ty")
+            context_ty: context_ty,
+            fsm_ty: fsm_ty
          })
     }
 }

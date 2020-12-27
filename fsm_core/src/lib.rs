@@ -1,4 +1,6 @@
 
 
 pub mod decl;
-pub mod fsm;
+mod fsm;
+
+pub use fsm::*;
