@@ -12,7 +12,8 @@ use syn::{parse::{Parse, ParseStream}, parse_macro_input};
 
 mod codegen;
 mod parse;
-mod parse_statements;
+mod parse_blocks;
+//mod parse_statements;
 
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {

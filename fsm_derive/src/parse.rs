@@ -1,12 +1,14 @@
-use proc_macro2::TokenStream;
-use syn::{Error, Expr, ExprMethodCall, GenericArgument, parse::{self, Parse, ParseStream}, spanned::Spanned};
+use std::collections::{HashMap, HashSet};
 
-use crate::{fsm_fn, parse_statements::find_fsm_method_calls};
+use proc_macro2::TokenStream;
+use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
+
+use crate::parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident};
 
 
 pub struct FsmFnInput {
     pub base: FsmFnBase,
-    options: FsmOptions
+    pub decl: FsmDeclarations
 }
 
 #[derive(Debug)]
@@ -100,106 +102,117 @@ impl FsmFnInput {
             fsm_ty
         };
 
-        let options = FsmOptions::parse(&base, &input_fn)?;
+        let blocks = decode_blocks(&base, &input_fn)?;
+
+
+
+        let fsm_declarations = FsmDeclarations::parse(&base, &input_fn, &blocks)?;
+
+        panic!("declarations: {:#?}", fsm_declarations);
         
         Ok(FsmFnInput {
             base,
-            options
+            decl: fsm_declarations
         })
     }
 }
 
-pub struct FsmOptions {
-    pub initial_state: syn::Type
-}
-
-impl FsmOptions {
-    pub fn parse(base: &FsmFnBase, item_fn: &syn::ItemFn) -> syn::Result<Self> {
-
-        //panic!("block: {:?}", item_fn.block);
-
-        //let calls = find_fsm_method_calls(item_fn, base);
-        //panic!("calls: {:#?}", calls);
-
-        let blocks = decode_blocks(base, item_fn)?;
-
-
-        todo!("blocks done")
-    }
+#[derive(Debug)]
+pub struct FsmDeclarations {
+    pub initial_state: syn::Type,
+    pub states: HashMap<syn::Type, FsmState>,
+    pub events: HashMap<syn::Type, FsmEvent>
 }
 
 #[derive(Debug)]
-pub enum FsmBlock {
-    MethodCall(FsmBlockMethodCall),
-    Struct()
+pub struct FsmState {
+    pub ty: syn::Type
 }
 #[derive(Debug)]
-pub struct FsmBlockStruct {
-
+pub struct FsmEvent {
+    pub ty: syn::Type
 }
 
-fn decode_blocks(base: &FsmFnBase, item_fn: &syn::ItemFn) -> syn::Result<Vec<FsmBlock>> {
-    let mut ret = vec![];
+impl FsmDeclarations {
+    pub fn parse(base: &FsmFnBase, input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<Self> {
+        let mut initial_state = None;
+        let mut states = HashMap::new();
+        let mut events = HashMap::new();
+        
 
-    for statement in &item_fn.block.stmts {
-        //panic!("s: {:?}", statement);
+        for block in blocks {
+            match block {
+                FsmBlock::MethodCall(mc) => {
 
-        match statement {
-            syn::Stmt::Expr(expr) => {
-                let call = decode_method_call(base, expr)?;
-                ret.push(FsmBlock::MethodCall(call));
-            }
-            syn::Stmt::Semi(expr, _col) => {
-                let call = decode_method_call(base, expr)?;
-                ret.push(FsmBlock::MethodCall(call));
-            }
-            _ => {
-                return Err(syn::Error::new(statement.span(), "Unsupported statement."));
+                    let methods = mc.method_calls
+                        .iter()
+                        .map(|m| MethodOverview::parse(m))
+                        .collect::<syn::Result<Vec<_>>>()?;
+
+                    let methods: Vec<_> = methods.iter().map(|m| m.as_ref()).collect();
+
+                    match methods.as_slice() {
+                        [MethodOverviewRef { name: "build", .. } ] => {
+                            
+                        },
+                        [MethodOverviewRef { name: "initial_state", generics: [ty], .. }] => {
+                            initial_state = Some(ty.clone());
+                        },
+                        [MethodOverviewRef { name: "state", generics: [ty_state] }, st @ .. ] => {
+
+                            let mut state = states
+                                .entry(ty_state.clone())
+                                .or_insert(FsmState { ty: ty_state.clone() });
+                            
+                        },
+                        [MethodOverviewRef { name: "on_event", generics: [ty_event] }, ev @ .. ] => {
+
+                            let mut event = events
+                                .entry(ty_event.clone())
+                                .or_insert(FsmEvent { ty: ty_event.clone() });
+                                                        
+                        }
+                        _ => { return Err(syn::Error::new(mc.expr_call.span(), "Unsupported method.")); }
+                    }
+
+                },
+                _ => todo!("unsupported block!")
             }
         }
+        
+        let dec = FsmDeclarations {
+            initial_state: initial_state.ok_or(syn::Error::new(input_fn.span(), "Missing the initial state declaration!"))?,
+            states,
+            events
+        };
+        Ok(dec)
+    }
+}
+
+struct MethodOverview {
+    name: String,
+    generics: Vec<syn::Type>
+}
+
+impl MethodOverview {
+    pub fn parse(m: &ExprMethodCall) -> syn::Result<Self> {
+        let generics = get_generics(&m.turbofish)?;
+
+        Ok(Self {
+            name: m.method.to_string(),
+            generics
+        })
     }
 
-    Ok(ret)
-}
-
-
-#[derive(Debug)]
-pub struct FsmBlockMethodCall {
-    expr_call: ExprMethodCall
-}
-
-fn decode_method_call(base: &FsmFnBase, expr: &Expr) -> syn::Result<FsmBlockMethodCall> {
-    // verify if the receiver is our builder
-    let mc = match expr {
-        Expr::MethodCall(mc) => Ok(mc),
-        _ => Err(syn::Error::new(expr.span(), "Unsupported."))
-    }?;
-
-    let receiver_ident = get_method_receiver_ident(&mc.receiver)?;
-    if receiver_ident != &base.builder_ident {
-        return Err(syn::Error::new(receiver_ident.span(), "Only method calls referring to the FSM builder are allowed!"));
-    }
-       
-    Ok(FsmBlockMethodCall {
-        expr_call: mc.clone()
-    })
-}
-
-fn get_method_receiver_ident(expr: &Expr) -> syn::Result<&syn::Ident> {
-    let path = match expr {
-        Expr::MethodCall(call) => {
-            return get_method_receiver_ident(&call.receiver);
-        },
-        Expr::Path(ep) => Ok(ep),
-        _ => {
-            Err(syn::Error::new(expr.span(), "Expected a simple method receiver!"))
+    pub fn as_ref(&self) -> MethodOverviewRef {
+        MethodOverviewRef {
+            name: self.name.as_str(),
+            generics: self.generics.as_slice()
         }
-    }?;
+    }
+}
 
-    let segment = match (path.path.segments.len(), path.path.segments.first()) {
-        (1, Some(segment)) => Ok(segment),
-        (_, _) => Err(syn::Error::new(path.path.segments.span(), "Expected a single segment"))
-    }?;
-
-    Ok(&segment.ident)
+struct MethodOverviewRef<'a> {
+    name: &'a str,
+    generics: &'a [syn::Type]
 }
