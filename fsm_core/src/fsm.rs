@@ -26,7 +26,7 @@ pub trait FsmCore where Self: Sized {
 }
 
 pub trait FsmCoreDispatch : FsmCore {
-    fn dispatch(&mut self, event: &Self::Events) -> FsmResult<()>;
+    fn dispatch_event(&mut self, event: &Self::Events) -> FsmResult<()>;
 }
 
 pub struct FsmCoreImpl<C, S, E, Q> {

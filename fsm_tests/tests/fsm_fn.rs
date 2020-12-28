@@ -15,7 +15,8 @@ pub struct StateMachineContext {
 
 #[derive(Default)]
 pub struct StateA {
-    counter: usize
+    enter: usize,
+    exit: usize
 }
 #[derive(Default)]
 pub struct StateB {
@@ -31,11 +32,13 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 
     fsm.state::<StateA>()
         .on_entry(|state_a, ctx| {
-            
             ctx.context.count += 1;
-            state_a.counter += 1;
+            state_a.enter += 1;
         })
-        ;
+        .on_exit(|state_a, ctx| {
+            ctx.context.count += 1;
+            state_a.exit += 1;
+        });
 
     fsm.state::<StateA>();
     fsm.state::<StateB>();
@@ -56,6 +59,10 @@ fn test_fsm() -> FsmResult<()> {
     fsm.start().unwrap();
 
     assert_eq!(1, fsm.get_context().count);
+
+    fsm.dispatch(&FsmEvents::EventClick(EventClick))?;
+
+    assert_eq!(2, fsm.get_context().count);
 
     Ok(())
 }

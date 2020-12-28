@@ -103,11 +103,43 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 }
             };
 
+            let state_from = match transition.from {
+                crate::parse::FsmTransitionState::None => TokenStream::new(),
+                crate::parse::FsmTransitionState::State(ref st) => {
+                    let field = &st.state_storage_field;
+                    let ty = &st.ty;
+                    quote! {
+                        let state_from = &mut self.fsm.states. #field;
+                        <#ty>::on_exit(state_from, &mut context);
+                    }
+                }
+            };
+
+            let current_state_update = match transition.to {
+                crate::parse::FsmTransitionState::None => {
+                    let q = quote! {
+                        self.current_state = None;
+                    };
+                    q
+                },
+                crate::parse::FsmTransitionState::State(ref st) => {
+                    let kind = &st.ty;
+                    let q = quote! {
+                        self.current_state = Some( #states_enum_ty :: #kind );
+                    };
+                    q
+                }
+            };
+
             let m = quote! {
                 ( #match_state , #match_event ) => {
                     use crate::fsm_core::FsmState;
                     
-                    #state_to
+                    { #state_from }
+
+                    { #state_to }
+
+                    { #current_state_update }
                 },
             };
 
@@ -129,7 +161,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             }
 
             impl<Q> crate::fsm_core::FsmCoreDispatch for #fsm_impl_ty<Q> {
-                fn dispatch<'a>(&'a mut self, event: &Self::Events) -> crate::fsm_core::FsmResult<()> {
+                fn dispatch_event<'a>(&'a mut self, event: &Self::Events) -> crate::fsm_core::FsmResult<()> {
 
                     let mut context = crate::fsm_core::EventContext::<#fsm_ty> {
                         context: &mut self.fsm.context
@@ -156,20 +188,23 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         let mut states = TokenStream::new();
         for (ty, state) in fsm.decl.states.iter() {
 
-            
-            let on_entry = if let Some(c) = &state.on_entry_closure {
-                let remap = remap_closure_inputs(&c.inputs, &vec![ quote! { self }, quote! { context } ])?;
-                let b = &c.body;
-                
-                quote! {                                        
-                    #remap
-                    {
-                        #b
-                    }
+            let remap_closure = |c: &Option<syn::ExprClosure>| -> syn::Result<TokenStream> {
+                if let Some(c) = &c {
+                    let remap = remap_closure_inputs(&c.inputs, &vec![ quote! { self }, quote! { context } ])?;
+                    let b = &c.body;
+                    
+                    let q = quote! {                                        
+                        #remap
+                        { #b }
+                    };
+                    Ok(q)
+                } else {
+                    Ok(TokenStream::new())
                 }
-            } else {
-                TokenStream::new()
             };
+
+            let on_entry = remap_closure(&state.on_entry_closure)?;
+            let on_exit = remap_closure(&state.on_exit_closure)?;
 
             states.append_all(quote! {
 
@@ -179,7 +214,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
 
                     fn on_exit<'a>(&mut self, context: &mut crate::fsm_core::EventContext<'a, #fsm_ty>) {
-
+                        #on_exit
                     }
                 }
 
@@ -223,12 +258,17 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             impl<Q> #fsm_impl_ty<Q> {
                 pub fn start(&mut self) -> crate::fsm_core::FsmResult<()> {
                     use crate::fsm_core::FsmCoreDispatch;
-                    self.dispatch( &<#event_enum_ty>::__FsmStart )
+                    self.dispatch_event( &<#event_enum_ty>::__FsmStart )
                 }
 
                 pub fn stop(&mut self) -> crate::fsm_core::FsmResult<()> {
                     use crate::fsm_core::FsmCoreDispatch;
-                    self.dispatch( &<#event_enum_ty>::__FsmStop )
+                    self.dispatch_event( &<#event_enum_ty>::__FsmStop )
+                }
+
+                pub fn dispatch(&mut self, event: &#event_enum_ty) -> crate::fsm_core::FsmResult<()> {
+                    use crate::fsm_core::FsmCoreDispatch;
+                    self.dispatch_event( event )
                 }
 
                 pub fn get_context(&self) -> & #ctx_ty {

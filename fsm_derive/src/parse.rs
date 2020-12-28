@@ -199,14 +199,30 @@ impl FsmDeclarations {
                                 });
 
                             for method in st {
+
+                                let method_to_closure = |method: &MethodOverviewRef| -> syn::Result<syn::ExprClosure> {
+                                    match method.call.args.first() {
+                                        Some(syn::Expr::Closure(closure)) => Ok(closure.clone()),
+                                        _ => Err(syn::Error::new(method.call.span(), "Missing closure!"))
+                                    }
+                                };
+
                                 match method {
                                     MethodOverviewRef { name: "on_entry", .. } => {
-                                        let closure = match method.call.args.first() {
-                                            Some(syn::Expr::Closure(closure)) => Ok(closure),
-                                            _ => Err(syn::Error::new(method.call.span(), "Missing closure!"))
-                                        }?;
+                                        let closure = method_to_closure(&method)?;
 
-                                        state.on_entry_closure = Some(closure.clone());
+                                        if state.on_entry_closure.is_some() {
+                                            return Err(syn::Error::new(closure.span(), "Duplicate 'on_entry'!"));
+                                        }
+                                        state.on_entry_closure = Some(closure);
+                                    },
+                                    MethodOverviewRef { name: "on_exit", .. } => {
+                                        let closure = method_to_closure(&method)?;
+
+                                        if state.on_exit_closure.is_some() {
+                                            return Err(syn::Error::new(closure.span(), "Duplicate 'on_exit'!"));
+                                        }
+                                        state.on_exit_closure = Some(closure);
                                     },
                                     _ => { return Err(syn::Error::new(mc.expr_call.span(), format!("Unsupported method '{}'!", method.name))); }
                                 }
