@@ -8,7 +8,7 @@ pub type FsmResult<T> = std::result::Result<T, FsmError>;
 
 #[derive(Debug)]
 pub enum FsmError {
-    Hello
+    NoTransition
 }
 
 pub trait FsmStates {

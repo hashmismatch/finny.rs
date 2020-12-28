@@ -60,7 +60,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         for (ty, ev) in  fsm.decl.events.iter() {
             variants.append_all(quote! { #ty ( #ty ),  });
         }
-        variants.append_all(quote! { _FsmStart, _FsmStop,  });
+        variants.append_all(quote! { __FsmStart, __FsmStop,  });
 
         quote! {
             pub enum #event_enum_ty {
@@ -95,22 +95,20 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     match (&self.current_state, event) {
                         
-                        (None, &<#event_enum_ty>::_FsmStart) => {
+                        (None, &<#event_enum_ty>::__FsmStart) => {
                             use crate::fsm_core::FsmState;
                             let state = &mut self.fsm.states.state_0;
                             <StateA>::on_entry(state, &mut context);
+                            
                         },
-                        /*
-                        Some( #states_enum_ty :: StateA ) => {
-                            use crate::fsm_core::FsmState;
-                            let state = &mut self.fsm.states.state_0;
-                            <StateA>::on_entry(state, &context);
-                        },
-                        */
-                        _ => {}
+                        
+                        _ => {
+                            return Err(crate::fsm_core::FsmError::NoTransition);
+                        }
                     }
 
                     Ok(())
+                    
                 }
             }
         }
@@ -187,13 +185,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             impl<Q> #fsm_impl_ty<Q> {
                 pub fn start(&mut self) -> crate::fsm_core::FsmResult<()> {
-                    //self.current_state = Some( <#states_enum_ty>:: #initial_state );
                     use crate::fsm_core::FsmCoreDispatch;
-                    self.dispatch( &<#event_enum_ty>::_FsmStart )
+                    self.dispatch( &<#event_enum_ty>::__FsmStart )
                 }
 
-                pub fn stop(&mut self) {
-                    self.current_state = None;
+                pub fn stop(&mut self) -> crate::fsm_core::FsmResult<()> {
+                    use crate::fsm_core::FsmCoreDispatch;
+                    self.dispatch( &<#event_enum_ty>::__FsmStop )
                 }
 
                 pub fn get_context(&self) -> & #ctx_ty {
