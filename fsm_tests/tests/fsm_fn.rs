@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use fsm_core::{decl::fsm::{BuiltFsm, FsmBuilder}};
+use fsm_core::{FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
 
 
 extern crate fsm_core;
@@ -30,8 +30,8 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
     fsm.initial_state::<StateA>();
 
     fsm.state::<StateA>()
-    
         .on_entry(|state_a, ctx| {
+            
             state_a.counter += 1;
         })
         ;
@@ -41,6 +41,21 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
     fsm.on_event::<EventClick>().transition_from::<StateA>().to::<StateB>();
 
     fsm.build()
+}
+
+
+#[test]
+fn test_fsm() -> FsmResult<()> {
+    let ctx = StateMachineContext { count: 0 };
+    let mut fsm = StateMachine::new(ctx)?;
+
+    assert_eq!(0, fsm.get_context().count);
+
+    fsm.start();
+
+    assert_eq!(1, fsm.get_context().count);
+
+    Ok(())
 }
 
 
@@ -97,9 +112,9 @@ fn create_it() -> () {
 }
 */
 
+/*
 #[test]
 fn test_fsm_min1() {
-    /*
     let mut fsm = FsmMinOne::new(Default::default()).unwrap();
     fsm.start();
     assert_eq!(FsmMinOneStates::StateA, fsm.get_current_state());
@@ -118,5 +133,5 @@ fn test_fsm_min1() {
     fsm.process_event(EventSelf).unwrap();
     assert_eq!(1, fsm.get_context().action_self);
     assert_eq!(3, fsm.get_context().state_b);
-    */
 }
+*/

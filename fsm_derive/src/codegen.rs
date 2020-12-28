@@ -1,6 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{TokenStreamExt, quote};
 use syn::spanned::Spanned;
+use utils::remap_closure_inputs;
 
 use crate::parse::FsmFnInput;
 
@@ -71,8 +72,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
     let dispatch = {
 
         quote! {
-
-            // todo: which one is really needed?
+                        
+            impl crate::fsm_core::FsmCore for #fsm_ty {
+                type Context = #ctx_ty;
+                type States = #states_store_ty;
+                type Events = #states_enum_ty;
+            }
 
             impl<Q> crate::fsm_core::FsmCore for #fsm_impl_ty<Q> {
                 type Context = #ctx_ty;
@@ -80,33 +85,74 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type Events = #states_enum_ty;
             }
 
-            impl crate::fsm_core::FsmCore for #fsm_ty {
-                type Context = #ctx_ty;
-                type States = #states_store_ty;
-                type Events = #states_enum_ty;
-            }
+            impl<Q> crate::fsm_core::FsmCoreDispatch for #fsm_impl_ty<Q> {
+                fn dispatch<'a>(&'a mut self, event: &Self::Events) -> crate::fsm_core::FsmResult<()> {
 
-            /*
-            impl<Q> crate::fsm_core::FsmCoreDispatch for crate::fsm_core::FsmCoreImpl<#ctx_ty, #states_store_ty, #states_enum_ty, Q>
-                where Self: crate::fsm_core::FsmCore<Context = #ctx_ty>
-            {
-                fn dispatch(&mut self, event: &Self::Events) -> crate::fsm_core::FsmResult<()> {
-
-                    let ev_ctx: crate::fsm_core::EventContext<Self> = crate::fsm_core::EventContext {
-                        context: &mut self.context
+                    let context = crate::fsm_core::EventContext::<#fsm_ty> {
+                        context: &mut self.fsm.context
                     };
 
-                    todo!("foo")
+                    match self.current_state {
+                        Some( #states_enum_ty :: StateA ) => {
+                            use crate::fsm_core::FsmState;
+                            let state = &mut self.fsm.states.state_0;
+                            <StateA>::on_entry(state, &context);
+                        },
+                        _ => {}
+                    }
+
+                    Ok(())
                 }
             }
-             */
         }
     };
 
+    let states = {
+
+        let mut states = TokenStream::new();
+        for (ty, state) in fsm.decl.states.iter() {
+
+            
+            let on_entry = if let Some(c) = &state.on_entry_closure {
+                let remap = remap_closure_inputs(&c.inputs, &vec![ quote! { self }, quote! { context } ])?;
+                let b = &c.body;
+                
+                quote! {                                        
+                    #remap
+                    {
+                        #b
+                    }
+                }
+            } else {
+                TokenStream::new()
+            };
+
+            states.append_all(quote! {
+
+                impl crate::fsm_core::FsmState<#fsm_ty> for #ty {
+                    fn on_entry<'a>(&mut self, context: &crate::fsm_core::EventContext<'a, #fsm_ty>) {
+                        #on_entry
+                    }
+
+                    fn on_exit<'a>(&mut self, context: &crate::fsm_core::EventContext<'a, #fsm_ty>) {
+
+                    }
+                }
+
+            })
+        }
+
+        states
+    };
+
     let builder = {
+
+        let initial_state = &fsm.decl.initial_state;
+
         quote! {
             pub struct #fsm_impl_ty<Q> {
-                fsm: crate::fsm_core::FsmCoreImpl<#ctx_ty, #states_store_ty, #states_enum_ty, Q>
+                fsm: crate::fsm_core::FsmCoreImpl<#ctx_ty, #states_store_ty, #states_enum_ty, Q>,
+                current_state: Option< #states_enum_ty >
             }
 
             pub struct #fsm_ty;
@@ -121,9 +167,26 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let fsm_impl = crate::fsm_core::FsmCoreImpl::new_all(context, states, queue)?;
 
-                    let fsm = #fsm_impl_ty { fsm: fsm_impl };
+                    let fsm = #fsm_impl_ty {
+                        fsm: fsm_impl,
+                        current_state: None
+                    };
 
                     Ok(fsm)
+                }
+            }
+
+            impl<Q> #fsm_impl_ty<Q> {
+                pub fn start(&mut self) {
+                    self.current_state = Some( <#states_enum_ty>:: #initial_state );
+                }
+
+                pub fn stop(&mut self) {
+                    self.current_state = None;
+                }
+
+                pub fn get_context(&self) -> & #ctx_ty {
+                    &self.fsm.context
                 }
             }
         }
@@ -131,6 +194,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     let mut q = quote! {
         #states_store
+
+        #states
 
         #events_enum
 

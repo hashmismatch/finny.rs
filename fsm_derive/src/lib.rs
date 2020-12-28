@@ -11,6 +11,7 @@ use proc_macro::TokenStream;
 mod codegen;
 mod parse;
 mod parse_blocks;
+mod utils;
 
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {

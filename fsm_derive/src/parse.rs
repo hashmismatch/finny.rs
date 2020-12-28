@@ -124,7 +124,9 @@ pub struct FsmDeclarations {
 
 #[derive(Debug)]
 pub struct FsmState {
-    pub ty: syn::Type
+    pub ty: syn::Type,
+    pub on_entry_closure: Option<syn::ExprClosure>,
+    pub on_exit_closure: Option<syn::ExprClosure>
 }
 #[derive(Debug)]
 pub struct FsmEvent {
@@ -156,14 +158,28 @@ impl FsmDeclarations {
                         [MethodOverviewRef { name: "initial_state", generics: [ty], .. }] => {
                             initial_state = Some(ty.clone());
                         },
-                        [MethodOverviewRef { name: "state", generics: [ty_state] }, st @ .. ] => {
+                        [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
                             let mut state = states
                                 .entry(ty_state.clone())
-                                .or_insert(FsmState { ty: ty_state.clone() });
+                                .or_insert(FsmState { ty: ty_state.clone(), on_entry_closure: None, on_exit_closure: None });
+
+                            for method in st {
+                                match method {
+                                    MethodOverviewRef { name: "on_entry", .. } => {
+                                        let closure = match method.call.args.first() {
+                                            Some(syn::Expr::Closure(closure)) => Ok(closure),
+                                            _ => Err(syn::Error::new(method.call.span(), "Missing closure!"))
+                                        }?;
+
+                                        state.on_entry_closure = Some(closure.clone());
+                                    },
+                                    _ => { return Err(syn::Error::new(mc.expr_call.span(), format!("Unsupported method '{}'!", method.name))); }
+                                }
+                            }
                             
                         },
-                        [MethodOverviewRef { name: "on_event", generics: [ty_event] }, ev @ .. ] => {
+                        [MethodOverviewRef { name: "on_event", generics: [ty_event], .. }, ev @ .. ] => {
 
                             let mut event = events
                                 .entry(ty_event.clone())
@@ -189,7 +205,8 @@ impl FsmDeclarations {
 
 struct MethodOverview {
     name: String,
-    generics: Vec<syn::Type>
+    generics: Vec<syn::Type>,
+    call: ExprMethodCall
 }
 
 impl MethodOverview {
@@ -198,19 +215,22 @@ impl MethodOverview {
 
         Ok(Self {
             name: m.method.to_string(),
-            generics
+            generics,
+            call: m.clone()
         })
     }
 
     pub fn as_ref(&self) -> MethodOverviewRef {
         MethodOverviewRef {
             name: self.name.as_str(),
-            generics: self.generics.as_slice()
+            generics: self.generics.as_slice(),
+            call: &self.call
         }
     }
 }
 
 struct MethodOverviewRef<'a> {
     name: &'a str,
-    generics: &'a [syn::Type]
+    generics: &'a [syn::Type],
+    call: &'a ExprMethodCall
 }
