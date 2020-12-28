@@ -22,7 +22,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         let mut state_variants = TokenStream::new();
 
         for (i, (_, state)) in fsm.decl.states.iter().enumerate() {
-            let name = syn::Ident::new(&format!("state_{}", i), Span::call_site());
+            let name = &state.state_storage_field;
             let ty = &state.ty;
             code_fields.append_all(quote! { #name: #ty, });
             new_state_fields.append_all(quote! { #name: #ty::new_state(context)?, });
@@ -70,7 +70,49 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     };
 
-    let dispatch = {
+    let dispatch = {        
+        let mut transition_match = TokenStream::new();
+        for transition in &fsm.decl.transitions {
+            
+            let match_state = match transition.from {
+                crate::parse::FsmTransitionState::None => quote! { None },
+                crate::parse::FsmTransitionState::State(ref st) => {
+                    let kind = &st.ty;
+                    quote! { Some(#states_enum_ty :: #kind) }
+                }
+            };
+
+            let match_event = match transition.event {
+                crate::parse::FsmTransitionEvent::Start => quote! { &<#event_enum_ty>::__FsmStart },
+                crate::parse::FsmTransitionEvent::Event(ref ev) => {
+                    let kind = &ev.ty;
+                    quote! { #event_enum_ty::#kind(ref ev) }
+                }
+                _ => todo!()
+            };
+
+            let state_to = match transition.to {
+                crate::parse::FsmTransitionState::None => todo!("transition to"),
+                crate::parse::FsmTransitionState::State(ref st) => {
+                    let field = &st.state_storage_field;
+                    let ty = &st.ty;
+                    quote! {
+                        let state_to = &mut self.fsm.states. #field ;
+                        <#ty>::on_entry(state_to, &mut context);
+                    }
+                }
+            };
+
+            let m = quote! {
+                ( #match_state , #match_event ) => {
+                    use crate::fsm_core::FsmState;
+                    
+                    #state_to
+                },
+            };
+
+            transition_match.append_all(m);
+        }
 
         quote! {
                         
@@ -95,13 +137,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     match (&self.current_state, event) {
                         
-                        (None, &<#event_enum_ty>::__FsmStart) => {
-                            use crate::fsm_core::FsmState;
-                            let state = &mut self.fsm.states.state_0;
-                            <StateA>::on_entry(state, &mut context);
-                            
-                        },
-                        
+                        #transition_match
+
                         _ => {
                             return Err(crate::fsm_core::FsmError::NoTransition);
                         }

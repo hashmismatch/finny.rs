@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use proc_macro2::TokenStream;
 use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
 
-use crate::parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident};
+use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, utils::to_field_name};
 
 
 pub struct FsmFnInput {
@@ -119,18 +119,46 @@ impl FsmFnInput {
 pub struct FsmDeclarations {
     pub initial_state: syn::Type,
     pub states: HashMap<syn::Type, FsmState>,
-    pub events: HashMap<syn::Type, FsmEvent>
+    pub events: HashMap<syn::Type, FsmEvent>,
+    pub transitions: Vec<FsmTransition>
 }
 
 #[derive(Debug)]
+pub enum FsmTransitionState {
+    None,
+    State(FsmState)
+}
+
+#[derive(Debug)]
+pub enum FsmTransitionEvent {
+    Stop,
+    Start,
+    Event(FsmEvent)
+}
+
+#[derive(Debug)]
+pub struct FsmTransition {
+    pub from: FsmTransitionState,
+    pub to: FsmTransitionState,
+    pub event: FsmTransitionEvent
+}
+
+#[derive(Debug, Clone)]
 pub struct FsmState {
     pub ty: syn::Type,
+    pub state_storage_field: syn::Ident,
     pub on_entry_closure: Option<syn::ExprClosure>,
     pub on_exit_closure: Option<syn::ExprClosure>
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FsmEvent {
-    pub ty: syn::Type
+    pub ty: syn::Type,
+    pub transitions: Vec<FsmEventTransition>
+}
+
+#[derive(Debug, Clone)]
+pub enum FsmEventTransition {
+    State(syn::Type, syn::Type)
 }
 
 impl FsmDeclarations {
@@ -160,9 +188,15 @@ impl FsmDeclarations {
                         },
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
-                            let mut state = states
+                            let field_name = to_field_name(&ty_state)?;
+                            let state = states
                                 .entry(ty_state.clone())
-                                .or_insert(FsmState { ty: ty_state.clone(), on_entry_closure: None, on_exit_closure: None });
+                                .or_insert(FsmState { 
+                                    ty: ty_state.clone(),
+                                    on_entry_closure: None,
+                                    on_exit_closure: None,
+                                    state_storage_field: field_name
+                                });
 
                             for method in st {
                                 match method {
@@ -181,9 +215,18 @@ impl FsmDeclarations {
                         },
                         [MethodOverviewRef { name: "on_event", generics: [ty_event], .. }, ev @ .. ] => {
 
-                            let mut event = events
+                            let event = events
                                 .entry(ty_event.clone())
-                                .or_insert(FsmEvent { ty: ty_event.clone() });
+                                .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![] });
+
+                            match ev {
+                                [MethodOverviewRef { name: "transition_from", generics: [ty_from], .. }, MethodOverviewRef { name: "to", generics: [ty_to], .. } ] => {
+
+                                    event.transitions.push(FsmEventTransition::State(ty_from.clone(), ty_to.clone()));
+
+                                },
+                                _ => { return Err(syn::Error::new(mc.expr_call.span(), "Unsupported methods.")); }
+                            }
                                                         
                         }
                         _ => { return Err(syn::Error::new(mc.expr_call.span(), "Unsupported method.")); }
@@ -193,12 +236,47 @@ impl FsmDeclarations {
                 _ => todo!("unsupported block!")
             }
         }
+
+        let mut transitions = vec![];
+
+        let initial_state = initial_state.ok_or(syn::Error::new(input_fn.span(), "Missing the initial state declaration!"))?;
+        let fsm_initial_state = states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not invoked in the builder."))?;
+
+        // build and validate the transitions table
+        {
+            transitions.push(FsmTransition {
+                from: FsmTransitionState::None,
+                to: FsmTransitionState::State(fsm_initial_state.clone()),
+                event: FsmTransitionEvent::Start
+            });
+
+            for (ty, ev) in events.iter() {
+                for t in &ev.transitions {
+                    match t {
+                        FsmEventTransition::State(from, to) => {
+
+                            let from = states.get(from).ok_or(syn::Error::new(from.span(), "State not found."))?;
+                            let to = states.get(to).ok_or(syn::Error::new(to.span(), "State not found."))?;
+
+                            transitions.push(FsmTransition {
+                                from: FsmTransitionState::State(from.clone()),
+                                to: FsmTransitionState::State(to.clone()),
+                                event: FsmTransitionEvent::Event(ev.clone())
+                            });
+                        }
+                    }
+                }
+            }
+        }
+        
         
         let dec = FsmDeclarations {
-            initial_state: initial_state.ok_or(syn::Error::new(input_fn.span(), "Missing the initial state declaration!"))?,
+            initial_state,
             states,
-            events
+            events,
+            transitions
         };
+
         Ok(dec)
     }
 }

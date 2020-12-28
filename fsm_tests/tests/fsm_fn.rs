@@ -38,6 +38,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         ;
 
     fsm.state::<StateA>();
+    fsm.state::<StateB>();
 
     fsm.on_event::<EventClick>().transition_from::<StateA>().to::<StateB>();
 
