@@ -108,8 +108,6 @@ impl FsmFnInput {
 
         let fsm_declarations = FsmDeclarations::parse(&base, &input_fn, &blocks)?;
 
-        panic!("declarations: {:#?}", fsm_declarations);
-        
         Ok(FsmFnInput {
             base,
             decl: fsm_declarations

@@ -5,6 +5,7 @@ extern crate syn;
 #[macro_use]
 extern crate quote;
 
+use codegen::generate_fsm_code;
 use parse::FsmFnInput;
 use proc_macro::TokenStream;
 use quote::{TokenStreamExt, quote_token_with_context};
@@ -17,31 +18,16 @@ mod parse_blocks;
 
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr2: proc_macro2::TokenStream = attr.into();
     let item2: proc_macro2::TokenStream = item.into();
 
-    let parsed = match FsmFnInput::parse(attr.into(), item2.clone()) {
+    let parsed = match FsmFnInput::parse(attr2.clone(), item2.clone()) {
         Ok(p) => p,
         Err(e) => return e.to_compile_error().into()
     };
 
-    let fsm_ty = parsed.base.fsm_ty;
-    let ctx_ty = parsed.base.context_ty;
-    let mut q = quote! {
-        pub struct #fsm_ty {
-
-        }
-
-        impl crate::fsm_core::Fsm for #fsm_ty {
-            type Context = #ctx_ty;
-        }
-    };
-
-    // this goes in front of our definition function
-    q.append_all(quote! {
-        #[allow(dead_code)]
-    });
-
-    q.append_all(item2);
-
-    q.into()
+    match generate_fsm_code(&parsed, attr2.clone(), item2.clone()) {
+        Ok(t) => t.into(),
+        Err(e) => e.to_compile_error().into()
+    }
 }

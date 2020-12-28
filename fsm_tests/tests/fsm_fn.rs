@@ -13,10 +13,11 @@ pub struct StateMachineContext {
     count: usize
 }
 
+#[derive(Default)]
 pub struct StateA {
     counter: usize
 }
-
+#[derive(Default)]
 pub struct StateB {
     counter: usize
 }
