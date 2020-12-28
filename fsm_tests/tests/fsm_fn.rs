@@ -32,6 +32,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
     fsm.state::<StateA>()
         .on_entry(|state_a, ctx| {
             
+            ctx.context.count += 1;
             state_a.counter += 1;
         })
         ;
@@ -51,7 +52,7 @@ fn test_fsm() -> FsmResult<()> {
 
     assert_eq!(0, fsm.get_context().count);
 
-    fsm.start();
+    fsm.start().unwrap();
 
     assert_eq!(1, fsm.get_context().count);
 

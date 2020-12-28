@@ -122,6 +122,6 @@ pub struct EventContext<'a, TFsm: FsmCore> {
 }
 
 pub trait FsmState<F: FsmCore> {
-    fn on_entry<'a>(&mut self, context: &EventContext<'a, F>);
-    fn on_exit<'a>(&mut self, context: &EventContext<'a, F>);
+    fn on_entry<'a>(&mut self, context: &mut EventContext<'a, F>);
+    fn on_exit<'a>(&mut self, context: &mut EventContext<'a, F>);
 }
