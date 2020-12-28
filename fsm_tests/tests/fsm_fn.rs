@@ -30,9 +30,11 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
     fsm.initial_state::<StateA>();
 
     fsm.state::<StateA>()
+    
         .on_entry(|state_a, ctx| {
             state_a.counter += 1;
-        });
+        })
+        ;
 
     fsm.state::<StateA>();
 

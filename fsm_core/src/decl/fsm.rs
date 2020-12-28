@@ -1,8 +1,6 @@
 
 use std::marker::PhantomData;
 
-use crate::fsm::StateContext;
-
 use super::{event::FsmEventBuilder, state::FsmStateBuilder};
 
 #[derive(Default)]
