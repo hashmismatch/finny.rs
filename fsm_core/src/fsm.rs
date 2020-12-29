@@ -130,6 +130,6 @@ pub trait FsmTransitionGuard<F: FsmCore, E> {
     fn guard<'a>(event: &E, context: &EventContext<'a, F>) -> bool;
 }
 
-pub trait FsmTransitionAction<F: FsmCore, E> {
-    //fn guard<'a>(event: &E, context: &EventContext<'a, F>) -> bool;
+pub trait FsmTransitionAction<F: FsmCore, E, TStateFrom, TStateTo> {
+    fn action<'a>(event: &E, context: &mut EventContext<'a, F>, from: &mut TStateFrom, to: &mut TStateTo);
 }
