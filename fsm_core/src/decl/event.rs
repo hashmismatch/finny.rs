@@ -38,7 +38,11 @@ pub struct FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom,
 }
 
 impl<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> {
-    pub fn action<TAction: Fn(&TEvent, &mut EventContext<TFsm>, &mut TStateFrom, &mut TStateTo)>(&mut self) -> &mut Self {
+    pub fn action<TAction: Fn(&TEvent, &mut EventContext<TFsm>, &mut TStateFrom, &mut TStateTo)>(&mut self, _action: TAction) -> &mut Self {
+        self
+    }
+
+    pub fn guard<TGuard: Fn(&TEvent, &EventContext<TFsm>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
 }

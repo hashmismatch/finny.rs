@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
 
-use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, utils::to_field_name};
+use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, utils::{get_closure, to_field_name}};
 
 
 pub struct FsmFnInput {
@@ -138,6 +138,7 @@ pub enum FsmTransitionEvent {
 
 #[derive(Debug)]
 pub struct FsmTransition {
+    pub transition_ty: syn::Type,
     pub from: FsmTransitionState,
     pub to: FsmTransitionState,
     pub event: FsmTransitionEvent
@@ -153,7 +154,9 @@ pub struct FsmState {
 #[derive(Debug, Clone)]
 pub struct FsmEvent {
     pub ty: syn::Type,
-    pub transitions: Vec<FsmEventTransition>
+    pub transitions: Vec<FsmEventTransition>,
+    pub guard: Option<syn::ExprClosure>,
+    pub action: Option<syn::ExprClosure>
 }
 
 #[derive(Debug, Clone)]
@@ -200,29 +203,22 @@ impl FsmDeclarations {
 
                             for method in st {
 
-                                let method_to_closure = |method: &MethodOverviewRef| -> syn::Result<syn::ExprClosure> {
-                                    match method.call.args.first() {
-                                        Some(syn::Expr::Closure(closure)) => Ok(closure.clone()),
-                                        _ => Err(syn::Error::new(method.call.span(), "Missing closure!"))
-                                    }
-                                };
-
                                 match method {
                                     MethodOverviewRef { name: "on_entry", .. } => {
-                                        let closure = method_to_closure(&method)?;
+                                        let closure = get_closure(&method.call)?;
 
                                         if state.on_entry_closure.is_some() {
                                             return Err(syn::Error::new(closure.span(), "Duplicate 'on_entry'!"));
                                         }
-                                        state.on_entry_closure = Some(closure);
+                                        state.on_entry_closure = Some(closure.clone());
                                     },
                                     MethodOverviewRef { name: "on_exit", .. } => {
-                                        let closure = method_to_closure(&method)?;
+                                        let closure = get_closure(&method.call)?;
 
                                         if state.on_exit_closure.is_some() {
                                             return Err(syn::Error::new(closure.span(), "Duplicate 'on_exit'!"));
                                         }
-                                        state.on_exit_closure = Some(closure);
+                                        state.on_exit_closure = Some(closure.clone());
                                     },
                                     _ => { return Err(syn::Error::new(mc.expr_call.span(), format!("Unsupported method '{}'!", method.name))); }
                                 }
@@ -233,12 +229,36 @@ impl FsmDeclarations {
 
                             let event = events
                                 .entry(ty_event.clone())
-                                .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![] });
+                                .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![], guard: None, action: None });
 
                             match ev {
-                                [MethodOverviewRef { name: "transition_from", generics: [ty_from], .. }, MethodOverviewRef { name: "to", generics: [ty_to], .. } ] => {
+                                [MethodOverviewRef { name: "transition_from", generics: [ty_from], .. }, MethodOverviewRef { name: "to", generics: [ty_to], .. }, ev @ .. ] => {
 
                                     event.transitions.push(FsmEventTransition::State(ty_from.clone(), ty_to.clone()));
+
+                                    for method in ev {
+                                        match method {
+                                            MethodOverviewRef { name: "guard", .. } => {
+                                                let closure = get_closure(method.call)?;
+
+                                                if event.guard.is_some() {
+                                                    return Err(syn::Error::new(closure.span(), "Duplicate 'guard'!"));
+                                                }
+
+                                                event.guard = Some(closure.clone());
+                                            },
+                                            MethodOverviewRef { name: "action", .. } => {
+                                                let closure = get_closure(method.call)?;
+
+                                                if event.action.is_some() {
+                                                    return Err(syn::Error::new(closure.span(), "Duplicate 'action'!"));
+                                                }
+
+                                                event.action = Some(closure.clone());
+                                            }
+                                            _ => { return Err(syn::Error::new(mc.expr_call.span(), "Unsupported methods.")); }
+                                        }
+                                    }
 
                                 },
                                 _ => { return Err(syn::Error::new(mc.expr_call.span(), "Unsupported methods.")); }
@@ -260,7 +280,18 @@ impl FsmDeclarations {
 
         // build and validate the transitions table
         {
+            let mut i = 0;
+
+            fn generate_transition_ty(i: &mut usize) -> syn::Type {
+                let ident = syn::Ident::new(&format!("Transition{}", i), Span::call_site());
+                *i = *i + 1;
+                let mut p = syn::punctuated::Punctuated::new();
+                p.push(syn::PathSegment {ident, arguments: syn::PathArguments::None });
+                syn::Type::Path(syn::TypePath { qself: None, path: syn::Path { leading_colon: None, segments: p }})
+            }
+
             transitions.push(FsmTransition {
+                transition_ty: generate_transition_ty(&mut i),
                 from: FsmTransitionState::None,
                 to: FsmTransitionState::State(fsm_initial_state.clone()),
                 event: FsmTransitionEvent::Start
@@ -275,6 +306,7 @@ impl FsmDeclarations {
                             let to = states.get(to).ok_or(syn::Error::new(to.span(), "State not found."))?;
 
                             transitions.push(FsmTransition {
+                                transition_ty: generate_transition_ty(&mut i),
                                 from: FsmTransitionState::State(from.clone()),
                                 to: FsmTransitionState::State(to.clone()),
                                 event: FsmTransitionEvent::Event(ev.clone())

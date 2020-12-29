@@ -28,6 +28,14 @@ pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::Pat, syn::
     Ok(q)
 }
 
+
+pub fn get_closure(call: &syn::ExprMethodCall) -> syn::Result<&syn::ExprClosure> {
+    match call.args.first() {
+        Some(syn::Expr::Closure(closure)) => Ok(closure),
+        _ => Err(syn::Error::new(call.span(), "Missing closure!"))
+    }
+}
+
 pub fn to_field_name(ty: &syn::Type) -> syn::Result<syn::Ident> {
     let s = tokens_to_string(ty);
     let snake = to_snake_case(&s);

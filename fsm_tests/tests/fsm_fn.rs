@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use fsm_core::{FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
+use fsm_core::{FsmError, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
 
 
 extern crate fsm_core;
@@ -10,7 +10,8 @@ extern crate fsm_derive;
 
 #[derive(Debug)]
 pub struct StateMachineContext {
-    count: usize
+    count: usize,
+    total_time: usize
 }
 
 #[derive(Default)]
@@ -23,7 +24,7 @@ pub struct StateB {
     counter: usize
 }
 
-pub struct EventClick;
+pub struct EventClick { time: usize }
 pub struct EventEnter;
 
 #[fsm_fn]
@@ -43,7 +44,15 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
     fsm.state::<StateA>();
     fsm.state::<StateB>();
 
-    fsm.on_event::<EventClick>().transition_from::<StateA>().to::<StateB>();
+    fsm.on_event::<EventClick>()
+        .transition_from::<StateA>()
+        .to::<StateB>()
+        .guard(|ev, ctx| {
+            ev.time > 100
+        })
+        .action(|ev, ctx, state_from, state_to| {
+            ctx.context.total_time += ev.time;
+        });
 
     fsm.build()
 }
@@ -51,7 +60,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 
 #[test]
 fn test_fsm() -> FsmResult<()> {
-    let ctx = StateMachineContext { count: 0 };
+    let ctx = StateMachineContext { count: 0, total_time: 0 };
     let mut fsm = StateMachine::new(ctx)?;
 
     assert_eq!(0, fsm.get_context().count);
@@ -60,9 +69,13 @@ fn test_fsm() -> FsmResult<()> {
 
     assert_eq!(1, fsm.get_context().count);
 
-    fsm.dispatch(&FsmEvents::EventClick(EventClick))?;
+    let ret = fsm.dispatch(&FsmEvents::EventClick(EventClick { time: 99 }));
+    assert_eq!(Err(FsmError::NoTransition), ret);
+
+    fsm.dispatch(&FsmEvents::EventClick(EventClick { time: 123 }))?;
 
     assert_eq!(2, fsm.get_context().count);
+    assert_eq!(123, fsm.get_context().total_time);
 
     Ok(())
 }

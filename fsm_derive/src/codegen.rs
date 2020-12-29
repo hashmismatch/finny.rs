@@ -3,7 +3,7 @@ use quote::{TokenStreamExt, quote};
 use syn::spanned::Spanned;
 use utils::remap_closure_inputs;
 
-use crate::parse::FsmFnInput;
+use crate::parse::{FsmEvent, FsmFnInput};
 
 
 
@@ -70,9 +70,51 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     };
 
+    let transition_types = {
+        let mut t = TokenStream::new();
+        
+        for transition in &fsm.decl.transitions {
+
+            let ty = &transition.transition_ty;
+            let mut q = quote! {
+                pub struct #ty;
+            };
+
+            match transition.event {
+                crate::parse::FsmTransitionEvent::Event(FsmEvent { ty: ref event_ty, guard: Some(ref guard), ..} ) => {
+
+                    let remap = remap_closure_inputs(&guard.inputs, vec![
+                        quote! { event }, quote! { context }
+                    ].as_slice())?;
+
+                    let body = &guard.body;
+
+                    let g = quote! {
+                        impl crate::fsm_core::FsmTransitionGuard<#fsm_ty, #event_ty> for #ty {
+                            fn guard<'a>(event: & #event_ty, context: &crate::fsm_core::EventContext<'a, #fsm_ty>) -> bool {
+                                #remap
+                                let result = { #body };
+                                result
+                            }
+                        }
+                    };
+
+                    q.append_all(g);
+                },
+                _ => ()
+            }
+
+            t.append_all(q);
+        }
+
+        t
+    };
+
     let dispatch = {        
         let mut transition_match = TokenStream::new();
         for transition in &fsm.decl.transitions {
+
+            let transition_ty = &transition.transition_ty;
             
             let match_state = match transition.from {
                 crate::parse::FsmTransitionState::None => quote! { None },
@@ -131,8 +173,17 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 }
             };
 
+            let guard = match transition.event {
+                crate::parse::FsmTransitionEvent::Event(FsmEvent { guard: Some(ref guard), .. }) => {
+                    quote! {
+                        if <#transition_ty>::guard(ev, &context)
+                    }
+                },
+                _ => TokenStream::new()
+            };
+
             let m = quote! {
-                ( #match_state , #match_event ) => {
+                ( #match_state , #match_event ) #guard => {
                     use crate::fsm_core::FsmState;
                     
                     { #state_from }
@@ -162,6 +213,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             impl<Q> crate::fsm_core::FsmCoreDispatch for #fsm_impl_ty<Q> {
                 fn dispatch_event<'a>(&'a mut self, event: &Self::Events) -> crate::fsm_core::FsmResult<()> {
+
+                    use crate::fsm_core::FsmTransitionGuard;
 
                     let mut context = crate::fsm_core::EventContext::<#fsm_ty> {
                         context: &mut self.fsm.context
@@ -284,6 +337,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         #states
 
         #events_enum
+
+        #transition_types
 
         #dispatch
 

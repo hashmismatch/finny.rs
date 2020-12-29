@@ -6,7 +6,7 @@ use std::{collections::VecDeque, marker::PhantomData};
 
 pub type FsmResult<T> = std::result::Result<T, FsmError>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum FsmError {
     NoTransition
 }
@@ -124,4 +124,12 @@ pub struct EventContext<'a, TFsm: FsmCore> {
 pub trait FsmState<F: FsmCore> {
     fn on_entry<'a>(&mut self, context: &mut EventContext<'a, F>);
     fn on_exit<'a>(&mut self, context: &mut EventContext<'a, F>);
+}
+
+pub trait FsmTransitionGuard<F: FsmCore, E> {
+    fn guard<'a>(event: &E, context: &EventContext<'a, F>) -> bool;
+}
+
+pub trait FsmTransitionAction<F: FsmCore, E> {
+    //fn guard<'a>(event: &E, context: &EventContext<'a, F>) -> bool;
 }
