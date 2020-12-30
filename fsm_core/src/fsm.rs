@@ -42,7 +42,9 @@ pub struct FsmCoreImpl<C, S, CS, E, Q> {
     _events: PhantomData<E>
 }
 
-impl<C, S, CS, E, Q> FsmCoreImpl<C, S, CS, E, Q> {
+impl<C, S, CS, E, Q> FsmCoreImpl<C, S, CS, E, Q>
+    //where Self: FsmCore<Context = C>
+{
     pub fn new_all(context: C, states: S, queue: Q) -> FsmResult<Self> {
         let f = FsmCoreImpl {
             context,
@@ -118,25 +120,20 @@ impl<TState> FsmStateFactory for TState where TState: Default {
     }
 }
 
-/*
-pub struct StateContext<'a, TFsm: FsmCore> {
-    pub context: &'a mut TFsm::Context
-}
-*/
-
-pub struct EventContext<'a, TFsm: FsmCore> {
-    pub context: &'a mut TFsm::Context
+pub struct EventContext<'a, TFsm: FsmCore, Q> {
+    pub context: &'a mut TFsm::Context,
+    pub queue: &'a mut Q
 }
 
 pub trait FsmState<F: FsmCore> {
-    fn on_entry<'a>(&mut self, context: &mut EventContext<'a, F>);
-    fn on_exit<'a>(&mut self, context: &mut EventContext<'a, F>);
+    fn on_entry<'a, Q: FsmEventQueue<<F as FsmCore>::Events>>(&mut self, context: &mut EventContext<'a, F, Q>);
+    fn on_exit<'a, Q: FsmEventQueue<<F as FsmCore>::Events>>(&mut self, context: &mut EventContext<'a, F, Q>);
 }
 
 pub trait FsmTransitionGuard<F: FsmCore, E> {
-    fn guard<'a>(event: &E, context: &EventContext<'a, F>) -> bool;
+    fn guard<'a, Q: FsmEventQueue<<F as FsmCore>::Events>>(event: &E, context: &EventContext<'a, F, Q>) -> bool;
 }
 
 pub trait FsmTransitionAction<F: FsmCore, E, TStateFrom, TStateTo> {
-    fn action<'a>(event: &E, context: &mut EventContext<'a, F>, from: &mut TStateFrom, to: &mut TStateTo);
+    fn action<'a, Q: FsmEventQueue<<F as FsmCore>::Events>>(event: &E, context: &mut EventContext<'a, F, Q>, from: &mut TStateFrom, to: &mut TStateTo);
 }

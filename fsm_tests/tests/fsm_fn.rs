@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use fsm_core::{FsmError, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
+use fsm_core::{FsmCurrentState, FsmError, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
 
 
 extern crate fsm_core;
@@ -61,9 +61,11 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 #[test]
 fn test_fsm() -> FsmResult<()> {
     let ctx = StateMachineContext { count: 0, total_time: 0 };
+    
     let mut fsm = StateMachine::new(ctx)?;
 
     assert_eq!(0, fsm.get_context().count);
+    //assert_eq!(FsmCurrentState::None, fsm.get_current_state());
 
     fsm.start().unwrap();
 
