@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{FsmCore, FsmEventQueue, fsm::EventContext};
+use crate::{FsmBackend, FsmEventQueue, fsm::EventContext};
 
 use super::fsm::FsmBuilder;
 
@@ -38,13 +38,13 @@ pub struct FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom,
 }
 
 impl<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> 
-    where TFsm: FsmCore
+    where TFsm: FsmBackend
 {
-    pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmCore>::Events>>, &mut TStateFrom, &mut TStateTo)>(&mut self, _action: TAction) -> &mut Self {
+    pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>, &mut TStateFrom, &mut TStateTo)>(&mut self, _action: TAction) -> &mut Self {
         self
     }
 
-    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmCore>::Events>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
+    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
 }

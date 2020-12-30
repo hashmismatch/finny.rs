@@ -1,6 +1,8 @@
 
 use std::marker::PhantomData;
 
+use crate::FsmBackend;
+
 use super::{event::FsmEventBuilder, state::FsmStateBuilder};
 
 #[derive(Default)]
@@ -11,7 +13,9 @@ pub struct FsmBuilder<TFsm, TContext> {
 
 pub struct BuiltFsm;
 
-impl<TFsm, TContext> FsmBuilder<TFsm, TContext> {
+impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
+	where TFsm: FsmBackend
+{
 	/// Sets the initial state of the state machine. Required!
 	pub fn initial_state<TSTate>(&mut self) {
 		

@@ -1,7 +1,7 @@
 
 use std::marker::PhantomData;
 
-use crate::{EventContext, FsmCore, FsmEventQueue};
+use crate::{EventContext, FsmBackend, FsmEventQueue};
 
 use super::fsm::FsmBuilder;
 
@@ -12,15 +12,15 @@ pub struct FsmStateBuilder<'a, TFsm, TContext, TState> {
 }
 
 impl<'a, TFsm, TContext, TState> FsmStateBuilder<'a, TFsm, TContext, TState>
-	where TFsm: FsmCore
+	where TFsm: FsmBackend
 {
 	/// Execute this action when entering the state.
-	pub fn on_entry<TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmCore>::Events>>)>(&self, _action: TAction) -> &Self {
+	pub fn on_entry<TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>)>(&self, _action: TAction) -> &Self {
 		self
 	}
 
 	/// Execute this action when exiting the state.
-	pub fn on_exit<TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmCore>::Events>>)>(&self, _action: TAction) -> &Self {
+	pub fn on_exit<TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>)>(&self, _action: TAction) -> &Self {
 		self
 	}
 }
