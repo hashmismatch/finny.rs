@@ -29,19 +29,26 @@ pub trait FsmCoreDispatch : FsmCore {
     fn dispatch_event(&mut self, event: &Self::Events) -> FsmResult<()>;
 }
 
-pub struct FsmCoreImpl<C, S, E, Q> {
+pub enum FsmCurrentState<S> {
+    Stopped,
+    State(S)
+}
+
+pub struct FsmCoreImpl<C, S, CS, E, Q> {
     pub context: C,
     pub states: S,
     pub queue: Q,
+    pub current_state: FsmCurrentState<CS>,
     _events: PhantomData<E>
 }
 
-impl<C, S, E, Q> FsmCoreImpl<C, S, E, Q> {
+impl<C, S, CS, E, Q> FsmCoreImpl<C, S, CS, E, Q> {
     pub fn new_all(context: C, states: S, queue: Q) -> FsmResult<Self> {
         let f = FsmCoreImpl {
             context,
             states,
             queue,
+            current_state: FsmCurrentState::<CS>::Stopped,
             _events: PhantomData::default()
         };
         Ok(f)

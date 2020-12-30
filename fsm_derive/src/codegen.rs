@@ -146,10 +146,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let transition_ty = &transition.transition_ty;
             
             let match_state = match transition.from {
-                crate::parse::FsmTransitionState::None => quote! { None },
+                crate::parse::FsmTransitionState::None => quote! { crate::fsm_core::FsmCurrentState::Stopped },
                 crate::parse::FsmTransitionState::State(ref st) => {
                     let kind = &st.ty;
-                    quote! { Some(#states_enum_ty :: #kind) }
+                    quote! { crate::fsm_core::FsmCurrentState::State(#states_enum_ty :: #kind) }
                 }
             };
 
@@ -189,14 +189,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let current_state_update = match transition.to {
                 crate::parse::FsmTransitionState::None => {
                     let q = quote! {
-                        self.current_state = None;
+                        self.fsm.current_state = crate::fsm_core::FsmCurrentState::None;
                     };
                     q
                 },
                 crate::parse::FsmTransitionState::State(ref st) => {
                     let kind = &st.ty;
                     let q = quote! {
-                        self.current_state = Some( #states_enum_ty :: #kind );
+                        self.fsm.current_state = crate::fsm_core::FsmCurrentState::State(#states_enum_ty :: #kind);
                     };
                     q
                 }
@@ -270,7 +270,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         context: &mut self.fsm.context
                     };
 
-                    match (&self.current_state, event) {
+                    match (&self.fsm.current_state, event) {
                         
                         #transition_match
 
@@ -333,8 +333,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         quote! {
             pub struct #fsm_impl_ty<Q> {
-                fsm: crate::fsm_core::FsmCoreImpl<#ctx_ty, #states_store_ty, #states_enum_ty, Q>,
-                current_state: Option< #states_enum_ty >
+                fsm: crate::fsm_core::FsmCoreImpl<#ctx_ty, #states_store_ty, #states_enum_ty, #event_enum_ty, Q>
             }
 
             pub struct #fsm_ty;
@@ -350,8 +349,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     let fsm_impl = crate::fsm_core::FsmCoreImpl::new_all(context, states, queue)?;
 
                     let fsm = #fsm_impl_ty {
-                        fsm: fsm_impl,
-                        current_state: None
+                        fsm: fsm_impl
                     };
 
                     Ok(fsm)
