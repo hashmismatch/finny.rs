@@ -71,10 +71,10 @@ fn test_fsm() -> FsmResult<()> {
 
     assert_eq!(1, fsm.get_context().count);
 
-    let ret = fsm.dispatch(&FsmEvents::EventClick(EventClick { time: 99 }));
+    let ret = fsm.dispatch(&StateMachineEvents::EventClick(EventClick { time: 99 }));
     assert_eq!(Err(FsmError::NoTransition), ret);
 
-    fsm.dispatch(&FsmEvents::EventClick(EventClick { time: 123 }))?;
+    fsm.dispatch(&StateMachineEvents::EventClick(EventClick { time: 123 }))?;
 
     assert_eq!(2, fsm.get_context().count);
     assert_eq!(123, fsm.get_context().total_time);

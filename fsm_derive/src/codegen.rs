@@ -3,17 +3,19 @@ use quote::{TokenStreamExt, quote};
 use syn::spanned::Spanned;
 use utils::remap_closure_inputs;
 
-use crate::parse::{FsmEvent, FsmFnInput, FsmTransitionState};
+use crate::{parse::{FsmEvent, FsmFnInput, FsmTransitionState}, utils::{tokens_to_string, ty_append}};
 
 
 
 pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
-    let fsm_impl_ty = syn::Ident::new("FsmImpl", fsm_ty.span());
+    let fsm_impl_ty = ty_append(&fsm.base.fsm_ty, "Backend");
+
     let ctx_ty = &fsm.base.context_ty;
-    let states_store_ty = syn::Ident::new("States", fsm_ty.span());
-    let states_enum_ty = syn::Ident::new("StatesEnum", fsm_ty.span());
-    let event_enum_ty = syn::Ident::new("FsmEvents", fsm_ty.span());
+
+    let states_store_ty = ty_append(&fsm.base.fsm_ty, "States");
+    let states_enum_ty = ty_append(&fsm.base.fsm_ty, "CurrentState");
+    let event_enum_ty = ty_append(&fsm.base.fsm_ty, "Events");
 
     let states_store = {
 

@@ -90,3 +90,12 @@ impl FsmTransitionState {
         }
     }
 }
+
+pub fn ty_append(ty: &syn::Type, suffix: &str) -> syn::Type {
+    let s = tokens_to_string(&ty);
+    let n = format!("{}{}", s, suffix);
+    syn::Type::Path(syn::TypePath {
+        qself: None,
+        path: syn::Ident::new(&n, ty.span()).into()
+    })
+}
