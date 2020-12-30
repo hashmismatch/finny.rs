@@ -1,7 +1,7 @@
 //! The public Finite State Machine traits. The derive macros will implement these for your particular
 //! state machines.
 
-use std::{collections::VecDeque, marker::PhantomData};
+use std::{collections::VecDeque, marker::PhantomData, ops::{Deref, DerefMut}};
 
 mod fsm_impl;
 pub use self::fsm_impl::*;
@@ -14,7 +14,13 @@ pub enum FsmError {
 }
 
 pub trait FsmStates: FsmStateFactory {
-    type StateKind;
+    type StateKind: Clone + Copy + std::fmt::Debug + PartialEq;
+}
+
+pub enum FsmEvent<E> {
+    Start,
+    Stop,
+    Event(E)
 }
 
 /// Finite State Machine backend. Handles the dispatching, the types are
@@ -27,7 +33,11 @@ pub trait FsmBackend where Self: Sized {
     /// A tagged union type with all the supported events.
     type Events;
 
-    fn dispatch_event<Q>(&mut self, event: &Self::Events, event_context: &mut EventContext<Self, Q>) -> FsmResult<()>;
+    //fn backend_new(context: Self::Context) -> FsmResult<Self>;
+    fn dispatch_event<Q>(backend: &mut FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> FsmResult<()>
+        where Q: FsmEventQueue<Self::Events>;
+
+    //fn ddd(backend: &mut FsmBackendImpl<Self>);
 }
 
 /*
@@ -48,7 +58,8 @@ pub trait FsmCoreDispatch : FsmBackend {
 }
 */
 
-pub enum FsmCurrentState<S> {
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum FsmCurrentState<S: Clone + Copy> {
     Stopped,
     State(S)
 }
@@ -144,6 +155,22 @@ pub struct EventContext<'a, TFsm: FsmBackend, Q> {
     pub context: &'a mut TFsm::Context,
     pub queue: &'a mut Q
 }
+
+impl<'a, TFsm: FsmBackend, Q> Deref for EventContext<'a, TFsm, Q> {
+    type Target = <TFsm as FsmBackend>::Context;
+
+    fn deref(&self) -> &Self::Target {
+        self.context
+    }
+}
+
+impl<'a, TFsm: FsmBackend, Q> DerefMut for EventContext<'a, TFsm, Q> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.context
+    }
+}
+
+
 
 pub trait FsmState<F: FsmBackend> {
     fn on_entry<'a, Q: FsmEventQueue<<F as FsmBackend>::Events>>(&mut self, context: &mut EventContext<'a, F, Q>);

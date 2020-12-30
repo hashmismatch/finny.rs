@@ -1,14 +1,14 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::Deref};
 
-use crate::{FsmBackend, FsmCurrentState, FsmEventQueueVec, FsmResult, FsmStates};
+use crate::{EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmEventQueueVec, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
 
 
 pub struct FsmBackendImpl<F: FsmBackend> {
-    context: <F as FsmBackend>::Context,
-    states: <F as FsmBackend>::States,
-    current_state: FsmCurrentState<<<F as FsmBackend>::States as FsmStates>::StateKind>
+    pub context: <F as FsmBackend>::Context,
+    pub states: <F as FsmBackend>::States,
+    pub current_state: FsmCurrentState<<<F as FsmBackend>::States as FsmStates>::StateKind>
 }
 
 impl<F: FsmBackend> FsmBackendImpl<F> {
@@ -20,10 +20,19 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
         let backend = FsmBackendImpl::<F> {
             context,
             states,
-            current_state
+            current_state,
+            //fsm: F::new()
         };
 
         Ok(backend)
+    }
+    
+    pub fn get_context(&self) -> &<F as FsmBackend>::Context {
+        &self.context
+    }
+
+    pub fn get_current_state(&self) -> FsmCurrentState<<<F as FsmBackend>::States as FsmStates>::StateKind> {
+        self.current_state
     }
 }
 
@@ -32,7 +41,7 @@ pub struct FsmFrontend<Queue, F: FsmBackend> {
     backend: FsmBackendImpl<F>
 }
 
-impl<Queue, F: FsmBackend> FsmFrontend<Queue, F> {
+impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend<Queue, F> {
     pub fn new_all(queue: Queue, context: <F as FsmBackend>::Context) -> FsmResult<Self> {
         //let queue = super::FsmEventQueueVec::new();
 
@@ -43,6 +52,14 @@ impl<Queue, F: FsmBackend> FsmFrontend<Queue, F> {
 
         Ok(frontend)
     }
+
+    pub fn start(&mut self) -> FsmResult<()> {
+        self.dispatch(&FsmEvent::Start)
+    }
+
+    pub fn dispatch(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
+        F::dispatch_event(&mut self.backend, event, &mut self.queue)
+    }
 }
 
 impl<F: FsmBackend> FsmFrontend<FsmEventQueueVec<<F as FsmBackend>::Events>, F> {
@@ -51,6 +68,14 @@ impl<F: FsmBackend> FsmFrontend<FsmEventQueueVec<<F as FsmBackend>::Events>, F> 
     }
 }
 
+
+impl<Queue, F: FsmBackend> Deref for FsmFrontend<Queue, F> {
+    type Target = FsmBackendImpl<F>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.backend
+    }
+}
 
 
 /*

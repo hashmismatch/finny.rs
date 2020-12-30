@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use fsm_core::{FsmCurrentState, FsmError, FsmFrontend, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
+use fsm_core::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
 
 
 extern crate fsm_core;
@@ -41,8 +41,10 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
             state_a.exit += 1;
         });
 
-    fsm.state::<StateA>();
-    fsm.state::<StateB>();
+    fsm.state::<StateB>()
+        .on_entry(|state_b, ctx| {
+            state_b.counter += 1;
+        });
 
     fsm.on_event::<EventClick>()
         .transition_from::<StateA>()
@@ -62,28 +64,26 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 fn test_fsm() -> FsmResult<()> {
     let ctx = StateMachineContext { count: 0, total_time: 0 };
     
-    //let mut fsm = StateMachine::new(ctx)?;
-
     let mut fsm: FsmFrontend<_, StateMachine> = FsmFrontend::new(ctx)?;
 
     
-
-    /*
+    let state = fsm.get_current_state();
+    assert_eq!(FsmCurrentState::Stopped, state);
     assert_eq!(0, fsm.get_context().count);
-    //assert_eq!(FsmCurrentState::None, fsm.get_current_state());
 
-    fsm.start().unwrap();
+    fsm.start()?;
 
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_state());
     assert_eq!(1, fsm.get_context().count);
 
-    let ret = fsm.dispatch(&StateMachineEvents::EventClick(EventClick { time: 99 }));
+    let ret = fsm.dispatch(&FsmEvent::Event(StateMachineEvents::EventClick(EventClick { time: 99 })));
     assert_eq!(Err(FsmError::NoTransition), ret);
-
-    fsm.dispatch(&StateMachineEvents::EventClick(EventClick { time: 123 }))?;
+    
+    fsm.dispatch(&FsmEvent::Event(StateMachineEvents::EventClick(EventClick { time: 123 })))?;
 
     assert_eq!(2, fsm.get_context().count);
     assert_eq!(123, fsm.get_context().total_time);
-    */
+    //assert_eq!()
 
     Ok(())
 }

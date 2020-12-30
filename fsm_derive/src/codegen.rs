@@ -9,8 +9,6 @@ use crate::{parse::{FsmEvent, FsmFnInput, FsmTransitionState}, utils::{tokens_to
 
 pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
-    //let fsm_impl_ty = ty_append(&fsm.base.fsm_ty, "Backend");
-
     let ctx_ty = &fsm.base.context_ty;
 
     let states_store_ty = ty_append(&fsm.base.fsm_ty, "States");
@@ -45,7 +43,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 }
             }
 
-            #[derive(Debug, PartialEq)]
+            #[derive(Copy, Clone, Debug, PartialEq)]
             pub enum #states_enum_ty {
                 #state_variants
             }
@@ -62,9 +60,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         for (ty, ev) in  fsm.decl.events.iter() {
             variants.append_all(quote! { #ty ( #ty ),  });
         }
-        variants.append_all(quote! { __FsmStart, __FsmStop,  });
-
-        quote! {
+        
+        quote! {            
             pub enum #event_enum_ty {
                 #variants
             }
@@ -156,10 +153,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             };
 
             let match_event = match transition.event {
-                crate::parse::FsmTransitionEvent::Start => quote! { &<#event_enum_ty>::__FsmStart },
+                crate::parse::FsmTransitionEvent::Start => quote! { crate::fsm_core::FsmEvent::Start },
                 crate::parse::FsmTransitionEvent::Event(ref ev) => {
                     let kind = &ev.ty;
-                    quote! { #event_enum_ty::#kind(ref ev) }
+                    quote! { crate::fsm_core::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
                 }
                 _ => todo!()
             };
@@ -170,7 +167,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     let field = &st.state_storage_field;
                     let ty = &st.ty;
                     quote! {
-                        let state_to = &mut self.fsm.states. #field ;
+                        let state_to = &mut backend.states. #field ;
                         <#ty>::on_entry(state_to, &mut context);
                     }
                 }
@@ -182,7 +179,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     let field = &st.state_storage_field;
                     let ty = &st.ty;
                     quote! {
-                        let state_from = &mut self.fsm.states. #field;
+                        let state_from = &mut backend.states. #field;
                         <#ty>::on_exit(state_from, &mut context);
                     }
                 }
@@ -191,14 +188,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let current_state_update = match transition.to {
                 crate::parse::FsmTransitionState::None => {
                     let q = quote! {
-                        self.fsm.current_state = crate::fsm_core::FsmCurrentState::None;
+                        backend.current_state = crate::fsm_core::FsmCurrentState::None;
                     };
                     q
                 },
                 crate::parse::FsmTransitionState::State(ref st) => {
                     let kind = &st.ty;
                     let q = quote! {
-                        self.fsm.current_state = crate::fsm_core::FsmCurrentState::State(#states_enum_ty :: #kind);
+                        backend.current_state = crate::fsm_core::FsmCurrentState::State(#states_enum_ty :: #kind);
                     };
                     q
                 }
@@ -224,8 +221,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     quote! {
                         <#transition_ty>::action(ev, &mut context,
-                            &mut self.fsm.states. #state_from_field,
-                            &mut self.fsm.states. #state_to_field
+                            &mut backend.states. #state_from_field,
+                            &mut backend.states. #state_to_field
                         );
                     }
                 },
@@ -234,8 +231,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             let m = quote! {
                 ( #match_state , #match_event ) #guard => {
-                    use crate::fsm_core::FsmState;
-                    
                     { #state_from }
 
                     { #action }
@@ -250,30 +245,24 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
 
         quote! {
-                        
+              
             impl crate::fsm_core::FsmBackend for #fsm_ty
             {
                 type Context = #ctx_ty;
                 type States = #states_store_ty;
                 type Events = #event_enum_ty;
 
-                fn dispatch_event<Q>(&mut self, event: &Self::Events, event_context: &mut crate::fsm_core::EventContext<Self, Q>) -> crate::fsm_core::FsmResult<()> {
-                    todo!()
-                }
-            }
-
-            /*
-            {
-                fn dispatch_event<'a>(&'a mut self, event: &Self::Events) -> crate::fsm_core::FsmResult<()> {
-
-                    use crate::fsm_core::{FsmTransitionGuard, FsmTransitionAction};
+                fn dispatch_event<Q>(backend: &mut crate::fsm_core::FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> crate::fsm_core::FsmResult<()>
+                    where Q: crate::fsm_core::FsmEventQueue<<Self as crate::fsm_core::FsmBackend>::Events>
+                {
+                    use crate::fsm_core::{FsmTransitionGuard, FsmTransitionAction, FsmState};
 
                     let mut context = crate::fsm_core::EventContext::<#fsm_ty, Q> {
-                        context: &mut self.fsm.context,
-                        queue: &mut self.fsm.queue
+                        context: &mut backend.context,
+                        queue
                     };
-
-                    match (&self.fsm.current_state, event) {
+                    
+                    match (&backend.current_state, event) {
                         
                         #transition_match
 
@@ -283,10 +272,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
 
                     Ok(())
-                    
                 }
             }
-            */
         }
     };
 
@@ -336,8 +323,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         let initial_state = &fsm.decl.initial_state;
 
         quote! {
-            pub struct #fsm_ty;
 
+            pub struct #fsm_ty {
+                backend: crate::fsm_core::FsmBackendImpl<#fsm_ty>
+            }
             
         }
     };
