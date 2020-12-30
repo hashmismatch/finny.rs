@@ -110,18 +110,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         ].as_slice())?;
 
                         let body = &action.body;
-                        let state_from = if let FsmTransitionState::State(ref from) = transition.from {
-                            Ok(from)
-                        } else {
-                            Err(syn::Error::new(action.span(), "No from state!"))
-                        }?;
-
-                        let state_to = if let FsmTransitionState::State(ref to) = transition.to {
-                            Ok(to)
-                        } else {
-                            Err(syn::Error::new(action.span(), "No to state!"))
-                        }?;
-                        
+                        let state_from = transition.from.get_fsm_state()?;
+                        let state_to = transition.to.get_fsm_state()?;                        
 
                         let state_from_ty = &state_from.ty;
                         let state_to_ty = &state_to.ty;
@@ -224,18 +214,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let action = match transition.event {
                 crate::parse::FsmTransitionEvent::Event(FsmEvent { action: Some(ref action), .. }) => {
 
-                    // todo: redundant code, exctract
-                    let state_from = if let FsmTransitionState::State(ref from) = transition.from {
-                        Ok(from)
-                    } else {
-                        Err(syn::Error::new(action.span(), "No from state!"))
-                    }?;
-
-                    let state_to = if let FsmTransitionState::State(ref to) = transition.to {
-                        Ok(to)
-                    } else {
-                        Err(syn::Error::new(action.span(), "No to state!"))
-                    }?;
+                    let state_from = transition.from.get_fsm_state()?;
+                    let state_to = transition.to.get_fsm_state()?;
 
                     let state_from_field = &state_from.state_storage_field;
                     let state_to_field = &state_to.state_storage_field;

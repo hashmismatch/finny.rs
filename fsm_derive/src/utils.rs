@@ -1,6 +1,8 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{PatIdent, spanned::Spanned};
+
+use crate::parse::{FsmState, FsmTransitionState};
 
 
 pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::Pat, syn::token::Comma>, access: &[TokenStream]) -> syn::Result<TokenStream> {
@@ -77,4 +79,14 @@ pub fn to_snake_case(mut str: &str) -> String {
         words.push(buf);
     }
     words.join("_")
+}
+
+impl FsmTransitionState {
+    pub fn get_fsm_state(&self) -> syn::Result<&FsmState> {
+        if let FsmTransitionState::State(ref st) = self {
+            Ok(st)
+        } else {
+            Err(syn::Error::new(Span::call_site(), "Missing the required FSM state!"))
+        }
+    }
 }
