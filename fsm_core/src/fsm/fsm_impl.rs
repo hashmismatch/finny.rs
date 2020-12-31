@@ -20,8 +20,7 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
         let backend = FsmBackendImpl::<F> {
             context,
             states,
-            current_state,
-            //fsm: F::new()
+            current_state
         };
 
         Ok(backend)
@@ -34,7 +33,15 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
     pub fn get_current_state(&self) -> FsmCurrentState<<<F as FsmBackend>::States as FsmStates>::StateKind> {
         self.current_state
     }
+
+    pub fn get_state<S>(&self) -> &S
+        where <F as FsmBackend>::States : AsRef<S>
+    {
+        self.states.as_ref()
+    }
 }
+
+
 
 pub struct FsmFrontend<Queue, F: FsmBackend> {
     queue: Queue,
@@ -43,8 +50,6 @@ pub struct FsmFrontend<Queue, F: FsmBackend> {
 
 impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend<Queue, F> {
     pub fn new_all(queue: Queue, context: <F as FsmBackend>::Context) -> FsmResult<Self> {
-        //let queue = super::FsmEventQueueVec::new();
-
         let frontend = Self {
             queue,
             backend: FsmBackendImpl::new(context)?
@@ -54,10 +59,18 @@ impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend
     }
 
     pub fn start(&mut self) -> FsmResult<()> {
-        self.dispatch(&FsmEvent::Start)
+        Self::dispatch_event(self, &FsmEvent::Start)
     }
 
-    pub fn dispatch(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
+    pub fn dispatch<E>(&mut self, event: E) -> FsmResult<()>
+        where E: Into<<F as FsmBackend>::Events>
+    {
+        let ev = event.into();
+        let ev = FsmEvent::Event(ev);
+        Self::dispatch_event(self, &ev)
+    }
+
+    fn dispatch_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
         F::dispatch_event(&mut self.backend, event, &mut self.queue)
     }
 }
@@ -68,7 +81,6 @@ impl<F: FsmBackend> FsmFrontend<FsmEventQueueVec<<F as FsmBackend>::Events>, F> 
     }
 }
 
-
 impl<Queue, F: FsmBackend> Deref for FsmFrontend<Queue, F> {
     type Target = FsmBackendImpl<F>;
 
@@ -76,20 +88,3 @@ impl<Queue, F: FsmBackend> Deref for FsmFrontend<Queue, F> {
         &self.backend
     }
 }
-
-
-/*
-
-pub struct FsmBackendImpl<C, S, CS, E, Q> {
-    pub context: C,
-    pub states: S,
-    pub queue: Q,
-    pub current_state: FsmCurrentState<CS>,
-    _events: PhantomData<E>
-}
-
-impl<C, S, CS, E, Q> FsmBackendImpl<C, S, CS, E, Q> {
-    
-}
-
-*/

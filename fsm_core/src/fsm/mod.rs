@@ -4,6 +4,8 @@
 use std::{collections::VecDeque, marker::PhantomData, ops::{Deref, DerefMut}};
 
 mod fsm_impl;
+use crate::decl::event::FsmEventBuilderTransitionFull;
+
 pub use self::fsm_impl::*;
 
 pub type FsmResult<T> = std::result::Result<T, FsmError>;
@@ -23,6 +25,12 @@ pub enum FsmEvent<E> {
     Event(E)
 }
 
+impl<E> From<E> for FsmEvent<E> {
+    fn from(event: E) -> Self {
+        FsmEvent::Event(event)
+    }
+}
+
 /// Finite State Machine backend. Handles the dispatching, the types are
 /// defined by the code generator.
 pub trait FsmBackend where Self: Sized {
@@ -33,85 +41,15 @@ pub trait FsmBackend where Self: Sized {
     /// A tagged union type with all the supported events.
     type Events;
 
-    //fn backend_new(context: Self::Context) -> FsmResult<Self>;
     fn dispatch_event<Q>(backend: &mut FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> FsmResult<()>
         where Q: FsmEventQueue<Self::Events>;
-
-    //fn ddd(backend: &mut FsmBackendImpl<Self>);
 }
-
-/*
-/// Finite state machine's frontend. Adds the queueing and inspection
-/// types which can be exchanged by the end-user.
-pub trait FsmFrontend<Queue>
-    where Queue: FsmEventQueue<<Self::Backend as FsmBackend>::Events>
-{
-    type Backend: FsmBackend;
-    
-
-}
-*/
-
-/*
-pub trait FsmCoreDispatch : FsmBackend {
-    fn dispatch_event(&mut self, event: &Self::Events) -> FsmResult<()>;
-}
-*/
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FsmCurrentState<S: Clone + Copy> {
     Stopped,
     State(S)
 }
-
-/*
-pub struct FsmCoreImpl<C, S, CS, E, Q> {
-    pub context: C,
-    pub states: S,
-    pub queue: Q,
-    pub current_state: FsmCurrentState<CS>,
-    _events: PhantomData<E>
-}
-
-impl<C, S, CS, E, Q> FsmCoreImpl<C, S, CS, E, Q>
-    //where Self: FsmCore<Context = C>
-{
-    pub fn new_all(context: C, states: S, queue: Q) -> FsmResult<Self> {
-        let f = FsmCoreImpl {
-            context,
-            states,
-            queue,
-            current_state: FsmCurrentState::<CS>::Stopped,
-            _events: PhantomData::default()
-        };
-        Ok(f)
-    }
-}
-*/
-
-/*
-pub struct Fsm<TFsm, TQueue> {
-    fsm: TFsm,
-    queue: TQueue
-}
-
-impl<TFsmCore, TQueue> Fsm<TFsmCore, TQueue>
-    where TFsmCore: FsmCore, TQueue: FsmEventQueue<TFsmCore>
-{
-    pub fn new(context: TFsmCore::Context, queue: TQueue) -> Result<Self> {
-        let fsm_core = TFsmCore::new(context)?;
-        let fsm = Fsm {
-            fsm: fsm_core,
-            queue
-        };
-        Ok(fsm)
-    }
-
-    pub fn process(&mut self, event: TFsmCore::Events) -> Result<()> {
-        todo!()
-    }
-}
-*/
 
 pub trait FsmEventQueue<T> {
     fn enqueue(&mut self, event: T) -> FsmResult<()>;

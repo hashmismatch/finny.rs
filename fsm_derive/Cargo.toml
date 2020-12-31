@@ -2,6 +2,7 @@
 name = "fsm_derive"
 version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+publish = false
 
 [dependencies]
 quote = "1.0"

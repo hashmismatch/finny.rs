@@ -20,6 +20,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         let mut code_fields = TokenStream::new();
         let mut new_state_fields = TokenStream::new();
         let mut state_variants = TokenStream::new();
+        let mut state_accessors = TokenStream::new();
 
         for (i, (_, state)) in fsm.decl.states.iter().enumerate() {
             let name = &state.state_storage_field;
@@ -27,6 +28,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             code_fields.append_all(quote! { #name: #ty, });
             new_state_fields.append_all(quote! { #name: #ty::new_state(context)?, });
             state_variants.append_all(quote!{ #ty, });
+
+            state_accessors.append_all(quote! {
+                impl core::convert::AsRef<#ty> for #states_store_ty {
+                    fn as_ref(&self) -> & #ty {
+                        &self. #name
+                    }
+                }
+            });
         }
 
         quote! {
@@ -51,6 +60,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             impl crate::fsm_core::FsmStates for #states_store_ty {
                 type StateKind = #states_enum_ty;
             }
+
+            #state_accessors
         }
     };
 
@@ -62,7 +73,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
         
         let evs = quote! {
-            #[derive(fsm_core::bundled::derive_more::TryInto)]
+            #[derive(fsm_core::bundled::derive_more::From)]
             pub enum #event_enum_ty {
                 #variants
             }

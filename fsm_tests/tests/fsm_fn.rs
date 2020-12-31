@@ -65,21 +65,24 @@ fn test_fsm() -> FsmResult<()> {
     let ctx = StateMachineContext { count: 0, total_time: 0 };
     
     let mut fsm: FsmFrontend<_, StateMachine> = FsmFrontend::new(ctx)?;
-
     
-    let state = fsm.get_current_state();
-    assert_eq!(FsmCurrentState::Stopped, state);
+    let current_state = fsm.get_current_state();
+    let state: &StateA = fsm.get_state();
+    assert_eq!(0, state.enter);
+    assert_eq!(FsmCurrentState::Stopped, current_state);
     assert_eq!(0, fsm.get_context().count);
 
     fsm.start()?;
 
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_state());
     assert_eq!(1, fsm.get_context().count);
+    let state: &StateA = fsm.get_state();
+    assert_eq!(1, state.enter);
 
-    let ret = fsm.dispatch(&FsmEvent::Event(StateMachineEvents::EventClick(EventClick { time: 99 })));
+    let ret = fsm.dispatch(EventClick { time: 99 });
     assert_eq!(Err(FsmError::NoTransition), ret);
     
-    fsm.dispatch(&FsmEvent::Event(StateMachineEvents::EventClick(EventClick { time: 123 })))?;
+    fsm.dispatch(EventClick { time: 123 })?;
 
     assert_eq!(2, fsm.get_context().count);
     assert_eq!(123, fsm.get_context().total_time);
