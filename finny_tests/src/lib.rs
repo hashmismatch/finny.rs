@@ -2,13 +2,9 @@
 
 use std::marker::PhantomData;
 
-use fsm_core::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
+use finny::{finny_fsm, FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
 
-
-extern crate fsm_core;
-#[macro_use]
-extern crate fsm_derive;
-
+extern crate finny;
 
 #[derive(Debug)]
 pub struct StateMachineContext {
@@ -29,7 +25,7 @@ pub struct StateB {
 pub struct EventClick { time: usize }
 pub struct EventEnter;
 
-#[fsm_fn]
+#[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
     fsm.initial_state::<StateA>();
 

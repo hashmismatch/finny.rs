@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "fsm_core/",
-    "fsm_derive/",
-    "fsm_tests/"
+    "finny/",
+    "finny_derive/",
+    "finny_tests/"
 ]

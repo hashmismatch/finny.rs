@@ -13,11 +13,8 @@ mod parse;
 mod parse_blocks;
 mod utils;
 
-//#[proc_macro_derive(TryFrom)]
-//#[proc_macro]
-
 #[proc_macro_attribute]
-pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
+pub fn finny_fsm(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr2: proc_macro2::TokenStream = attr.into();
     let item2: proc_macro2::TokenStream = item.into();
 
