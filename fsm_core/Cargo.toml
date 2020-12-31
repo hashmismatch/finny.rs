@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 
 [dependencies]
+derive_more = "0.99.11"
 
 [features]
 default = ["std"]

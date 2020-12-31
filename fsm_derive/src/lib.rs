@@ -13,6 +13,9 @@ mod parse;
 mod parse_blocks;
 mod utils;
 
+//#[proc_macro_derive(TryFrom)]
+//#[proc_macro]
+
 #[proc_macro_attribute]
 pub fn fsm_fn(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr2: proc_macro2::TokenStream = attr.into();

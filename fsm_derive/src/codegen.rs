@@ -61,12 +61,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             variants.append_all(quote! { #ty ( #ty ),  });
         }
         
-        quote! {            
+        let evs = quote! {
+            #[derive(fsm_core::bundled::derive_more::TryInto)]
             pub enum #event_enum_ty {
                 #variants
             }
-        }
+        };
 
+        evs
     };
 
     let transition_types = {

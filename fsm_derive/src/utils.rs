@@ -4,7 +4,6 @@ use syn::{PatIdent, spanned::Spanned};
 
 use crate::parse::{FsmState, FsmTransitionState};
 
-
 pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::Pat, syn::token::Comma>, access: &[TokenStream]) -> syn::Result<TokenStream> {
     if inputs.len() != access.len() {
         panic!("Expected {} closure arguments, actually have {}.", access.len(), inputs.len());
