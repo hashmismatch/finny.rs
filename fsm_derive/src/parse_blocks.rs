@@ -17,8 +17,6 @@ pub fn decode_blocks(base: &FsmFnBase, item_fn: &syn::ItemFn) -> syn::Result<Vec
     let mut ret = vec![];
 
     for statement in &item_fn.block.stmts {
-        //panic!("s: {:?}", statement);
-
         match statement {
             syn::Stmt::Expr(expr) => {
                 let call = decode_method_call(base, expr)?;
