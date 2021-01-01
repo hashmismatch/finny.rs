@@ -98,3 +98,21 @@ pub fn ty_append(ty: &syn::Type, suffix: &str) -> syn::Type {
         path: syn::Ident::new(&n, ty.span()).into()
     })
 }
+
+pub fn assert_no_generics(ty: &syn::Type) -> syn::Result<()> {
+    match ty {
+        syn::Type::Path(ref tp) => {
+            for seg in &tp.path.segments {
+                match seg.arguments {
+                    syn::PathArguments::None => {},
+                    _ => {
+                        return Err(syn::Error::new(ty.span(), "Generics aren't supported for state or event types!"));
+                    }
+                }
+            }
+        }
+        _ => { return Err(syn::Error::new(ty.span(), "Unsupported type.")); }
+    }
+
+    Ok(())
+}

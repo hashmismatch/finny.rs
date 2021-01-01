@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use proc_macro2::{Span, TokenStream};
 use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
 
-use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, utils::{get_closure, to_field_name}};
+use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, utils::{assert_no_generics, get_closure, to_field_name}};
 
 
 pub struct FsmFnInput {
@@ -23,13 +23,6 @@ pub struct FsmFnBase {
 impl FsmFnInput {
     pub fn parse(attr: TokenStream, item: TokenStream) -> syn::Result<Self> {
         let input_fn: syn::ItemFn = syn::parse2(item)?;
-
-        // generics check
-        /*
-        if input_fn.sig.generics.params.len() > 0 {
-            return Err(syn::Error::new(input_fn.sig.generics.span(), "Generics aren't supported!"));
-        }
-        */
 
         // builder name/generics
         let (builder_ident, fsm_ty, context_ty) = {
@@ -120,11 +113,7 @@ impl FsmFnInput {
             fsm_generics: input_fn.sig.generics.clone()
         };
 
-
-
         let blocks = decode_blocks(&base, &input_fn)?;
-
-
 
         let fsm_declarations = FsmDeclarations::parse(&base, &input_fn, &blocks)?;
 
@@ -207,10 +196,12 @@ impl FsmDeclarations {
                             
                         },
                         [MethodOverviewRef { name: "initial_state", generics: [ty], .. }] => {
+                            assert_no_generics(ty)?;
                             initial_state = Some(ty.clone());
                         },
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
+                            assert_no_generics(ty_state)?;
                             let field_name = to_field_name(&ty_state)?;
                             let state = states
                                 .entry(ty_state.clone())
@@ -247,6 +238,7 @@ impl FsmDeclarations {
                         },
                         [MethodOverviewRef { name: "on_event", generics: [ty_event], .. }, ev @ .. ] => {
 
+                            assert_no_generics(ty_event)?;
                             let event = events
                                 .entry(ty_event.clone())
                                 .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![], guard: None, action: None });
@@ -295,12 +287,12 @@ impl FsmDeclarations {
 
         let mut transitions = vec![];
 
-        let initial_state = initial_state.ok_or(syn::Error::new(input_fn.span(), "Missing the initial state declaration!"))?;
-        let fsm_initial_state = states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not invoked in the builder."))?;
+        let initial_state = initial_state.ok_or(syn::Error::new(input_fn.span(), "Missing the initial state declaration! Use the method 'initial_state'."))?;
+        let fsm_initial_state = states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
 
         // build and validate the transitions table
         {
-            let mut i = 0;
+            let mut i = 1;
 
             fn generate_transition_ty(i: &mut usize) -> syn::Type {
                 let ident = syn::Ident::new(&format!("Transition{}", i), Span::call_site());

@@ -52,14 +52,11 @@ pub fn find_fsm_method_calls(fn_body: &syn::ItemFn, fsm_decl_base: &FsmFnBase) -
                 f.found
             };
             
-            //println!("fsm: {}, level: {}, method {}", is_on_fsm, self.level, i.method.as_ref());
             if is_on_fsm && self.level == 0 {
-                //panic!("us: {:#?}", i);
                 self.calls.push(i.clone());
             }
 
             self.level += 1;
-            //syn::visit::visit_expr_method_call
             visit_expr_method_call(self, i);
             self.level -= 1;
         }
