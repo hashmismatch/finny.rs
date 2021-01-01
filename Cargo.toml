@@ -4,3 +4,7 @@ members = [
     "finny_derive/",
     "finny_tests/"
 ]
+
+exclude = [
+    "finny_nostd_tests/"
+]

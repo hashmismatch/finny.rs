@@ -265,7 +265,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type States = #states_store_ty;
                 type Events = #event_enum_ty;
 
-                fn dispatch_event<Q>(backend: &mut finny::FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> finny::FsmResult<()>
+                fn dispatch_event<Q>(backend: &mut finny::FsmBackendImpl<Self>, event: &finny::FsmEvent<Self::Events>, queue: &mut Q) -> finny::FsmResult<()>
                     where Q: finny::FsmEventQueue<<Self as finny::FsmBackend>::Events>
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmState};
