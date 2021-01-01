@@ -41,6 +41,13 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
     }
 }
 
+impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
+    type Target = <F as FsmBackend>::Context;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
 
 
 pub struct FsmFrontend<Queue, F: FsmBackend> {

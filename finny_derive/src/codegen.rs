@@ -106,8 +106,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         let body = &guard.body;
 
                         let g = quote! {
-                            impl finny::FsmTransitionGuard<#fsm_ty, #event_ty> for #ty {
-                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty, Q>) -> bool {
+                            impl #fsm_generics_impl finny::FsmTransitionGuard<#fsm_ty #fsm_generics_type, #event_ty> for #ty #fsm_generics_where {
+                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) -> bool {
                                     #remap
                                     let result = { #body };
                                     result
@@ -131,8 +131,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         let state_to_ty = &state_to.ty;
                         let body = &action.body;
                         let a = quote! {
-                            impl finny::FsmTransitionAction<#fsm_ty, #event_ty, #state_from_ty, #state_to_ty> for #ty {
-                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty, Q >, from: &mut #state_from_ty, to: &mut #state_to_ty) {
+                            impl #fsm_generics_impl finny::FsmTransitionAction<#fsm_ty #fsm_generics_type, #event_ty, #state_from_ty, #state_to_ty> for #ty #fsm_generics_where {
+                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q >, from: &mut #state_from_ty, to: &mut #state_to_ty) {
                                     #remap
                                     { #body }
                                 }
@@ -318,7 +318,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             states.append_all(quote! {
 
-                impl #fsm_generics_impl finny::FsmState<#fsm_ty #fsm_generics_type> for #ty {
+                impl #fsm_generics_impl finny::FsmState<#fsm_ty #fsm_generics_type> for #ty #fsm_generics_where {
                     fn on_entry<'a, Q: finny::FsmEventQueue<<#fsm_ty #fsm_generics_type as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
                         #on_entry
                     }
