@@ -333,8 +333,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     let builder = {
 
-        let initial_state = &fsm.decl.initial_state;
-
         quote! {
 
             pub struct #fsm_ty {
