@@ -1,6 +1,6 @@
-use std::{marker::PhantomData, ops::Deref};
+use lib::*;
 
-use crate::{EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmEventQueueVec, FsmResult, FsmStates};
+use crate::{FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
 

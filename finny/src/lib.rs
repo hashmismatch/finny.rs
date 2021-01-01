@@ -21,3 +21,20 @@ pub mod bundled {
         pub use crate::derive_more::From;
     }
 }
+
+mod lib {
+    mod core {
+        #[cfg(not(feature = "std"))]
+        pub use core::*;
+        #[cfg(feature = "std")]
+        pub use std::*;
+   }
+
+   pub use self::core::marker::{self, PhantomData};
+   pub use self::core::ops::{Deref, DerefMut};
+   pub use self::core::fmt::Debug;
+   pub use self::core::result::Result;
+
+   #[cfg(feature="std")]
+   pub use std::collections::VecDeque;
+}

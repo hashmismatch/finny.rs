@@ -1,8 +1,6 @@
 //! The public Finite State Machine traits. The derive macros will implement these for your particular
 //! state machines.
 
-use std::{ops::{Deref, DerefMut}};
-
 mod events;
 mod fsm_impl;
 mod fsm_factory;
@@ -17,7 +15,9 @@ pub use self::queue::*;
 pub use self::states::*;
 pub use self::transitions::*;
 
-pub type FsmResult<T> = std::result::Result<T, FsmError>;
+use lib::*;
+
+pub type FsmResult<T> = Result<T, FsmError>;
 
 /// The lib-level error type.
 #[derive(Debug, PartialEq)]

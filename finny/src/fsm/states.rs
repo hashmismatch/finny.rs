@@ -1,8 +1,10 @@
+use lib::*;
+
 use crate::FsmResult;
 
 
 pub trait FsmStates: FsmStateFactory {
-    type StateKind: Clone + Copy + std::fmt::Debug + PartialEq;
+    type StateKind: Clone + Copy + Debug + PartialEq;
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
