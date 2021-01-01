@@ -1,8 +1,57 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! Finny
+//! # Finny - Finite State Machines for Rust
 //!
-//! Finite State Machines for Rust
+//! ## Features
+//! * Declarative, builder API with procedural macros that generate the necessary boilerplate
+//! * Compile-time transition graph validation
+//! * No allocations required
+//! * Support for generics within the shared context
+//! * Transition guards and actions
+//! * `no_std` support
+//!
+//! ## Example
+//!
+//! ```rust
+//! extern crate finny;
+//! use finny::{finny_fsm, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}};
+//! 
+//! #[derive(Default)]
+//! pub struct MyContext { val: u32 }
+//! #[derive(Default)] 
+//! pub struct MyStateA { n: usize }
+//! #[derive(Default)]
+//! pub struct MyStateB;
+//! pub struct MyEvent;
+//!
+//! #[finny_fsm]
+//! fn my_fsm(mut fsm: FsmBuilder<MyFsm, MyContext>) -> BuiltFsm {
+//!     fsm.state::<MyStateA>()
+//!        .on_entry(|state, ctx| {
+//!            state.n += 1;
+//!            ctx.context.val += 1;
+//!         });
+//!     fsm.state::<MyStateB>();
+//!     fsm.on_event::<MyEvent>()
+//!        .transition_from::<MyStateA>().to::<MyStateB>()
+//!        .guard(|_ev, ctx| { ctx.context.val > 0 })
+//!        .action(|_ev, ctx, state_a, state_b| { ctx.context.val += 1; });
+//!     fsm.initial_state::<MyStateA>();
+//!     fsm.build()
+//! }
+//! 
+//! fn main() -> FsmResult<()> {
+//!     let mut fsm = MyFsm::new(MyContext::default())?;
+//!     assert_eq!(0, fsm.val);
+//!     fsm.start()?;
+//!     let state_a: &MyStateA = fsm.get_state();
+//!     assert_eq!(1, state_a.n);
+//!     assert_eq!(1, fsm.val);
+//!     fsm.dispatch(MyEvent)?;
+//!     assert_eq!(2, fsm.val);
+//!     Ok(())
+//! }
+//! ```
 
 pub mod decl;
 mod fsm;
