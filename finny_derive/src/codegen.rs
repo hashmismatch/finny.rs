@@ -15,6 +15,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
     let states_enum_ty = ty_append(&fsm.base.fsm_ty, "CurrentState");
     let event_enum_ty = ty_append(&fsm.base.fsm_ty, "Events");
 
+    let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
+
     let states_store = {
 
         let mut code_fields = TokenStream::new();
@@ -259,7 +261,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         quote! {
               
-            impl finny::FsmBackend for #fsm_ty
+            impl #fsm_generics_impl finny::FsmBackend for #fsm_ty #fsm_generics_type
+                #fsm_generics_where
             {
                 type Context = #ctx_ty;
                 type States = #states_store_ty;
@@ -270,7 +273,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmState};
 
-                    let mut context = finny::EventContext::<#fsm_ty, Q> {
+                    let mut context = finny::EventContext::<#fsm_ty #fsm_generics_type, Q> {
                         context: &mut backend.context,
                         queue
                     };
@@ -315,12 +318,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             states.append_all(quote! {
 
-                impl finny::FsmState<#fsm_ty> for #ty {
-                    fn on_entry<'a, Q: finny::FsmEventQueue<<#fsm_ty as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty, Q>) {
+                impl #fsm_generics_impl finny::FsmState<#fsm_ty #fsm_generics_type> for #ty {
+                    fn on_entry<'a, Q: finny::FsmEventQueue<<#fsm_ty #fsm_generics_type as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
                         #on_entry
                     }
 
-                    fn on_exit<'a, Q: finny::FsmEventQueue<<#fsm_ty as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty, Q>) {
+                    fn on_exit<'a, Q: finny::FsmEventQueue<<#fsm_ty #fsm_generics_type as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
                         #on_exit
                     }
                 }
@@ -335,12 +338,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         quote! {
 
-            pub struct #fsm_ty {
-                backend: finny::FsmBackendImpl<#fsm_ty>
+            pub struct #fsm_ty #fsm_generics_type #fsm_generics_where {
+                backend: finny::FsmBackendImpl<#fsm_ty #fsm_generics_type >
             }
 
-            impl finny::FsmFactory for #fsm_ty {
-                type Fsm = #fsm_ty;
+            impl #fsm_generics_impl finny::FsmFactory for #fsm_ty #fsm_generics_type #fsm_generics_where {
+                type Fsm = #fsm_ty #fsm_generics_type;
             }
             
         }

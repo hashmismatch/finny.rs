@@ -15,7 +15,8 @@ pub struct FsmFnInput {
 pub struct FsmFnBase {
     pub context_ty: syn::Type,
     pub fsm_ty: syn::Type,
-    pub builder_ident: proc_macro2::Ident
+    pub builder_ident: proc_macro2::Ident,
+    pub fsm_generics: syn::Generics
 }
 
 
@@ -24,9 +25,11 @@ impl FsmFnInput {
         let input_fn: syn::ItemFn = syn::parse2(item)?;
 
         // generics check
+        /*
         if input_fn.sig.generics.params.len() > 0 {
             return Err(syn::Error::new(input_fn.sig.generics.span(), "Generics aren't supported!"));
         }
+        */
 
         // builder name/generics
         let (builder_ident, fsm_ty, context_ty) = {
@@ -74,7 +77,21 @@ impl FsmFnInput {
                 _ => Err(Error::new(generic_arguments.args.span(), "Expected a pair of generic arguments!"))
             }?;
 
-            (builder_input_pat_ident.ident.clone(), fsm_ty.clone(), context_ty.clone())
+            // remove the generics
+            let fsm_ty = {
+                let mut fsm_ty = fsm_ty.clone();
+                match fsm_ty {
+                    syn::Type::Path(ref mut tp) => {
+                        let seg = tp.path.segments.first_mut().unwrap();
+                        seg.arguments = syn::PathArguments::None;
+                    },
+                    _ => { return Err(syn::Error::new(fsm_ty.span(), "Unsupported FSM type.")); }
+                }
+
+                fsm_ty
+            };
+
+            (builder_input_pat_ident.ident.clone(), fsm_ty, context_ty.clone())
         };
 
 
@@ -99,8 +116,11 @@ impl FsmFnInput {
         let base = FsmFnBase {
             builder_ident,
             context_ty,
-            fsm_ty
+            fsm_ty,
+            fsm_generics: input_fn.sig.generics.clone()
         };
+
+
 
         let blocks = decode_blocks(&base, &input_fn)?;
 
