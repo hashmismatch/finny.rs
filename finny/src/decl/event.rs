@@ -2,29 +2,25 @@ use lib::*;
 
 use crate::{FsmBackend, FsmEventQueue, fsm::EventContext};
 
-use super::fsm::FsmBuilder;
+use super::{FsmStateBuilder, fsm::FsmBuilder};
 
-pub struct FsmEventBuilder<'a, TFsm, TContext, TEvent> {
-    pub (crate) _event: PhantomData<TEvent>,
-	pub (crate) _fsm: &'a FsmBuilder<TFsm, TContext>
+pub struct FsmEventBuilderState<'a, TFsm, TContext, TEvent, TState> {
+    pub (crate) _state_builder: FsmStateBuilder<'a, TFsm, TContext, TState>,
+    pub (crate) _event: PhantomData<TEvent>
 }
 
-impl<'a, TFsm, TContext, TEvent> FsmEventBuilder<'a, TFsm, TContext, TEvent> {
-    pub fn transition_from<TStateFrom>(self) -> FsmEventBuilderTransition<'a, TFsm, TContext, TEvent, TStateFrom> {
-        FsmEventBuilderTransition {
-            _event_builder: self,
-            _state_from: PhantomData::default()
-        }
+impl<'a, TFsm, TContext, TEvent, TState> FsmEventBuilderState<'a, TFsm, TContext, TEvent, TState> {
+    /// An internal transition doesn't trigger the state's entry and exit actions, as opposed to self-transitions.
+    pub fn internal_transition(self) -> () {
+        todo!();
     }
-}
 
-pub struct FsmEventBuilderTransition<'a, TFsm, TContext, TEvent, TStateFrom> {
-    _event_builder: FsmEventBuilder<'a, TFsm, TContext, TEvent>,
-    _state_from: PhantomData<TStateFrom>
-}
+    /// A self transition triggers this state's entry and exit actions, while an internal transition does not.
+    pub fn self_transition(self) -> () {
+        todo!()
+    }
 
-impl<'a, TFsm, TContext, TEvent, TStateFrom> FsmEventBuilderTransition<'a, TFsm, TContext, TEvent, TStateFrom> {
-    pub fn to<TStateTo>(self) -> FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> {
+    pub fn to_state<TStateTo>(self) -> FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TState, TStateTo> {
         FsmEventBuilderTransitionFull {
             _transition_from: self,
             _state_to: PhantomData::default()
@@ -33,7 +29,7 @@ impl<'a, TFsm, TContext, TEvent, TStateFrom> FsmEventBuilderTransition<'a, TFsm,
 }
 
 pub struct FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> {
-    _transition_from: FsmEventBuilderTransition<'a, TFsm, TContext, TEvent, TStateFrom>,
+    _transition_from: FsmEventBuilderState<'a, TFsm, TContext, TEvent, TStateFrom>,
     _state_to: PhantomData<TStateTo>
 }
 

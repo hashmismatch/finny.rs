@@ -2,7 +2,7 @@ use lib::*;
 
 use crate::FsmBackend;
 
-use super::{event::FsmEventBuilder, state::FsmStateBuilder};
+use super::{FsmStateBuilder};
 
 #[derive(Default)]
 pub struct FsmBuilder<TFsm, TContext> {
@@ -26,13 +26,6 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 			_state: PhantomData::default(),
 			_fsm: self
 		}
-	}
-
-	pub fn on_event<'a, TEvent>(&'a mut self) -> FsmEventBuilder<'a, TFsm, TContext, TEvent> {
-		FsmEventBuilder {
-            _event: PhantomData::default(),
-            _fsm: self
-        }
 	}
 
 	/// Builds the final machine. Has to be returned from the definition function.

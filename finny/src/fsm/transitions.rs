@@ -13,3 +13,7 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
 pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
     fn action<'a, Q: FsmEventQueue<<F as FsmBackend>::Events>>(event: &E, context: &mut EventContext<'a, F, Q>, from: &mut TStateFrom, to: &mut TStateTo);
 }
+
+pub trait FsmAction<F: FsmBackend, E, State> {
+    fn action<'a, Q: FsmEventQueue<<F as FsmBackend>::Events>>(event: &E, context: &mut EventContext<'a, F, Q>, state: &mut State);
+}
