@@ -15,6 +15,3 @@ panic = "abort" # disable stack unwinding on panic
 
 [profile.release]
 panic = "abort"
-
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-args=/ENTRY:main /SUBSYSTEM:console"]
