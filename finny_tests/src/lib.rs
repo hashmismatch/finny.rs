@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use finny::{finny_fsm, FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}};
+use finny::{finny_fsm, FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, decl::{BuiltFsm, FsmBuilder}};
 
 extern crate finny;
 

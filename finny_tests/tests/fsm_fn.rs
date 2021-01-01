@@ -1,6 +1,6 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, FsmFactory, decl::fsm::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
 
 #[derive(Debug)]
 pub struct StateMachineContext {
