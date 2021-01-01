@@ -2,6 +2,8 @@
 
 //! # Finny - Finite State Machines for Rust
 //!
+//! ![Build](https://github.com/hashmismatch/finny.rs/workflows/Build/badge.svg)
+//!
 //! ## Features
 //! * Declarative, builder API with procedural macros that generate the necessary boilerplate
 //! * Compile-time transition graph validation
