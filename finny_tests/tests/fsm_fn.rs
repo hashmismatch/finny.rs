@@ -1,6 +1,6 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, decl::fsm::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, FsmFactory, decl::fsm::{BuiltFsm, FsmBuilder}, finny_fsm};
 
 #[derive(Debug)]
 pub struct StateMachineContext {
@@ -58,7 +58,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 fn test_fsm() -> FsmResult<()> {
     let ctx = StateMachineContext { count: 0, total_time: 0 };
     
-    let mut fsm: FsmFrontend<_, StateMachine> = FsmFrontend::new(ctx)?;
+    let mut fsm = StateMachine::new(ctx)?;
     
     let current_state = fsm.get_current_state();
     let state: &StateA = fsm.get_state();
@@ -136,29 +136,5 @@ fn create_it() -> () {
         .action(|event, event_ctx, state| {
             event_ctx.context.action_self += 1;
         });
-}
-*/
-
-/*
-#[test]
-fn test_fsm_min1() {
-    let mut fsm = FsmMinOne::new(Default::default()).unwrap();
-    fsm.start();
-    assert_eq!(FsmMinOneStates::StateA, fsm.get_current_state());
-    assert_eq!(1, fsm.get_context().entry);
-
-    fsm.process_event(EventA).unwrap();
-    assert_eq!(FsmMinOneStates::StateB, fsm.get_current_state());
-    assert_eq!(1, fsm.get_context().exit);
-    assert_eq!(1, fsm.get_context().action);
-
-    assert_eq!(1, fsm.get_context().state_b);
-    fsm.process_event(EventInternal).unwrap();
-    assert_eq!(1, fsm.get_context().action_internal);
-    assert_eq!(1, fsm.get_context().state_b);
-        
-    fsm.process_event(EventSelf).unwrap();
-    assert_eq!(1, fsm.get_context().action_self);
-    assert_eq!(3, fsm.get_context().state_b);
 }
 */

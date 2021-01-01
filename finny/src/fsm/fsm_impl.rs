@@ -44,20 +44,11 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
 
 
 pub struct FsmFrontend<Queue, F: FsmBackend> {
-    queue: Queue,
-    backend: FsmBackendImpl<F>
+    pub (crate) queue: Queue,
+    pub (crate) backend: FsmBackendImpl<F>
 }
 
 impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend<Queue, F> {
-    pub fn new_all(queue: Queue, context: <F as FsmBackend>::Context) -> FsmResult<Self> {
-        let frontend = Self {
-            queue,
-            backend: FsmBackendImpl::new(context)?
-        };
-
-        Ok(frontend)
-    }
-
     pub fn start(&mut self) -> FsmResult<()> {
         Self::dispatch_event(self, &FsmEvent::Start)
     }
@@ -72,12 +63,6 @@ impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend
 
     fn dispatch_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
         F::dispatch_event(&mut self.backend, event, &mut self.queue)
-    }
-}
-
-impl<F: FsmBackend> FsmFrontend<FsmEventQueueVec<<F as FsmBackend>::Events>, F> {
-    pub fn new(context: <F as FsmBackend>::Context) -> FsmResult<Self> {
-        Self::new_all(super::FsmEventQueueVec::new(), context)
     }
 }
 

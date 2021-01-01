@@ -4,8 +4,8 @@
 use std::{collections::VecDeque, marker::PhantomData, ops::{Deref, DerefMut}};
 
 mod fsm_impl;
-use crate::decl::event::FsmEventBuilderTransitionFull;
-
+mod fsm_factory;
+pub use self::fsm_factory::*;
 pub use self::fsm_impl::*;
 
 pub type FsmResult<T> = std::result::Result<T, FsmError>;

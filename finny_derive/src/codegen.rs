@@ -340,6 +340,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             pub struct #fsm_ty {
                 backend: finny::FsmBackendImpl<#fsm_ty>
             }
+
+            impl finny::FsmFactory for #fsm_ty {
+                type Fsm = #fsm_ty;
+            }
             
         }
     };
