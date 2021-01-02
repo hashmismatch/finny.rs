@@ -3,7 +3,7 @@ use quote::{TokenStreamExt, quote};
 use syn::spanned::Spanned;
 use utils::remap_closure_inputs;
 
-use crate::{parse::{FsmEvent, FsmFnInput, FsmTransitionState}, utils::{tokens_to_string, ty_append}};
+use crate::{parse::{EventGuardAction, FsmEvent, FsmFnInput, FsmStateAction, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::{tokens_to_string, ty_append}};
 
 
 
@@ -94,11 +94,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 pub struct #ty;
             };
 
-            match transition.event {
-                crate::parse::FsmTransitionEvent::Event(ref ev) => {
-                    let event_ty = &ev.ty;
+            match &transition.ty {
+                FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
+                    
+                    let state = s.state.get_fsm_state()?;
+                    let event_ty = &s.event.get_event()?.ty;
 
-                    if let Some(ref guard) = ev.guard {
+                    if let Some(ref guard) = s.action.guard {
                         let remap = remap_closure_inputs(&guard.inputs, vec![
                             quote! { event }, quote! { context }
                         ].as_slice())?;
@@ -118,14 +120,61 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         q.append_all(g);
                     }
 
-                    if let Some(ref action) = ev.action {
+                    if let Some(ref action) = s.action.action {
                         let remap = remap_closure_inputs(&action.inputs, vec![
                             quote! { event }, quote! { context }, quote! { from }, quote! { to }
                         ].as_slice())?;
 
+                        let body = &action.body;                     
+
+                        let state_ty = &state.ty;
                         let body = &action.body;
-                        let state_from = transition.from.get_fsm_state()?;
-                        let state_to = transition.to.get_fsm_state()?;                        
+                        let a = quote! {
+                            impl #fsm_generics_impl finny::FsmAction<#fsm_ty #fsm_generics_type, #event_ty, #state_ty, > for #ty #fsm_generics_where {
+                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q >, state: &mut #state_ty) {
+                                    #remap
+                                    { #body }
+                                }
+                            }
+                        };
+
+                        q.append_all(a);
+                    }
+                },
+                FsmTransitionType::StateTransition(s) => {
+
+                    if let Some(ref guard) = s.action.guard {
+                        let event_ty = &s.event.get_event()?.ty;
+
+                        let remap = remap_closure_inputs(&guard.inputs, vec![
+                            quote! { event }, quote! { context }
+                        ].as_slice())?;
+
+                        let body = &guard.body;
+
+                        let g = quote! {
+                            impl #fsm_generics_impl finny::FsmTransitionGuard<#fsm_ty #fsm_generics_type, #event_ty> for #ty #fsm_generics_where {
+                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) -> bool {
+                                    #remap
+                                    let result = { #body };
+                                    result
+                                }
+                            }
+                        };
+
+                        q.append_all(g);
+                    }
+
+                    if let Some(ref action) = s.action.action {
+                        let event_ty = &s.event.get_event()?.ty;
+                        let state_from = s.state_from.get_fsm_state()?;
+                        let state_to = s.state_to.get_fsm_state()?;                    
+
+                        let remap = remap_closure_inputs(&action.inputs, vec![
+                            quote! { event }, quote! { context }, quote! { from }, quote! { to }
+                        ].as_slice())?;
+
+                        let body = &action.body;                     
 
                         let state_from_ty = &state_from.ty;
                         let state_to_ty = &state_to.ty;
@@ -141,12 +190,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                         q.append_all(a);
                     }
-
-                    
-                },
-                _ => ()
+                }
             }
-
+            
             t.append_all(q);
         }
 
@@ -159,98 +205,150 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             let transition_ty = &transition.transition_ty;
             
-            let match_state = match transition.from {
-                crate::parse::FsmTransitionState::None => quote! { finny::FsmCurrentState::Stopped },
-                crate::parse::FsmTransitionState::State(ref st) => {
-                    let kind = &st.ty;
-                    quote! { finny::FsmCurrentState::State(#states_enum_ty :: #kind) }
+            let match_state = {
+                let state_from = match &transition.ty {
+                    FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
+                        &s.state
+                    }
+                    FsmTransitionType::StateTransition(s) => &s.state_from
+                };
+
+                match state_from {
+                    FsmTransitionState::None => quote! { finny::FsmCurrentState::Stopped },
+                    FsmTransitionState::State(st) => {
+                        let kind = &st.ty;
+                        quote! { finny::FsmCurrentState::State(#states_enum_ty :: #kind) }
+                    }
                 }
             };
+            
+            let match_event = {                
+                let event = match &transition.ty {
+                    FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => &s.event,
+                    FsmTransitionType::StateTransition(s) => &s.event
+                };
 
-            let match_event = match transition.event {
-                crate::parse::FsmTransitionEvent::Start => quote! { finny::FsmEvent::Start },
-                crate::parse::FsmTransitionEvent::Event(ref ev) => {
-                    let kind = &ev.ty;
-                    quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
-                }
-                _ => todo!()
-            };
-
-            let state_to = match transition.to {
-                crate::parse::FsmTransitionState::None => todo!("transition to"),
-                crate::parse::FsmTransitionState::State(ref st) => {
-                    let field = &st.state_storage_field;
-                    let ty = &st.ty;
-                    quote! {
-                        let state_to = &mut backend.states. #field ;
-                        <#ty>::on_entry(state_to, &mut context);
+                match event {
+                    crate::parse::FsmTransitionEvent::Start => quote! { finny::FsmEvent::Start },
+                    crate::parse::FsmTransitionEvent::Stop => quote ! { finny::FsmEvent::Stop },
+                    crate::parse::FsmTransitionEvent::Event(ref ev) => {
+                        let kind = &ev.ty;
+                        quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
                     }
                 }
             };
 
-            let state_from = match transition.from {
-                crate::parse::FsmTransitionState::None => TokenStream::new(),
-                crate::parse::FsmTransitionState::State(ref st) => {
-                    let field = &st.state_storage_field;
-                    let ty = &st.ty;
-                    quote! {
-                        let state_from = &mut backend.states. #field;
-                        <#ty>::on_exit(state_from, &mut context);
+            let state_from_action = {
+                let state = match &transition.ty {                    
+                    FsmTransitionType::SelfTransition(s) => Some(&s.state),
+                    FsmTransitionType::StateTransition(s) => Some(&s.state_from),
+                    FsmTransitionType::InternalTransition(_) => None
+                };
+
+                match state {
+                    Some(FsmTransitionState::State(st)) => {
+                        let field = &st.state_storage_field;
+                        let ty = &st.ty;
+                        quote! {
+                            let state_from = &mut backend.states. #field ;
+                            <#ty>::on_exit(state_from, &mut context);
+                        }
+                    },
+                    _ => TokenStream::new()
+                }
+            };
+
+            let state_to_action = {
+                let state = match &transition.ty {                    
+                    FsmTransitionType::SelfTransition(s) => Some(&s.state),
+                    FsmTransitionType::StateTransition(s) => Some(&s.state_to),
+                    FsmTransitionType::InternalTransition(_) => None
+                };
+
+                match state {
+                    Some(FsmTransitionState::State(st)) => {
+                        let field = &st.state_storage_field;
+                        let ty = &st.ty;
+                        quote! {
+                            let state_to = &mut backend.states. #field ;
+                            <#ty>::on_entry(state_to, &mut context);
+                        }
+                    },
+                    _ => TokenStream::new()
+                }
+            };
+
+            let current_state_update = {
+                match &transition.ty {
+                    FsmTransitionType::InternalTransition(_) | FsmTransitionType::SelfTransition(_) => TokenStream::new(),
+                    FsmTransitionType::StateTransition(ref s) => {
+                        match s.state_to {
+                            FsmTransitionState::None => {
+                                quote! {
+                                    backend.current_state = finny::FsmCurrentState::None;
+                                }
+                            }
+                            FsmTransitionState::State(ref st) => {
+                                let kind = &st.ty;
+                                quote! {
+                                    backend.current_state = finny::FsmCurrentState::State(#states_enum_ty :: #kind);
+                                }
+                            }
+                        }
                     }
                 }
             };
+            
+            let guard = {
+                let has_guard = match &transition.ty {
+                    FsmTransitionType::StateTransition(s) => {
+                        s.action.guard.is_some()
+                    }
+                    FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
+                        s.action.guard.is_some()
+                    }
+                };
 
-            let current_state_update = match transition.to {
-                crate::parse::FsmTransitionState::None => {
-                    let q = quote! {
-                        backend.current_state = finny::FsmCurrentState::None;
-                    };
-                    q
-                },
-                crate::parse::FsmTransitionState::State(ref st) => {
-                    let kind = &st.ty;
-                    let q = quote! {
-                        backend.current_state = finny::FsmCurrentState::State(#states_enum_ty :: #kind);
-                    };
-                    q
-                }
-            };
-
-            let guard = match transition.event {
-                crate::parse::FsmTransitionEvent::Event(FsmEvent { guard: Some(ref guard), .. }) => {
+                if has_guard {
                     quote! {
                         if <#transition_ty>::guard(ev, &context)
                     }
-                },
-                _ => TokenStream::new()
+                } else {
+                    TokenStream::new()
+                }
             };
 
-            let action = match transition.event {
-                crate::parse::FsmTransitionEvent::Event(FsmEvent { action: Some(ref action), .. }) => {
+            let event_action = {
+                match &transition.ty {
+                    FsmTransitionType::InternalTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, state, .. }) |
+                    FsmTransitionType::SelfTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, state, .. }) => {
+                        panic!("todo ev action");
+                    },
+                    FsmTransitionType::StateTransition(FsmStateTransition { action: EventGuardAction { action: Some(_), .. }, state_from, state_to, .. }) => {
+                        let state_from = state_from.get_fsm_state()?;
+                        let state_to = state_to.get_fsm_state()?;
 
-                    let state_from = transition.from.get_fsm_state()?;
-                    let state_to = transition.to.get_fsm_state()?;
+                        let state_from_field = &state_from.state_storage_field;
+                        let state_to_field = &state_to.state_storage_field;
 
-                    let state_from_field = &state_from.state_storage_field;
-                    let state_to_field = &state_to.state_storage_field;
-
-                    quote! {
-                        <#transition_ty>::action(ev, &mut context,
-                            &mut backend.states. #state_from_field,
-                            &mut backend.states. #state_to_field
-                        );
-                    }
-                },
-                _ => TokenStream::new()
+                        quote! {
+                            <#transition_ty>::action(ev, &mut context,
+                                &mut backend.states. #state_from_field,
+                                &mut backend.states. #state_to_field
+                            );
+                        }
+                    },
+                    _ => TokenStream::new()
+                }
             };
-
+            
             let m = quote! {
                 ( #match_state , #match_event ) #guard => {
-                    { #state_from }
+                    { #state_from_action }
 
-                    { #action }
+                    { #event_action }
 
-                    { #state_to }
+                    { #state_to_action }
 
                     { #current_state_update }
                 },

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmTransition, FsmTransitionEvent, FsmTransitionState}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}};
 
 pub struct FsmParser {
     initial_state: Option<syn::Type>,
@@ -78,7 +78,7 @@ impl FsmParser {
 
                                         let event = self.events
                                             .entry(ty_event.clone())
-                                            .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![], guard: None, action: None });
+                                            .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![] });
 
                                         let other_method_calls = &st[(i+1)..];
                                         Self::parse_state_on_event(state, event, other_method_calls)?;
@@ -102,36 +102,44 @@ impl FsmParser {
         Ok(())
     }
 
+    fn parse_event_guard_action(event_method_calls: &[MethodOverviewRef]) -> syn::Result<EventGuardAction> {
+        let mut guard_action = EventGuardAction { guard: None, action: None};
+        
+        for method in event_method_calls {
+            match method {
+                MethodOverviewRef { name: "guard", .. } => {
+                    let closure = get_closure(method.call)?;
+
+                    if guard_action.guard.is_some() {
+                        return Err(syn::Error::new(closure.span(), "Duplicate 'guard'!"));
+                    }
+
+                    guard_action.guard = Some(closure.clone());
+                },
+                MethodOverviewRef { name: "action", .. } => {
+                    let closure = get_closure(method.call)?;
+
+                    if guard_action.action.is_some() {
+                        return Err(syn::Error::new(closure.span(), "Duplicate 'action'!"));
+                    }
+
+                    guard_action.action = Some(closure.clone());
+                }
+                _ => { return Err(syn::Error::new(method.call.span(), "Unsupported method.")); }
+            }
+        }
+
+        Ok(guard_action)
+    }
+
     fn parse_state_on_event(state: &FsmState, event: &mut FsmEvent, method_calls: &[MethodOverviewRef]) -> syn::Result<()> {
         match method_calls {
             [MethodOverviewRef { name: "transition_to", generics: [ty_to], .. }, ev @ .. ] => {
-
-                event.transitions.push(FsmEventTransition::State(state.ty.clone(), ty_to.clone()));
-
-                for method in ev {
-                    match method {
-                        MethodOverviewRef { name: "guard", .. } => {
-                            let closure = get_closure(method.call)?;
-
-                            if event.guard.is_some() {
-                                return Err(syn::Error::new(closure.span(), "Duplicate 'guard'!"));
-                            }
-
-                            event.guard = Some(closure.clone());
-                        },
-                        MethodOverviewRef { name: "action", .. } => {
-                            let closure = get_closure(method.call)?;
-
-                            if event.action.is_some() {
-                                return Err(syn::Error::new(closure.span(), "Duplicate 'action'!"));
-                            }
-
-                            event.action = Some(closure.clone());
-                        }
-                        _ => { return Err(syn::Error::new(method.call.span(), "Unsupported method.")); }
-                    }
-                }                
-            }
+                event.transitions.push(FsmEventTransition::State(state.ty.clone(), ty_to.clone(), Self::parse_event_guard_action(ev)?));                
+            },
+            [MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
+                event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(ev)?));
+            },
             _ => { return Err(syn::Error::new(method_calls.first().map(|m| m.call.span()).unwrap_or(Span::call_site()), "Unsupported methods.")); }
         }
 
@@ -156,28 +164,37 @@ impl FsmParser {
                 syn::Type::Path(syn::TypePath { qself: None, path: syn::Path { leading_colon: None, segments: p }})
             }
 
+            // start transition
             transitions.push(FsmTransition {
                 transition_ty: generate_transition_ty(&mut i),
-                from: FsmTransitionState::None,
-                to: FsmTransitionState::State(fsm_initial_state.clone()),
-                event: FsmTransitionEvent::Start
+                ty: FsmTransitionType::StateTransition(FsmStateTransition {
+                    action: EventGuardAction::default(),
+                    event: FsmTransitionEvent::Start,
+                    state_from: FsmTransitionState::None,
+                    state_to: FsmTransitionState::State(fsm_initial_state.clone())
+                })
             });
 
             for (ty, ev) in self.events.iter() {
                 for t in &ev.transitions {
                     match t {
-                        FsmEventTransition::State(from, to) => {
+                        FsmEventTransition::State(from, to, action) => {
 
                             let from = self.states.get(from).ok_or(syn::Error::new(from.span(), "State not found."))?;
                             let to = self.states.get(to).ok_or(syn::Error::new(to.span(), "State not found."))?;
 
                             transitions.push(FsmTransition {
                                 transition_ty: generate_transition_ty(&mut i),
-                                from: FsmTransitionState::State(from.clone()),
-                                to: FsmTransitionState::State(to.clone()),
-                                event: FsmTransitionEvent::Event(ev.clone())
+                                ty: FsmTransitionType::StateTransition(FsmStateTransition {
+                                    action: action.clone(),
+                                    state_from: FsmTransitionState::State(from.clone()),
+                                    state_to: FsmTransitionState::State(to.clone()),
+                                    event: FsmTransitionEvent::Event(ev.clone())
+                                })
                             });
                         }
+                        FsmEventTransition::InternalTransition(_, _) => {todo!("internal")}
+                        FsmEventTransition::SelfTransition(_, _) => {todo!("self")}
                     }
                 }
             }

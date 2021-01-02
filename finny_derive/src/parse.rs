@@ -132,25 +132,55 @@ pub struct FsmDeclarations {
     pub transitions: Vec<FsmTransition>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FsmTransitionState {
     None,
     State(FsmState)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum FsmTransitionEvent {
     Stop,
     Start,
     Event(FsmEvent)
 }
 
+impl FsmTransitionEvent {
+    pub fn get_event(&self) -> syn::Result<&FsmEvent> {
+        match self {            
+            FsmTransitionEvent::Event(ev) => Ok(ev),
+            _ => Err(syn::Error::new(Span::call_site(), "Missing event here, codegen bug!"))
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct FsmTransition {
-    pub transition_ty: syn::Type,
-    pub from: FsmTransitionState,
-    pub to: FsmTransitionState,
-    pub event: FsmTransitionEvent
+    pub ty: FsmTransitionType,
+    pub transition_ty: syn::Type
+}
+#[derive(Debug, Clone)]
+pub enum FsmTransitionType {
+    /// Doesn't trigger the state's actions
+    InternalTransition(FsmStateAction),
+    /// Triggers the state's actions
+    SelfTransition(FsmStateAction),
+    /// From State A to State B
+    StateTransition(FsmStateTransition)
+}
+#[derive(Debug, Clone)]
+pub struct FsmStateAction {
+    pub state: FsmTransitionState,
+    pub event: FsmTransitionEvent,
+    pub action: EventGuardAction
+}
+
+#[derive(Debug, Clone)]
+pub struct FsmStateTransition {
+    pub state_from: FsmTransitionState,
+    pub state_to: FsmTransitionState,
+    pub action: EventGuardAction,
+    pub event: FsmTransitionEvent,
 }
 
 #[derive(Debug, Clone)]
@@ -163,14 +193,23 @@ pub struct FsmState {
 #[derive(Debug, Clone)]
 pub struct FsmEvent {
     pub ty: syn::Type,
-    pub transitions: Vec<FsmEventTransition>,
-    pub guard: Option<syn::ExprClosure>,
-    pub action: Option<syn::ExprClosure>
+    pub transitions: Vec<FsmEventTransition>
 }
 
 #[derive(Debug, Clone)]
 pub enum FsmEventTransition {
-    State(syn::Type, syn::Type)
+    /// A transition from one state to another.
+    State(syn::Type, syn::Type, EventGuardAction),
+    /// Triggers the state's exit/enter actions
+    InternalTransition(syn::Type, EventGuardAction),
+    /// Triggers the state's exit/enter actions
+    SelfTransition(syn::Type, EventGuardAction)
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct EventGuardAction{
+    pub guard: Option<syn::ExprClosure>,
+    pub action: Option<syn::ExprClosure>
 }
 
 impl FsmDeclarations {

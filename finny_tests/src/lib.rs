@@ -25,6 +25,7 @@ pub struct StateB {
 pub struct EventClick { time: usize }
 pub struct EventEnter;
 
+/*
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
     fsm.initial_state::<StateA>();
@@ -54,6 +55,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         
     fsm.build()
 }
+*/
 
 /*
 impl FsmBackend for Foo {
