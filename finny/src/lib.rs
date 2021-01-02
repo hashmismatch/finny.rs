@@ -5,12 +5,11 @@
 //! ![Build](https://github.com/hashmismatch/finny.rs/workflows/Build/badge.svg)
 //!
 //! ## Features
-//! * Declarative, builder API with procedural macros that generate the necessary boilerplate
+//! * Declarative, builder API with a procedural function macro that generate the dispatcher
 //! * Compile-time transition graph validation
-//! * No allocations required
+//! * No run-time allocations required, `no_std` support
 //! * Support for generics within the shared context
 //! * Transition guards and actions
-//! * `no_std` support
 //!
 //! ## Example
 //!
