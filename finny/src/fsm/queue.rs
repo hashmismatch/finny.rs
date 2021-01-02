@@ -1,14 +1,14 @@
 use lib::*;
 
-use crate::FsmResult;
+use crate::{FsmBackend, FsmResult};
 
 
 /// The event queueing trait for FSMs. Can be used from outside or from within the actions of the FSM.
-pub trait FsmEventQueue<T> {
+pub trait FsmEventQueue<F: FsmBackend> {
     /// Try to enqueue an event.
-    fn enqueue(&mut self, event: T) -> FsmResult<()>;
+    fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()>;
     /// Try to dequeue an event.
-    fn dequeue(&mut self) -> Option<T>;
+    fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events>;
 }
 
 #[cfg(feature = "std")]
@@ -16,12 +16,12 @@ mod queue_vec {
     use super::*;
 
     /// An unbound event queue that uses `VecDeque`.
-    pub struct FsmEventQueueVec<T> {
-        queue: VecDeque<T>
+    pub struct FsmEventQueueVec<F: FsmBackend> {
+        queue: VecDeque<<F as FsmBackend>::Events>
     }
 
     
-    impl<T> FsmEventQueueVec<T> {
+    impl<F: FsmBackend> FsmEventQueueVec<F> {
         pub fn new() -> Self {
             FsmEventQueueVec {
                 queue: VecDeque::new()
@@ -29,13 +29,13 @@ mod queue_vec {
         }
     }
 
-    impl<T> FsmEventQueue<T> for FsmEventQueueVec<T> {
-        fn enqueue(&mut self, event: T) -> FsmResult<()> {
-            self.queue.push_back(event);
+    impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueVec<F> {
+        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
+            self.queue.push_back(event.into());
             Ok(())
         }
 
-        fn dequeue(&mut self) -> Option<T> {
+        fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
             self.queue.pop_front()
         }
     }
@@ -48,14 +48,14 @@ mod queue_heapless {
     use super::*;
 
     /// A heapless queue with a fixed size. Implemented using the `heapless` crate.
-    pub struct FsmEventQueueHeapless<T, N>
-        where N: heapless::ArrayLength<T>
+    pub struct FsmEventQueueHeapless<F: FsmBackend, N>
+        where N: heapless::ArrayLength<<F as FsmBackend>::Events>
     {
-        vec: heapless::Vec<T, N>
+        vec: heapless::Vec<<F as FsmBackend>::Events, N>
     }
 
-    impl<T, N> FsmEventQueueHeapless<T, N>
-        where N: heapless::ArrayLength<T>
+    impl<F, N> FsmEventQueueHeapless<F, N>
+        where F: FsmBackend, N: heapless::ArrayLength<<F as FsmBackend>::Events>
     {
         pub fn new() -> Self {
             FsmEventQueueHeapless {
@@ -64,14 +64,14 @@ mod queue_heapless {
         }
     }
 
-    impl<T, N> FsmEventQueue<T> for FsmEventQueueHeapless<T, N> 
-        where N: heapless::ArrayLength<T>
+    impl<F, N> FsmEventQueue<F> for FsmEventQueueHeapless<F, N> 
+        where F: FsmBackend, N: heapless::ArrayLength<<F as FsmBackend>::Events>
     {
-        fn enqueue(&mut self, event: T) -> FsmResult<()> {
+        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
             todo!()
         }
 
-        fn dequeue(&mut self) -> Option<T> {
+        fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
             todo!()
         }
     }

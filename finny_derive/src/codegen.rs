@@ -109,7 +109,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                         let g = quote! {
                             impl #fsm_generics_impl finny::FsmTransitionGuard<#fsm_ty #fsm_generics_type, #event_ty> for #ty #fsm_generics_where {
-                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) -> bool {
+                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) -> bool
+                                    where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
+                                {
                                     #remap
                                     let result = { #body };
                                     result
@@ -131,7 +133,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         let body = &action.body;
                         let a = quote! {
                             impl #fsm_generics_impl finny::FsmAction<#fsm_ty #fsm_generics_type, #event_ty, #state_ty, > for #ty #fsm_generics_where {
-                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q >, state: &mut #state_ty) {
+                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q >, state: &mut #state_ty)
+                                    where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
+                                {
                                     #remap
                                     { #body }
                                 }
@@ -154,7 +158,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                         let g = quote! {
                             impl #fsm_generics_impl finny::FsmTransitionGuard<#fsm_ty #fsm_generics_type, #event_ty> for #ty #fsm_generics_where {
-                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) -> bool {
+                                fn guard<'a, Q>(event: & #event_ty, context: &finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) -> bool
+                                    where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
+                                {
                                     #remap
                                     let result = { #body };
                                     result
@@ -181,7 +187,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         let body = &action.body;
                         let a = quote! {
                             impl #fsm_generics_impl finny::FsmTransitionAction<#fsm_ty #fsm_generics_type, #event_ty, #state_from_ty, #state_to_ty> for #ty #fsm_generics_where {
-                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q >, from: &mut #state_from_ty, to: &mut #state_to_ty) {
+                                fn action<'a, Q>(event: & #event_ty , context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q >, from: &mut #state_from_ty, to: &mut #state_to_ty)
+                                    where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
+                                {
                                     #remap
                                     { #body }
                                 }
@@ -372,7 +380,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type Events = #event_enum_ty;
 
                 fn dispatch_event<Q>(backend: &mut finny::FsmBackendImpl<Self>, event: &finny::FsmEvent<Self::Events>, queue: &mut Q) -> finny::FsmResult<()>
-                    where Q: finny::FsmEventQueue<<Self as finny::FsmBackend>::Events>
+                    where Q: finny::FsmEventQueue<Self>
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState};
 
@@ -422,11 +430,11 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             states.append_all(quote! {
 
                 impl #fsm_generics_impl finny::FsmState<#fsm_ty #fsm_generics_type> for #ty #fsm_generics_where {
-                    fn on_entry<'a, Q: finny::FsmEventQueue<<#fsm_ty #fsm_generics_type as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
+                    fn on_entry<'a, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
                         #on_entry
                     }
 
-                    fn on_exit<'a, Q: finny::FsmEventQueue<<#fsm_ty #fsm_generics_type as finny::FsmBackend>::Events>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
+                    fn on_exit<'a, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
                         #on_exit
                     }
                 }

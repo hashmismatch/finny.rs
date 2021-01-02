@@ -52,15 +52,15 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
-pub struct FsmFrontend<Queue, F: FsmBackend> {
+pub struct FsmFrontend<Queue, F> where F: FsmBackend, Queue: FsmEventQueue<F> {
     pub (crate) queue: Queue,
     pub (crate) backend: FsmBackendImpl<F>
 }
 
-impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend<Queue, F> {
+impl<Queue: FsmEventQueue<F>, F: FsmBackend> FsmFrontend<Queue, F> {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
-        Self::dispatch_event(self, &FsmEvent::Start)
+        Self::dispatch_single_event(self, &FsmEvent::Start)
     }
 
     /// Dispatch this event and run it to completition.
@@ -69,15 +69,23 @@ impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend
     {
         let ev = event.into();
         let ev = FsmEvent::Event(ev);
-        Self::dispatch_event(self, &ev)
+        Self::dispatch_single_event(self, &ev)?;
+
+        while let Some(ev) = self.queue.dequeue() {
+            let ev: <F as FsmBackend>::Events = ev.into();
+            Self::dispatch(self, ev)?;
+        }
+
+        Ok(())
     }
 
-    fn dispatch_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
+    /// Dispatch only this event, do not run it to completition.
+    pub fn dispatch_single_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
         F::dispatch_event(&mut self.backend, event, &mut self.queue)
     }
 }
 
-impl<Queue, F: FsmBackend> Deref for FsmFrontend<Queue, F> {
+impl<Queue, F> Deref for FsmFrontend<Queue, F> where F: FsmBackend, Queue: FsmEventQueue<F> {
     type Target = FsmBackendImpl<F>;
 
     fn deref(&self) -> &Self::Target {

@@ -1,6 +1,6 @@
 use lib::*;
 
-use crate::{EventContext, FsmBackend, FsmEventQueue};
+use crate::{EventContext, FsmBackend, FsmEventQueue, FsmEventQueueVec};
 
 use super::event::FsmEventBuilderState;
 
@@ -14,12 +14,12 @@ impl<TFsm, TContext, TState> FsmStateBuilder<TFsm, TContext, TState>
 	where TFsm: FsmBackend
 {
 	/// Execute this action when entering the state.
-	pub fn on_entry<'a, TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>)>(&self, _action: TAction) -> &Self {
+	pub fn on_entry<'a, TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, FsmEventQueueVec<<TFsm as FsmBackend>::Events>>)>(&self, _action: TAction) -> &Self {
 		self
 	}
 
 	/// Execute this action when exiting the state.
-	pub fn on_exit<'a, TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>)>(&self, _action: TAction) -> &Self {
+	pub fn on_exit<'a, TAction: Fn(&mut TState, &mut EventContext<'a, TFsm, FsmEventQueueVec<<TFsm as FsmBackend>::Events>>)>(&self, _action: TAction) -> &Self {
 		self
 	}
 

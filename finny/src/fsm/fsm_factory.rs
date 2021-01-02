@@ -10,7 +10,7 @@ pub trait FsmFactory {
 
     /// Build a new frontend for the FSM with all the environmental services provided by the caller.
     fn new_with<Q>(context: <Self::Fsm as FsmBackend>::Context, queue: Q) -> FsmResult<FsmFrontend<Q, Self::Fsm>>
-        where Q: FsmEventQueue<<Self::Fsm as FsmBackend>::Events>
+        where Q: FsmEventQueue<Self::Fsm>
     {
         let frontend = FsmFrontend {
             queue,
@@ -22,7 +22,7 @@ pub trait FsmFactory {
 
     /// Build a new frontend for the FSM with a `FsmEventQueueVec` queue.
     #[cfg(feature="std")]
-    fn new(context: <Self::Fsm as FsmBackend>::Context) -> FsmResult<FsmFrontend<FsmEventQueueVec<<Self::Fsm as FsmBackend>::Events>, Self::Fsm>> {
+    fn new(context: <Self::Fsm as FsmBackend>::Context) -> FsmResult<FsmFrontend<FsmEventQueueVec<Self::Fsm>, Self::Fsm>> {
         let frontend = FsmFrontend {
             queue: FsmEventQueueVec::new(),
             backend: FsmBackendImpl::new(context)?
