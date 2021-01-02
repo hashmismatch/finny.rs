@@ -4,12 +4,14 @@ use crate::FsmBackend;
 
 use super::{FsmStateBuilder};
 
+/// The main builder-API for defining your Finny state machine.
 #[derive(Default)]
 pub struct FsmBuilder<TFsm, TContext> {
     pub _fsm: PhantomData<TFsm>,
     pub _context: PhantomData<TContext>
 }
 
+/// The consumed struct of the FSM, ensures that all of the builder's references are released.
 pub struct BuiltFsm;
 
 impl<TFsm, TContext> FsmBuilder<TFsm, TContext>

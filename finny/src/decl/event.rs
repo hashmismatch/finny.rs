@@ -41,10 +41,12 @@ pub struct FsmEventBuilderTransition<'a, TFsm, TContext, TEvent, TState> {
 impl<'a, TFsm, TContext, TEvent, TState> FsmEventBuilderTransition<'a, TFsm, TContext, TEvent, TState>
     where TFsm: FsmBackend
 {
+    /// An action that happens when the currently active state receives this event. No transitions.
     pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>, &mut TState)>(&mut self, _action: TAction) -> &mut Self {
         self
     }
-
+    
+    /// A guard for executing this action.
     pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
@@ -59,10 +61,12 @@ pub struct FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom,
 impl<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> 
     where TFsm: FsmBackend
 {
+    /// An action that happens between the transitions from the two states.
     pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>, &mut TStateFrom, &mut TStateTo)>(&mut self, _action: TAction) -> &mut Self {
         self
     }
 
+    /// A guard for starting this transition from one state to another, including executing the action.
     pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, dyn FsmEventQueue<<TFsm as FsmBackend>::Events>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
