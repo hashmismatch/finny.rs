@@ -4,7 +4,8 @@ use crate::{FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmResult, Fsm
 
 use super::FsmStateFactory;
 
-
+/// The struct that holds the core context and state of the given Finny FSM. Doesn't include
+/// environmental traits that can be changed at runtime.
 pub struct FsmBackendImpl<F: FsmBackend> {
     pub context: <F as FsmBackend>::Context,
     pub states: <F as FsmBackend>::States,
@@ -49,17 +50,20 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
     }
 }
 
-
+/// The frontend of a state machine which also includes environmental services like queues
+/// and inspection. The usual way to use the FSM.
 pub struct FsmFrontend<Queue, F: FsmBackend> {
     pub (crate) queue: Queue,
     pub (crate) backend: FsmBackendImpl<F>
 }
 
 impl<Queue: FsmEventQueue<<F as FsmBackend>::Events>, F: FsmBackend> FsmFrontend<Queue, F> {
+    /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
         Self::dispatch_event(self, &FsmEvent::Start)
     }
 
+    /// Dispatch this event and run it to completition.
     pub fn dispatch<E>(&mut self, event: E) -> FsmResult<()>
         where E: Into<<F as FsmBackend>::Events>
     {

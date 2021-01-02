@@ -2,7 +2,7 @@ use lib::*;
 
 use crate::FsmBackend;
 
-
+/// The internal event type that also allows stopping or starting the machine.
 pub enum FsmEvent<E> {
     Start,
     Stop,
@@ -15,7 +15,7 @@ impl<E> From<E> for FsmEvent<E> {
     }
 }
 
-
+/// The context that is given to all of the guards and actions.
 pub struct EventContext<'a, TFsm: FsmBackend, Q> {
     pub context: &'a mut TFsm::Context,
     pub queue: &'a mut Q

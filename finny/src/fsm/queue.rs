@@ -3,8 +3,11 @@ use lib::*;
 use crate::FsmResult;
 
 
+/// The event queueing trait for FSMs. Can be used from outside from the inside of the FSM.
 pub trait FsmEventQueue<T> {
+    /// Try to enqueue an event.
     fn enqueue(&mut self, event: T) -> FsmResult<()>;
+    /// Try to dequeue an event.
     fn dequeue(&mut self) -> Option<T>;
 }
 
