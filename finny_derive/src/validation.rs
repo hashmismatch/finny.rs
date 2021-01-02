@@ -56,7 +56,7 @@ pub fn create_regions(decl: &FsmDeclarations) -> syn::Result<()> {
 
     for node in graph.raw_nodes() {
         if node.weight.region == None {
-            return Err(syn::Error::new(node.weight.state.span(), "Unreachable state! Add some events that will make this state reachable!"));
+            return Err(syn::Error::new(node.weight.state.span(), "Unreachable state! Add some transitions that will make this state reachable!"));
         }
     }
     
