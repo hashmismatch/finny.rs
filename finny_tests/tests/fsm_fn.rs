@@ -47,7 +47,6 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         .on_entry(|state_b, ctx| {
             state_b.counter += 1;
         })
-        /*
         .on_event::<EventEnter>()
         .internal_transition()
         .guard(|ev, ctx| {
@@ -55,8 +54,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .action(|ev, ctx, state_b| {
             state_b.counter += 1;
-        })
-        */;
+        });
 
     fsm.build()
 }
@@ -89,17 +87,15 @@ fn test_fsm() -> FsmResult<()> {
     assert_eq!(2, fsm.get_context().count);
     assert_eq!(123, fsm.get_context().total_time);
 
-    /*
     let state_b: &StateB = fsm.get_state();
-    assert_eq!(0, state_b.counter);
+    assert_eq!(1, state_b.counter);
 
     let ret = fsm.dispatch(EventEnter { shift: true });
     assert_eq!(Err(FsmError::NoTransition), ret);
     
     fsm.dispatch(EventEnter { shift: false })?;
     let state_b: &StateB = fsm.get_state();
-    assert_eq!(1, state_b.counter);
-    */
-
+    assert_eq!(2, state_b.counter);
+    
     Ok(())
 }

@@ -193,8 +193,30 @@ impl FsmParser {
                                 })
                             });
                         }
-                        FsmEventTransition::InternalTransition(_, _) => {todo!("internal")}
-                        FsmEventTransition::SelfTransition(_, _) => {todo!("self")}
+                        FsmEventTransition::InternalTransition(state, action) => {
+                            // todo: code duplication!
+                            let state = self.states.get(state).ok_or(syn::Error::new(state.span(), "State not found."))?;
+                            transitions.push(FsmTransition {
+                                transition_ty: generate_transition_ty(&mut i),
+                                ty: FsmTransitionType::InternalTransition(FsmStateAction {
+                                    state: FsmTransitionState::State(state.clone()),
+                                    action: action.clone(),
+                                    event: FsmTransitionEvent::Event(ev.clone())
+                                })
+                            });
+                        }
+                        FsmEventTransition::SelfTransition(state, action) => {
+                            // todo: code duplication!
+                            let state = self.states.get(state).ok_or(syn::Error::new(state.span(), "State not found."))?;
+                            transitions.push(FsmTransition {
+                                transition_ty: generate_transition_ty(&mut i),
+                                ty: FsmTransitionType::SelfTransition(FsmStateAction {
+                                    state: FsmTransitionState::State(state.clone()),
+                                    action: action.clone(),
+                                    event: FsmTransitionEvent::Event(ev.clone())
+                                })
+                            });
+                        }
                     }
                 }
             }

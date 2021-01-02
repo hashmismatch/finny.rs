@@ -122,7 +122,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     if let Some(ref action) = s.action.action {
                         let remap = remap_closure_inputs(&action.inputs, vec![
-                            quote! { event }, quote! { context }, quote! { from }, quote! { to }
+                            quote! { event }, quote! { context }, quote! { state }
                         ].as_slice())?;
 
                         let body = &action.body;                     
@@ -322,7 +322,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 match &transition.ty {
                     FsmTransitionType::InternalTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, state, .. }) |
                     FsmTransitionType::SelfTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, state, .. }) => {
-                        panic!("todo ev action");
+                        let state = state.get_fsm_state()?;
+                        let state_field = &state.state_storage_field;
+
+                        quote! {
+                            <#transition_ty>::action(ev, &mut context, &mut backend.states. #state_field );
+                        }
                     },
                     FsmTransitionType::StateTransition(FsmStateTransition { action: EventGuardAction { action: Some(_), .. }, state_from, state_to, .. }) => {
                         let state_from = state_from.get_fsm_state()?;
@@ -369,7 +374,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 fn dispatch_event<Q>(backend: &mut finny::FsmBackendImpl<Self>, event: &finny::FsmEvent<Self::Events>, queue: &mut Q) -> finny::FsmResult<()>
                     where Q: finny::FsmEventQueue<<Self as finny::FsmBackend>::Events>
                 {
-                    use finny::{FsmTransitionGuard, FsmTransitionAction, FsmState};
+                    use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState};
 
                     let mut context = finny::EventContext::<#fsm_ty #fsm_generics_type, Q> {
                         context: &mut backend.context,

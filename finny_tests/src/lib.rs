@@ -25,7 +25,6 @@ pub struct StateB {
 pub struct EventClick { time: usize }
 pub struct EventEnter;
 
-/*
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
     fsm.initial_state::<StateA>();
@@ -55,42 +54,3 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         
     fsm.build()
 }
-*/
-
-/*
-impl FsmBackend for Foo {
-    type Context = ();
-    type States = FooStates;
-    type Events = ();
-    fn dispatch_event<Q>(backend: &mut finny::FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> FsmResult<()>
-        where Q: finny::FsmEventQueue<Self::Events> {
-        todo!()
-    }
-}
-
-#[derive(Default)]
-struct FooStates;
-
-impl FsmStates for FooStates {
-    type StateKind = ();
-}
-
-#[derive(Default)]
-struct Foo;
-
-fn foo() {
-    let mut fsm: FsmBuilder<Foo, StateMachineContext> = Default::default();
-
-    fsm.state::<StateA>()
-    .on_entry(|state_a, ctx| {
-        //ctx.context.count += 1;
-        state_a.enter += 1;
-    })
-    .on_exit(|state_a, ctx| {
-        //ctx.context.count += 1;
-        state_a.exit += 1;
-    })
-    .on_event::<EventClick>()
-    ;
-}
-*/
