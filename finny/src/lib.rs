@@ -37,12 +37,12 @@
 //!        .on_entry(|state, ctx| {
 //!            state.n += 1;
 //!            ctx.context.val += 1;
-//!         });
-//!     fsm.state::<MyStateB>();
-//!     fsm.on_event::<MyEvent>()
-//!        .transition_from::<MyStateA>().to::<MyStateB>()
+//!         })
+//!        .on_event::<MyEvent>()
+//!        .transition_to::<MyStateB>()
 //!        .guard(|_ev, ctx| { ctx.context.val > 0 })
 //!        .action(|_ev, ctx, state_a, state_b| { ctx.context.val += 1; });
+//!     fsm.state::<MyStateB>();
 //!     fsm.initial_state::<MyStateA>();
 //!     fsm.build()
 //! }

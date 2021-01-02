@@ -5,7 +5,7 @@ use crate::{FsmBackend, FsmEventQueue, fsm::EventContext};
 use super::{FsmStateBuilder, fsm::FsmBuilder};
 
 pub struct FsmEventBuilderState<'a, TFsm, TContext, TEvent, TState> {
-    pub (crate) _state_builder: FsmStateBuilder<'a, TFsm, TContext, TState>,
+    pub (crate) _state_builder: &'a FsmStateBuilder<TFsm, TContext, TState>,
     pub (crate) _event: PhantomData<TEvent>
 }
 
@@ -20,7 +20,8 @@ impl<'a, TFsm, TContext, TEvent, TState> FsmEventBuilderState<'a, TFsm, TContext
         todo!()
     }
 
-    pub fn to_state<TStateTo>(self) -> FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TState, TStateTo> {
+    /// Transition into this state. The transition can have a guard and an action.
+    pub fn transition_to<'b, TStateTo>(&'b self) -> FsmEventBuilderTransitionFull<'b, TFsm, TContext, TEvent, TState, TStateTo> {
         FsmEventBuilderTransitionFull {
             _transition_from: self,
             _state_to: PhantomData::default()
@@ -29,7 +30,7 @@ impl<'a, TFsm, TContext, TEvent, TState> FsmEventBuilderState<'a, TFsm, TContext
 }
 
 pub struct FsmEventBuilderTransitionFull<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> {
-    _transition_from: FsmEventBuilderState<'a, TFsm, TContext, TEvent, TStateFrom>,
+    _transition_from: &'a FsmEventBuilderState<'a, TFsm, TContext, TEvent, TStateFrom>,
     _state_to: PhantomData<TStateTo>
 }
 

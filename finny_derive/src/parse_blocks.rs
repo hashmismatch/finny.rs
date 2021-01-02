@@ -46,7 +46,7 @@ pub fn decode_method_call(base: &FsmFnBase, expr: &Expr) -> syn::Result<FsmBlock
     // verify if the receiver is our builder
     let mc = match expr {
         Expr::MethodCall(mc) => Ok(mc),
-        _ => Err(syn::Error::new(expr.span(), "Unsupported."))
+        _ => Err(syn::Error::new(expr.span(), "Unsupported expression. Only calls on the builder are allowed."))
     }?;
 
     let receiver_ident = get_method_receiver_ident(&mc.receiver)?;

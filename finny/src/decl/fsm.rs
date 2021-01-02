@@ -20,11 +20,12 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 		
 	}
 
-	/// Adds some information about a state
+	/// Adds some information about a state.
 	pub fn state<TState>(&mut self) -> FsmStateBuilder<TFsm, TContext, TState> {
 		FsmStateBuilder {
 			_state: PhantomData::default(),
-			_fsm: self
+			_fsm: PhantomData::default(),
+			_context: PhantomData::default()
 		}
 	}
 

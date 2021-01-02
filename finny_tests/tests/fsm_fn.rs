@@ -33,21 +33,19 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         .on_exit(|state_a, ctx| {
             ctx.context.count += 1;
             state_a.exit += 1;
-        });
-
-    fsm.state::<StateB>()
-        .on_entry(|state_b, ctx| {
-            state_b.counter += 1;
-        });
-
-    fsm.on_event::<EventClick>()
-        .transition_from::<StateA>()
-        .to::<StateB>()
+        })
+        .on_event::<EventClick>()
+        .transition_to::<StateB>()
         .guard(|ev, ctx| {
             ev.time > 100
         })
         .action(|ev, ctx, state_from, state_to| {
             ctx.context.total_time += ev.time;
+        });
+
+    fsm.state::<StateB>()
+        .on_entry(|state_b, ctx| {
+            state_b.counter += 1;
         });
 
     fsm.build()
