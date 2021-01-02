@@ -13,6 +13,7 @@ mod parse;
 mod parse_blocks;
 mod parse_fsm;
 mod utils;
+mod validation;
 
 #[proc_macro_attribute]
 pub fn finny_fsm(attr: TokenStream, item: TokenStream) -> TokenStream {

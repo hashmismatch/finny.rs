@@ -17,6 +17,8 @@ pub struct StateA {
 pub struct StateB {
     counter: usize
 }
+#[derive(Default)]
+pub struct StateC;
 
 pub struct EventClick { time: usize }
 pub struct EventEnter { shift: bool }

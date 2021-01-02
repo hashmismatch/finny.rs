@@ -2,12 +2,13 @@
 name = "finny_derive"
 version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+edition = "2018"
+
+[lib]
+proc-macro = true
 
 [dependencies]
 quote = "1.0"
 syn =  { version = "1.0", features = ["full", "extra-traits", "visit"] }
 proc-macro2 = "1.0"
-
-[lib]
-proc-macro = true
-
+petgraph = "0.5.1"

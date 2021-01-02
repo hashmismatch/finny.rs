@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
 pub struct FsmParser {
     initial_state: Option<syn::Type>,
@@ -228,6 +228,8 @@ impl FsmParser {
             events: self.events,
             transitions
         };
+
+        create_regions(&dec)?;
 
         Ok(dec)
     }

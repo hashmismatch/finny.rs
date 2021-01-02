@@ -1,7 +1,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{TokenStreamExt, quote};
 use syn::spanned::Spanned;
-use utils::remap_closure_inputs;
+use crate::utils::remap_closure_inputs;
 
 use crate::{parse::{EventGuardAction, FsmEvent, FsmFnInput, FsmStateAction, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::{tokens_to_string, ty_append}};
 
