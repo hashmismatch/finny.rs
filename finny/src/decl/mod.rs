@@ -13,4 +13,4 @@ pub use self::event::*;
 pub type FsmQueueMock<F> = crate::FsmEventQueueVec<F>;
 
 #[cfg(not(feature = "std"))]
-pub type FsmQueueMock<F> = crate::FsmEventQueueHeapless<F>;
+pub type FsmQueueMock<F> = crate::FsmEventQueueNull<F>;

@@ -78,3 +78,23 @@ mod queue_heapless {
 }
 
 pub use self::queue_heapless::*;
+
+pub struct FsmEventQueueNull<F> {
+    _ty: PhantomData<F>
+}
+
+impl<F> FsmEventQueueNull<F> {
+    pub fn new() -> Self {
+        FsmEventQueueNull { _ty: PhantomData::default() }
+    }
+}
+
+impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueNull<F> {
+    fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, _event: E) -> FsmResult<()> {
+        Ok(())
+    }
+
+    fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
+        None
+    }
+}
