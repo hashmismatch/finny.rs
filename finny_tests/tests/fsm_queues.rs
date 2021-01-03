@@ -48,7 +48,7 @@ fn test_queues() -> FsmResult<()> {
     fsm.start()?;
     fsm.dispatch(Event { n: 42 })?;
 
-    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateB), fsm.get_current_state());
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateB), fsm.get_current_states()[0]);
     let state_b: &StateB = fsm.get_state();
     assert_eq!(1, state_b.value);
     

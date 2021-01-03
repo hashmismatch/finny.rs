@@ -93,7 +93,7 @@ pub fn create_regions(decl: FsmDeclarations) -> syn::Result<ValidatedFsm> {
 
         regions.push(FsmRegion {
             initial_state: initial_state.clone(),
-            region_id: region_id + 1,
+            region_id,
             transitions
         });
     }

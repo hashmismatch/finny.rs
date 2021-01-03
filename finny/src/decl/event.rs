@@ -1,8 +1,7 @@
 use lib::*;
 
-use crate::{FsmBackend, FsmEventQueue, FsmEventQueueVec, fsm::EventContext};
-
-use super::{FsmStateBuilder, fsm::FsmBuilder};
+use crate::{FsmBackend, fsm::EventContext};
+use super::{FsmQueueMock, FsmStateBuilder};
 
 pub struct FsmEventBuilderState<'a, TFsm, TContext, TEvent, TState> {
     pub (crate) _state_builder: &'a FsmStateBuilder<TFsm, TContext, TState>,
@@ -42,12 +41,12 @@ impl<'a, TFsm, TContext, TEvent, TState> FsmEventBuilderTransition<'a, TFsm, TCo
     where TFsm: FsmBackend
 {
     /// An action that happens when the currently active state receives this event. No transitions.
-    pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, FsmEventQueueVec<TFsm>>, &mut TState)>(&mut self, _action: TAction) -> &mut Self {
+    pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, FsmQueueMock<TFsm>>, &mut TState)>(&mut self, _action: TAction) -> &mut Self {
         self
     }
     
     /// A guard for executing this action.
-    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmEventQueueVec<TFsm>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
+    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmQueueMock<TFsm>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
 }
@@ -62,12 +61,12 @@ impl<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> FsmEventBuilderTransition
     where TFsm: FsmBackend
 {
     /// An action that happens between the transitions from the two states.
-    pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, FsmEventQueueVec<TFsm>>, &mut TStateFrom, &mut TStateTo)>(&mut self, _action: TAction) -> &mut Self {
+    pub fn action<TAction: Fn(&TEvent, &mut EventContext<'a, TFsm, FsmQueueMock<TFsm>>, &mut TStateFrom, &mut TStateTo)>(&mut self, _action: TAction) -> &mut Self {
         self
     }
 
     /// A guard for starting this transition from one state to another, including executing the action.
-    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmEventQueueVec<TFsm>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
+    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmQueueMock<TFsm>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
 }

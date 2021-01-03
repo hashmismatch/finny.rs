@@ -8,3 +8,9 @@ mod event;
 pub use self::fsm::*;
 pub use self::state::*;
 pub use self::event::*;
+
+#[cfg(feature = "std")]
+pub type FsmQueueMock<F> = crate::FsmEventQueueVec<F>;
+
+#[cfg(not(feature = "std"))]
+pub type FsmQueueMock<F> = crate::FsmEventQueueHeapless<F>;

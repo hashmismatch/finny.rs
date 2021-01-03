@@ -68,7 +68,7 @@ fn test_fsm() -> FsmResult<()> {
     
     let mut fsm = StateMachine::new(ctx)?;
     
-    let current_state = fsm.get_current_state();
+    let current_state = fsm.get_current_states()[0];
     let state: &StateA = fsm.get_state();
     assert_eq!(0, state.enter);
     assert_eq!(FsmCurrentState::Stopped, current_state);
@@ -76,7 +76,7 @@ fn test_fsm() -> FsmResult<()> {
 
     fsm.start()?;
 
-    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_state());
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
     assert_eq!(1, fsm.get_context().count);
     let state: &StateA = fsm.get_state();
     assert_eq!(1, state.enter);

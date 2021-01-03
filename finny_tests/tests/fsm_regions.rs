@@ -50,6 +50,9 @@ fn test_regions() -> FsmResult<()> {
     let mut fsm = StateMachine::new(())?;
     
     fsm.start()?;
+    let current_states = fsm.get_current_states();
+    assert_eq!([FsmCurrentState::State(StateMachineCurrentState::StateA), FsmCurrentState::State(StateMachineCurrentState::StateX)], current_states);
+
     
     Ok(())
 }

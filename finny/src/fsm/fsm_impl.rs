@@ -9,19 +9,19 @@ use super::FsmStateFactory;
 pub struct FsmBackendImpl<F: FsmBackend> {
     pub context: <F as FsmBackend>::Context,
     pub states: <F as FsmBackend>::States,
-    pub current_state: FsmCurrentState<<<F as FsmBackend>::States as FsmStates>::StateKind>
+    pub current_states: <<F as FsmBackend>::States as FsmStates>::CurrentState
 }
 
 impl<F: FsmBackend> FsmBackendImpl<F> {
     pub fn new(context: <F as FsmBackend>::Context) -> FsmResult<Self> {
 
         let states = <<F as FsmBackend>::States>::new_state(&context)?;
-        let current_state = FsmCurrentState::Stopped;
+        let current_states = <<<F as FsmBackend>::States as FsmStates>::CurrentState>::default();
 
         let backend = FsmBackendImpl::<F> {
             context,
             states,
-            current_state
+            current_states
         };
 
         Ok(backend)
@@ -31,8 +31,8 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
         &self.context
     }
 
-    pub fn get_current_state(&self) -> FsmCurrentState<<<F as FsmBackend>::States as FsmStates>::StateKind> {
-        self.current_state
+    pub fn get_current_states(&self) -> <<F as FsmBackend>::States as FsmStates>::CurrentState {
+        self.current_states
     }
 
     pub fn get_state<S>(&self) -> &S
