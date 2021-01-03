@@ -22,6 +22,14 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 		
 	}
 
+	/// Defines multiple initial states for multiple regions of the FSM. The type has to be a tuple
+	/// of the initial states for each region.
+	///
+	/// Example : `fsm.initial_states<(StateA, StateX)>()`
+	pub fn initial_states<TStates>(&mut self) {
+
+	}
+
 	/// Adds some information about a state.
 	pub fn state<TState>(&mut self) -> FsmStateBuilder<TFsm, TContext, TState> {
 		FsmStateBuilder {

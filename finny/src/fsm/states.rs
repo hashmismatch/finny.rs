@@ -5,6 +5,7 @@ use crate::FsmResult;
 /// The implementation should hold all of the FSM's states as fields.
 pub trait FsmStates: FsmStateFactory {
     /// The enum type for all states that's used as the "current state" field in the FSM's backend.
+    /// In case the FSM has multiple regions, then this type is a tuple!
     type StateKind: Clone + Copy + Debug + PartialEq;
 }
 

@@ -8,7 +8,7 @@ use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_rec
 
 pub struct FsmFnInput {
     pub base: FsmFnBase,
-    pub decl: FsmDeclarations
+    pub fsm: ValidatedFsm
 }
 
 #[derive(Debug)]
@@ -119,16 +119,30 @@ impl FsmFnInput {
 
         Ok(FsmFnInput {
             base,
-            decl: fsm_declarations
+            fsm: fsm_declarations
         })
     }
 }
 
 #[derive(Debug)]
 pub struct FsmDeclarations {
-    pub initial_state: syn::Type,
+    pub initial_states: Vec<syn::Type>,
     pub states: HashMap<syn::Type, FsmState>,
     pub events: HashMap<syn::Type, FsmEvent>,
+    pub transitions: Vec<FsmTransition>
+}
+
+#[derive(Debug)]
+pub struct ValidatedFsm {
+    pub regions: Vec<FsmRegion>,
+    pub states: HashMap<syn::Type, FsmState>,
+    pub events: HashMap<syn::Type, FsmEvent>
+}
+
+#[derive(Debug)]
+pub struct FsmRegion {
+    pub region_id: usize,
+    pub initial_state: syn::Type,
     pub transitions: Vec<FsmTransition>
 }
 
@@ -154,7 +168,7 @@ impl FsmTransitionEvent {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FsmTransition {
     pub ty: FsmTransitionType,
     pub transition_ty: syn::Type
@@ -168,6 +182,31 @@ pub enum FsmTransitionType {
     /// From State A to State B
     StateTransition(FsmStateTransition)
 }
+
+impl FsmTransitionType {
+    pub fn get_states(&self) -> Vec<syn::Type> {
+        let mut ret = vec![];
+
+        match self {
+            FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
+                if let Ok(s) = s.state.get_fsm_state() {
+                    ret.push(s.ty.clone());
+                }
+            },
+            FsmTransitionType::StateTransition(s) => {
+                
+                let from = s.state_from.get_fsm_state();
+                let to = s.state_to.get_fsm_state();
+
+                if let Ok(from) = from { ret.push(from.ty.clone()); }
+                if let Ok(to) = to { ret.push(to.ty.clone()); }
+            }
+        }
+
+        ret
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct FsmStateAction {
     pub state: FsmTransitionState,
@@ -213,7 +252,7 @@ pub struct EventGuardAction{
 }
 
 impl FsmDeclarations {
-    pub fn parse(base: &FsmFnBase, input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<Self> {
+    pub fn parse(base: &FsmFnBase, input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<ValidatedFsm> {
         let mut parser = FsmParser::new();
         parser.parse(base, input_fn, blocks)?;
         return parser.validate(input_fn);

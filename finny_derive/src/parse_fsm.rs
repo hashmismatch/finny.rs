@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
 pub struct FsmParser {
-    initial_state: Option<syn::Type>,
+    initial_states: Vec<syn::Type>,
     states: HashMap<Type, FsmState>,
     events: HashMap<Type, FsmEvent>
 }
@@ -14,7 +14,7 @@ pub struct FsmParser {
 impl FsmParser {
     pub fn new() -> Self {
         FsmParser {
-            initial_state: None,
+            initial_states: vec![],
             states: HashMap::new(),
             events: HashMap::new()
         }
@@ -38,8 +38,22 @@ impl FsmParser {
                         },
                         [MethodOverviewRef { name: "initial_state", generics: [ty], .. }] => {
                             assert_no_generics(ty)?;
-                            if self.initial_state.is_some() { return Err(syn::Error::new(ty.span(), "Duplicate initial_state!")); }
-                            self.initial_state = Some(ty.clone());
+                            if self.initial_states.len() > 0 { return Err(syn::Error::new(ty.span(), "Duplicate initial_state!")); }
+                            self.initial_states.push(ty.clone());
+                        },
+                        [MethodOverviewRef { name: "initial_states", generics: [ty_tuple], .. }] => {
+
+                            if self.initial_states.len() > 0 { return Err(syn::Error::new(ty_tuple.span(), "Duplicate initial_state!")); }
+
+                            match ty_tuple {
+                                Type::Tuple(tuple) => {
+                                    for ty in &tuple.elems {
+                                        assert_no_generics(ty)?;
+                                        self.initial_states.push(ty.clone());
+                                    }
+                                }
+                                _ => { return Err(syn::Error::new(ty_tuple.span(), "Expected a tuple of states!")); }
+                            }
                         },
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
@@ -146,12 +160,13 @@ impl FsmParser {
         Ok(())
     }
 
-    pub fn validate(self, input_fn: &ItemFn) -> syn::Result<FsmDeclarations> {
+    pub fn validate(self, input_fn: &ItemFn) -> syn::Result<ValidatedFsm> {
         let mut transitions = vec![];
 
-        let initial_state = self.initial_state.ok_or(syn::Error::new(input_fn.span(), "Missing the initial state declaration! Use the method 'initial_state'."))?;
-        let fsm_initial_state = self.states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
-
+        if self.initial_states.len() == 0 {
+            return Err(syn::Error::new(input_fn.span(), "Missing the initial state declaration! Use the method 'initial_state' or 'initial_states'."));
+        }
+        
         // build and validate the transitions table
         {
             let mut i = 1;
@@ -165,15 +180,19 @@ impl FsmParser {
             }
 
             // start transition
-            transitions.push(FsmTransition {
-                transition_ty: generate_transition_ty(&mut i),
-                ty: FsmTransitionType::StateTransition(FsmStateTransition {
-                    action: EventGuardAction::default(),
-                    event: FsmTransitionEvent::Start,
-                    state_from: FsmTransitionState::None,
-                    state_to: FsmTransitionState::State(fsm_initial_state.clone())
-                })
-            });
+            for initial_state in &self.initial_states {
+                let fsm_initial_state = self.states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
+
+                transitions.push(FsmTransition {
+                    transition_ty: generate_transition_ty(&mut i),
+                    ty: FsmTransitionType::StateTransition(FsmStateTransition {
+                        action: EventGuardAction::default(),
+                        event: FsmTransitionEvent::Start,
+                        state_from: FsmTransitionState::None,
+                        state_to: FsmTransitionState::State(fsm_initial_state.clone())
+                    })
+                });
+            }
 
             for (ty, ev) in self.events.iter() {
                 for t in &ev.transitions {
@@ -223,15 +242,15 @@ impl FsmParser {
         }
                 
         let dec = FsmDeclarations {
-            initial_state,
+            initial_states: self.initial_states,
             states: self.states,
             events: self.events,
             transitions
         };
 
-        create_regions(&dec)?;
+        let regions = create_regions(dec)?;
 
-        Ok(dec)
+        Ok(regions)
     }
 }
 
