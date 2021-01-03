@@ -1,5 +1,4 @@
-use lib::*;
-
+use crate::lib::*;
 use crate::{FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;

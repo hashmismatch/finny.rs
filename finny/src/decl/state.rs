@@ -1,4 +1,4 @@
-use lib::*;
+use crate::lib::*;
 
 use crate::{EventContext, FsmBackend};
 use super::{FsmQueueMock, event::FsmEventBuilderState};

@@ -1,8 +1,7 @@
-use lib::*;
+use crate::lib::*;
 
 use crate::FsmBackend;
-
-use super::{FsmStateBuilder};
+use super::FsmStateBuilder;
 
 /// The main builder-API for defining your Finny state machine.
 #[derive(Default)]

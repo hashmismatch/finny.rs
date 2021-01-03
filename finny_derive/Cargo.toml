@@ -3,6 +3,9 @@ name = "finny_derive"
 version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 edition = "2018"
+repository = "https://github.com/hashmismatch/finny.rs"
+description = "Procedural macros crate for the main finite state machine crate, finny."
+license = "MIT OR Apache-2.0"
 
 [lib]
 proc-macro = true

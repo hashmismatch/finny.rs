@@ -3,7 +3,7 @@ name = "finny_nostd_tests"
 version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 edition = "2018"
-
+publish = false
 
 [dependencies]
 libc = { version = "0.2", default-features = false }

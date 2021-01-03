@@ -15,7 +15,7 @@ pub use self::queue::*;
 pub use self::states::*;
 pub use self::transitions::*;
 
-use lib::*;
+use crate::lib::*;
 
 pub type FsmResult<T> = Result<T, FsmError>;
 

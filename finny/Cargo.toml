@@ -2,6 +2,10 @@
 name = "finny"
 version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/hashmismatch/finny.rs"
+description = "Finite State Machines with a procedural builder-style API and compile time transition checks."
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 derive_more = "0.99.11"
