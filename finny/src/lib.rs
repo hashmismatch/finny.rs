@@ -10,6 +10,7 @@
 //! * No run-time allocations required, `no_std` support
 //! * Support for generics within the shared context
 //! * Transition guards and actions
+//! * FSM regions, also known as orthogonal states
 //!
 //! ## Example
 //!

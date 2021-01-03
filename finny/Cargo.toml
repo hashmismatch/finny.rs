@@ -6,6 +6,7 @@ edition = "2018"
 repository = "https://github.com/hashmismatch/finny.rs"
 description = "Finite State Machines with a procedural builder-style API and compile time transition checks."
 license = "MIT OR Apache-2.0"
+keywords = ["fsm", "state"]
 
 [dependencies]
 derive_more = "0.99.11"

@@ -6,6 +6,7 @@ edition = "2018"
 repository = "https://github.com/hashmismatch/finny.rs"
 description = "Procedural macros crate for the main finite state machine crate, finny."
 license = "MIT OR Apache-2.0"
+keywords = ["fsm", "state"]
 
 [lib]
 proc-macro = true
