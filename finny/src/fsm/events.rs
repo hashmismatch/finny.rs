@@ -1,6 +1,6 @@
 use lib::*;
 
-use crate::{FsmBackend, FsmEventQueue, FsmEventQueueHeapless, FsmEventQueueVec};
+use crate::{FsmBackend, FsmEventQueue};
 
 /// The internal event type that also allows stopping or starting the machine.
 pub enum FsmEvent<E> {
