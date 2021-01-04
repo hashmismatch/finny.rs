@@ -53,6 +53,7 @@ mod queue_heapless {
     use super::*;
 
     /// A heapless queue with a fixed size. Implemented using the `heapless` crate.
+    /// Todo: this can be reworked into a circular buffer that doesn't need any clones! It will relax the entire lib.
     pub struct FsmEventQueueHeapless<F: FsmBackend, N>
         where N: heapless::ArrayLength<<F as FsmBackend>::Events>
     {
