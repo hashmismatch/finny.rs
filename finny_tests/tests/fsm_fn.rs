@@ -19,8 +19,9 @@ pub struct StateB {
 }
 #[derive(Default)]
 pub struct StateC;
-
+#[derive(Clone)]
 pub struct EventClick { time: usize }
+#[derive(Clone)]
 pub struct EventEnter { shift: bool }
 
 #[finny_fsm]

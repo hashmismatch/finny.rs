@@ -11,6 +11,7 @@ pub struct StateB {
     value: usize
 }
 
+#[derive(Clone)]
 pub struct Event { n: usize }
 
 #[finny_fsm]

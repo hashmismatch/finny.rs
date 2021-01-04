@@ -18,7 +18,7 @@ pub struct StateX {
 pub struct StateY {
     value: usize
 }
-
+#[derive(Clone)]
 pub struct Event { n: usize }
 
 #[finny_fsm]

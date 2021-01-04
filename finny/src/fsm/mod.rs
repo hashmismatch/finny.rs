@@ -7,6 +7,7 @@ mod fsm_factory;
 mod queue;
 mod states;
 mod transitions;
+mod tests_fsm;
 
 pub use self::events::*;
 pub use self::fsm_factory::*;
@@ -22,7 +23,8 @@ pub type FsmResult<T> = Result<T, FsmError>;
 /// The lib-level error type.
 #[derive(Debug, PartialEq)]
 pub enum FsmError {
-    NoTransition
+    NoTransition,
+    QueueOverCapacity
 }
 
 
@@ -34,7 +36,7 @@ pub trait FsmBackend where Self: Sized {
     /// The type that holds the states of the machine.
     type States: FsmStates;
     /// A tagged union type with all the supported events.
-    type Events;
+    type Events: Clone;
 
     fn dispatch_event<Q>(backend: &mut FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> FsmResult<()>
         where Q: FsmEventQueue<Self>;

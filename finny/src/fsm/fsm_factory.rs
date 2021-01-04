@@ -1,4 +1,3 @@
-use crate::lib::*;
 use crate::{FsmBackend, FsmBackendImpl, FsmEventQueue, FsmFrontend, FsmResult};
 
 #[cfg(feature="std")]

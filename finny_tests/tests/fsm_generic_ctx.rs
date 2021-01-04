@@ -12,7 +12,7 @@ pub struct StateA;
 
 #[derive(Debug, Default)]
 pub struct StateB;
-
+#[derive(Clone)]
 pub struct Event;
 
 #[finny_fsm]

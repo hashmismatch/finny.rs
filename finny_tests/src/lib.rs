@@ -22,7 +22,9 @@ pub struct StateB {
     counter: usize
 }
 
+#[derive(Clone)]
 pub struct EventClick { time: usize }
+#[derive(Clone)]
 pub struct EventEnter;
 
 #[finny_fsm]
