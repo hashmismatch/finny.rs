@@ -1,5 +1,6 @@
-use crate::{EventContext, FsmBackend, FsmEventQueue};
+//! All of these traits will be implemented by the procedural code generator.
 
+use crate::{EventContext, FsmBackend, FsmEventQueue, FsmFrontend};
 
 /// A state's entry and exit actions.
 pub trait FsmState<F: FsmBackend> {

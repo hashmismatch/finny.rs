@@ -51,12 +51,14 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
-pub struct FsmFrontend<Queue, F> where F: FsmBackend, Queue: FsmEventQueue<F> {
-    pub (crate) queue: Queue,
+pub struct FsmFrontend<F, Q> where F: FsmBackend, Q: FsmEventQueue<F> {
+    pub (crate) queue: Q,
     pub (crate) backend: FsmBackendImpl<F>
 }
 
-impl<Queue: FsmEventQueue<F>, F: FsmBackend> FsmFrontend<Queue, F> {
+impl<F, Q> FsmFrontend<F, Q>
+    where F: FsmBackend, Q: FsmEventQueue<F>
+{
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
         Self::dispatch_single_event(self, &FsmEvent::Start)
@@ -84,7 +86,7 @@ impl<Queue: FsmEventQueue<F>, F: FsmBackend> FsmFrontend<Queue, F> {
     }
 }
 
-impl<Queue, F> Deref for FsmFrontend<Queue, F> where F: FsmBackend, Queue: FsmEventQueue<F> {
+impl<F, Q> Deref for FsmFrontend<F, Q> where F: FsmBackend, Q: FsmEventQueue<F> {
     type Target = FsmBackendImpl<F>;
 
     fn deref(&self) -> &Self::Target {

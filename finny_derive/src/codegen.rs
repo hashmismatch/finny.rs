@@ -39,6 +39,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         &self. #name
                     }
                 }
+
+                impl core::convert::AsMut<#ty> for #states_store_ty {
+                    fn as_mut(&mut self) -> &mut #ty {
+                        &mut self. #name
+                    }
+                }
             });
         }
 
