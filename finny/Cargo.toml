@@ -1,13 +1,14 @@
 [package]
 name = "finny"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 edition = "2018"
 repository = "https://github.com/hashmismatch/finny.rs"
 description = "Finite State Machines with a procedural builder-style API and compile time transition checks."
 license = "MIT OR Apache-2.0"
-keywords = ["fsm", "state"]
-categories = ["Data structures", "Algorithms"]
+keywords = ["fsm", "state", "state-machine"]
+categories = ["data-structures", "algorithms", "rust-patterns", "no-std"]
+readme = "../README.md"
 
 [dependencies]
 derive_more = "0.99.11"
