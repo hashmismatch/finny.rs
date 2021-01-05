@@ -12,7 +12,7 @@ categories = ["Data structures", "Algorithms"]
 [dependencies]
 derive_more = "0.99.11"
 finny_derive = { path = "../finny_derive", version = "0.1.0" }
-heapless = "0.5.6"
+arraydeque = "0.4"
 
 [features]
 default = ["std"]

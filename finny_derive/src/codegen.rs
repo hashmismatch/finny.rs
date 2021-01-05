@@ -84,7 +84,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
         
         let evs = quote! {
-            #[derive(finny::bundled::derive_more::From, Clone)]
+            #[derive(finny::bundled::derive_more::From)]
             pub enum #event_enum_ty {
                 #variants
             }

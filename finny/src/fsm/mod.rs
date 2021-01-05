@@ -36,7 +36,7 @@ pub trait FsmBackend where Self: Sized {
     /// The type that holds the states of the machine.
     type States: FsmStates;
     /// A tagged union type with all the supported events.
-    type Events: Clone;
+    type Events;
 
     fn dispatch_event<Q>(backend: &mut FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> FsmResult<()>
         where Q: FsmEventQueue<Self>;

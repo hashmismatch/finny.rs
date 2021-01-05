@@ -1,6 +1,6 @@
 use crate::lib::*;
 use crate::{FsmBackend, FsmResult};
-
+use super::tests_fsm::TestFsm;
 
 /// The event queueing trait for FSMs. Can be used from outside or from within the actions of the FSM.
 pub trait FsmEventQueue<F: FsmBackend> {
@@ -49,63 +49,51 @@ mod queue_vec {
 #[cfg(feature = "std")]
 pub use self::queue_vec::*;
 
-mod queue_heapless {
+mod queue_array {
+    use arraydeque::{Array, ArrayDeque};
+
     use super::*;
 
-    /// A heapless queue with a fixed size. Implemented using the `heapless` crate.
-    /// Todo: this can be reworked into a circular buffer that doesn't need any clones! It will relax the entire lib.
-    pub struct FsmEventQueueHeapless<F: FsmBackend, N>
-        where N: heapless::ArrayLength<<F as FsmBackend>::Events>
+    /// A heapless queue with a fixed size. Implemented using the `arraydequeue` crate.
+    pub struct FsmEventQueueArray<F, A>
+        where F: FsmBackend, A: Array<Item = <F as FsmBackend>::Events>, Self: Sized
     {
-        vec: heapless::Vec<<F as FsmBackend>::Events, N>
+        dequeue: ArrayDeque<A>,
+        _fsm: PhantomData<F>
     }
 
-    impl<F, N> FsmEventQueueHeapless<F, N>
-        where F: FsmBackend, N: heapless::ArrayLength<<F as FsmBackend>::Events>
+    impl<F, A> FsmEventQueueArray<F, A>
+        where F: FsmBackend, A: Array<Item = <F as FsmBackend>::Events>
     {
         pub fn new() -> Self {
-            FsmEventQueueHeapless {
-                vec: heapless::Vec::new()
+            Self {
+                dequeue: ArrayDeque::new(),
+                _fsm: PhantomData::default()
             }
         }
     }
 
-    impl<F, N> FsmEventQueue<F> for FsmEventQueueHeapless<F, N> 
-        where F: FsmBackend, N: heapless::ArrayLength<<F as FsmBackend>::Events>
+    impl<F, A> FsmEventQueue<F> for FsmEventQueueArray<F, A> 
+        where F: FsmBackend, A: Array<Item = <F as FsmBackend>::Events>
     {
         fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
-            match self.vec.push(event.into()) {
+            match self.dequeue.push_back(event.into()) {
                 Ok(_) => Ok(()),
                 Err(_) => Err(crate::FsmError::QueueOverCapacity)
             }
         }
 
         fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
-            
-            if let Some(el) = self.vec.first() {
-                let el = el.clone();
-
-                for i in 0..(self.vec.len()-1) {
-                    self.vec[i] = self.vec[i+1].clone();
-                }
-                self.vec.pop();
-
-                return Some(el.clone());
-            }
-
-            None
+            self.dequeue.pop_front()
         }
 
         fn len(&self) -> usize {
-            self.vec.len()
+            self.dequeue.len()
         }
     }
 }
 
-pub use self::queue_heapless::*;
-
-use super::tests_fsm::TestFsm;
-
+pub use self::queue_array::*;
 
 pub struct FsmEventQueueNull<F> {
     _ty: PhantomData<F>
@@ -138,8 +126,8 @@ fn test_dequeue_vec() {
 }
 
 #[test]
-fn test_heapless() {
-    let queue = FsmEventQueueHeapless::<TestFsm, heapless::consts::U16>::new();
+fn test_array() {
+    let queue = FsmEventQueueArray::<TestFsm, [_; 16]>::new();
     test_queue(queue);
 }
 
@@ -149,12 +137,16 @@ fn test_queue<Q: FsmEventQueue<TestFsm>>(mut queue: Q) {
     // fill and drain
     {
         for i in 0..5 {
-            queue.enqueue(EventA { n: i }).unwrap();
+            assert_eq!(i, queue.len());
+            queue.enqueue(EventA { n: i }).unwrap();            
+            assert_eq!(i+1, queue.len());
         }
 
         for i in 0..5 {
+            assert_eq!(5-i, queue.len());
             let ev = queue.dequeue().unwrap();
-            assert_eq!(Events::EventA(EventA { n: i }), ev);
+            assert_eq!(Events::EventA(EventA { n: i }), ev);            
+            assert_eq!(5-i-1, queue.len());
         }
     }
     assert_eq!(None, queue.dequeue());
@@ -174,6 +166,8 @@ fn test_queue<Q: FsmEventQueue<TestFsm>>(mut queue: Q) {
                 assert_eq!(Events::EventA(EventA { n: x }), ev);
                 x += 1;
             }
+
+            assert_eq!(queue.len(), x);
         }
     }
 }
