@@ -12,8 +12,8 @@ categories = ["Data structures", "Algorithms"]
 [dependencies]
 derive_more = "0.99.11"
 finny_derive = { path = "../finny_derive", version = "0.1.0" }
-arraydeque = "0.4"
+arraydeque = { version = "0.4", default-features = false }
 
 [features]
 default = ["std"]
-std = []
+std = ["arraydeque/std"]
