@@ -1,0 +1,19 @@
+[package]
+name = "finny"
+version = "0.1.0"
+authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+edition = "2018"
+repository = "https://github.com/hashmismatch/finny.rs"
+description = "Finite State Machines with a procedural builder-style API and compile time transition checks."
+license = "MIT OR Apache-2.0"
+keywords = ["fsm", "state"]
+categories = ["Data structures", "Algorithms"]
+
+[dependencies]
+derive_more = "0.99.11"
+finny_derive = { path = "../finny_derive", version = "0.1.0" }
+arraydeque = { version = "0.4", default-features = false }
+
+[features]
+default = ["std"]
+std = ["arraydeque/std"]

@@ -1,0 +1,17 @@
+[package]
+name = "finny_nostd_tests"
+version = "0.1.0"
+authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+edition = "2018"
+publish = false
+
+[dependencies]
+libc = { version = "0.2", default-features = false }
+finny = { path = "../finny/", default-features = false }
+heapless = "0.5.6"
+
+[profile.dev]
+panic = "abort" # disable stack unwinding on panic
+
+[profile.release]
+panic = "abort"

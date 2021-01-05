@@ -1,9 +1,0 @@
-language: rust
-rust: 
-  - beta
-  - nightly
-script:
-  - cargo build --verbose
-  - cargo test --verbose
-  - cd fsm_tests
-  - cargo test --verbose
