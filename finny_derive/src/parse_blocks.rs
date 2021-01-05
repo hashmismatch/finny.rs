@@ -5,8 +5,7 @@ use crate::parse::FsmFnBase;
 
 #[derive(Debug)]
 pub enum FsmBlock {
-    MethodCall(FsmBlockMethodCall),
-    Struct()
+    MethodCall(FsmBlockMethodCall)
 }
 #[derive(Debug)]
 pub struct FsmBlockStruct {

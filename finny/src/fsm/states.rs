@@ -36,3 +36,11 @@ impl<TState> FsmStateFactory for TState where TState: Default {
         Ok(Default::default())
     }
 }
+
+pub trait FsmStateTransitionAsRef<T1, T2> {
+    fn as_state_transition_ref(&self) -> (&T1, &T2);
+}
+
+pub trait FsmStateTransitionAsMut<T1, T2> {
+    fn as_state_transition_mut(&mut self) -> (&mut T1, &mut T2);
+}

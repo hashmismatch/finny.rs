@@ -1,9 +1,8 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use syn::spanned::Spanned;
 use crate::utils::remap_closure_inputs;
 
-use crate::{parse::{EventGuardAction, FsmEvent, FsmFnInput, FsmStateAction, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::{tokens_to_string, ty_append}};
+use crate::{parse::{EventGuardAction, FsmFnInput, FsmStateAction, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::{ty_append}};
 
 
 
@@ -48,6 +47,38 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             });
         }
 
+        let mut transition_states = TokenStream::new();
+
+        for region in &fsm.fsm.regions {
+            for transition in &region.transitions {
+                match transition.ty {
+                    FsmTransitionType::StateTransition(ref s) => {
+                        match (s.state_from.get_fsm_state(), s.state_to.get_fsm_state()) {
+                            (Ok(state_from), Ok(state_to)) => {
+
+                                let state_from_ty = &state_from.ty;
+                                let state_to_ty = &state_to.ty;
+
+                                let state_from_field = &state_from.state_storage_field;
+                                let state_to_field = &state_to.state_storage_field;
+
+                                transition_states.append_all(quote! {
+                                    impl finny::FsmStateTransitionAsMut<#state_from_ty, #state_to_ty> for #states_store_ty {
+                                        fn as_state_transition_mut(&mut self) -> (&mut #state_from_ty, &mut #state_to_ty) {
+                                            (&mut self. #state_from_field, &mut self. #state_to_field)
+                                        }
+                                    }
+                                });
+
+                            },
+                            _ => ()
+                        }
+                    },
+                    _ => ()
+                }
+            }
+        }
+
         quote! {
             pub struct #states_store_ty {
                 #code_fields
@@ -73,13 +104,15 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             }
 
             #state_accessors
+
+            #transition_states
         }
     };
 
     let events_enum = {
 
         let mut variants = TokenStream::new();
-        for (ty, ev) in  fsm.fsm.events.iter() {
+        for (ty, _ev) in  fsm.fsm.events.iter() {
             variants.append_all(quote! { #ty ( #ty ),  });
         }
         
@@ -272,11 +305,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     match state {
                         Some(FsmTransitionState::State(st)) => {
-                            let field = &st.state_storage_field;
                             let ty = &st.ty;
                             quote! {
-                                let state_from = &mut backend.states. #field ;
-                                <#ty>::on_exit(state_from, &mut context);
+                                <#ty>::execute_on_exit(frontend);
                             }
                         },
                         _ => TokenStream::new()
@@ -292,11 +323,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     match state {
                         Some(FsmTransitionState::State(st)) => {
-                            let field = &st.state_storage_field;
                             let ty = &st.ty;
                             quote! {
-                                let state_to = &mut backend.states. #field ;
-                                <#ty>::on_entry(state_to, &mut context);
+                                <#ty>::execute_on_entry(frontend);
                             }
                         },
                         _ => TokenStream::new()
@@ -310,13 +339,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                             match s.state_to {
                                 FsmTransitionState::None => {
                                     quote! {
-                                        backend.current_states[#region_id] = finny::FsmCurrentState::None;
+                                        frontend.backend.current_states[#region_id] = finny::FsmCurrentState::None;
                                     }
                                 }
                                 FsmTransitionState::State(ref st) => {
                                     let kind = &st.ty;
                                     quote! {
-                                        backend.current_states[#region_id] = finny::FsmCurrentState::State(#states_enum_ty :: #kind);
+                                        frontend.backend.current_states[#region_id] = finny::FsmCurrentState::State(#states_enum_ty :: #kind);
                                     }
                                 }
                             }
@@ -336,7 +365,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     if has_guard {
                         quote! {
-                            if <#transition_ty>::guard(ev, &context)
+                            if <#transition_ty>::execute_guard(frontend, ev)
                         }
                     } else {
                         TokenStream::new()
@@ -345,27 +374,15 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                 let event_action = {
                     match &transition.ty {
-                        FsmTransitionType::InternalTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, state, .. }) |
-                        FsmTransitionType::SelfTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, state, .. }) => {
-                            let state = state.get_fsm_state()?;
-                            let state_field = &state.state_storage_field;
-
+                        FsmTransitionType::InternalTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, .. }) |
+                        FsmTransitionType::SelfTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, .. }) => {
                             quote! {
-                                <#transition_ty>::action(ev, &mut context, &mut backend.states. #state_field );
+                                <#transition_ty>::execute_action(frontend, ev);
                             }
                         },
-                        FsmTransitionType::StateTransition(FsmStateTransition { action: EventGuardAction { action: Some(_), .. }, state_from, state_to, .. }) => {
-                            let state_from = state_from.get_fsm_state()?;
-                            let state_to = state_to.get_fsm_state()?;
-
-                            let state_from_field = &state_from.state_storage_field;
-                            let state_to_field = &state_to.state_storage_field;
-
+                        FsmTransitionType::StateTransition(FsmStateTransition { action: EventGuardAction { action: Some(_), .. }, .. }) => {
                             quote! {
-                                <#transition_ty>::action(ev, &mut context,
-                                    &mut backend.states. #state_from_field,
-                                    &mut backend.states. #state_to_field
-                                );
+                                <#transition_ty>::execute_action_transition(frontend, ev);
                             }
                         },
                         _ => TokenStream::new()
@@ -388,7 +405,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             }            
 
             regions.append_all(quote! {
-                match (&backend.current_states[#region_id], event) {
+                match (frontend.backend.current_states[#region_id], event) {
                     
                     #region_transitions
 
@@ -408,15 +425,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type States = #states_store_ty;
                 type Events = #event_enum_ty;
 
-                fn dispatch_event<Q>(backend: &mut finny::FsmBackendImpl<Self>, event: &finny::FsmEvent<Self::Events>, queue: &mut Q) -> finny::FsmResult<()>
+                fn dispatch_event<Q>(frontend: &mut finny::FsmFrontend<Self, Q>, event: &finny::FsmEvent<Self::Events>) -> finny::FsmResult<()>
                     where Q: finny::FsmEventQueue<Self>
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState};
-
-                    let mut context = finny::EventContext::<#fsm_ty #fsm_generics_type, Q> {
-                        context: &mut backend.context,
-                        queue
-                    };
 
                     let mut transition_misses = 0;
                     

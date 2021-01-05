@@ -52,8 +52,8 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
 pub struct FsmFrontend<F, Q> where F: FsmBackend, Q: FsmEventQueue<F> {
-    pub (crate) queue: Q,
-    pub (crate) backend: FsmBackendImpl<F>
+    pub queue: Q,
+    pub backend: FsmBackendImpl<F>
 }
 
 impl<F, Q> FsmFrontend<F, Q>
@@ -82,7 +82,7 @@ impl<F, Q> FsmFrontend<F, Q>
 
     /// Dispatch only this event, do not run it to completition.
     pub fn dispatch_single_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
-        F::dispatch_event(&mut self.backend, event, &mut self.queue)
+        F::dispatch_event(self, event)
     }
 }
 

@@ -20,7 +20,7 @@ impl FsmParser {
         }
     }
 
-    pub fn parse(&mut self, base: &FsmFnBase, input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<()> {
+    pub fn parse(&mut self, _base: &FsmFnBase, _input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<()> {
         for block in blocks {
             match block {
                 FsmBlock::MethodCall(mc) => {
