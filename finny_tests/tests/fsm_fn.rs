@@ -1,6 +1,6 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{FsmCurrentState, FsmError, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
 
 #[derive(Debug)]
 pub struct StateMachineContext {
@@ -39,23 +39,23 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventClick>()
         .transition_to::<StateB>()
-        .guard(|ev, ctx| {
+        .guard(|ev, _| {
             ev.time > 100
         })
-        .action(|ev, ctx, state_from, state_to| {
+        .action(|ev, ctx, _state_from, _state_to| {
             ctx.context.total_time += ev.time;
         });
 
     fsm.state::<StateB>()
-        .on_entry(|state_b, ctx| {
+        .on_entry(|state_b, _| {
             state_b.counter += 1;
         })
         .on_event::<EventEnter>()
         .internal_transition()
-        .guard(|ev, ctx| {
+        .guard(|ev, _| {
             ev.shift == false
         })
-        .action(|ev, ctx, state_b| {
+        .action(|_, _, state_b| {
             state_b.counter += 1;
         });
 

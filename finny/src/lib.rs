@@ -11,6 +11,7 @@
 //! * Support for generics within the shared context
 //! * Transition guards and actions
 //! * FSM regions, also known as orthogonal states
+//! * Event queueing and run-to-completition execution
 //!
 //! ## Example
 //!

@@ -21,16 +21,15 @@ fn build_fsm<TT>(mut fsm: FsmBuilder<StateMachine<TT>, Ctx<TT>>) -> BuiltFsm
 {
     fsm.initial_state::<StateA>();
     fsm.state::<StateA>()
-        .on_entry(|_state, ctx| {
+        .on_entry(|_, ctx| {
             ctx.context.val += 1;
-            println!("Val: {:?}", ctx.context.val);
         })
         .on_event::<Event>()
         .transition_to::<StateB>()
         .guard(|_ev, ctx| {
             ctx.context.val > 100
         })
-        .action(|_ev, ctx, _state_from, _state_to| {
+        .action(|_ev, ctx, _, _| {
             ctx.context.val += 100;
         });
 

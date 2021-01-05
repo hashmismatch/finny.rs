@@ -22,8 +22,8 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, ()>) -> BuiltFsm {
     fsm.state::<StateA>()
         .on_event::<Event>()
         .internal_transition()
-        .guard(|ev, ctx| { ev.n < 100 })
-        .action(|ev, ctx, state| {
+        .guard(|ev, _| { ev.n < 100 })
+        .action(|ev, ctx, _| {
             ctx.queue.enqueue(Event { n: ev.n + 100 });
         });
 
@@ -31,10 +31,10 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, ()>) -> BuiltFsm {
     fsm.state::<StateA>()
        .on_event::<Event>()
        .transition_to::<StateB>()
-       .guard(|ev, ctx| { ev.n >= 100 });
+       .guard(|ev, _| { ev.n >= 100 });
         
     fsm.state::<StateB>()
-        .on_entry(|state, ctx| {
+        .on_entry(|state, _| {
             state.value += 1;
         });
 

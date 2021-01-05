@@ -17,7 +17,8 @@ pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::Pat, syn::
                     let #ident = #rep;
                 };
                 Ok(q)
-            }
+            },
+            syn::Pat::Wild(_) => Ok(TokenStream::new()),
             _ => { Err(syn::Error::new(input.span(), "Unsupported closure input.")) }
         }
     }).collect();

@@ -1,6 +1,5 @@
 use crate::lib::*;
 use crate::{FsmBackend, FsmResult};
-use super::tests_fsm::TestFsm;
 
 /// The event queueing trait for FSMs. Can be used from outside or from within the actions of the FSM.
 pub trait FsmEventQueue<F: FsmBackend> {
@@ -119,8 +118,12 @@ impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueNull<F> {
     }
 }
 
+#[cfg(test)]
+use super::tests_fsm::TestFsm;
+
 #[test]
 fn test_dequeue_vec() {
+    
     let queue = FsmEventQueueVec::<TestFsm>::new();
     test_queue(queue);
 }
@@ -131,6 +134,7 @@ fn test_array() {
     test_queue(queue);
 }
 
+#[cfg(test)]
 fn test_queue<Q: FsmEventQueue<TestFsm>>(mut queue: Q) {
     use super::tests_fsm::{Events, EventA};
 

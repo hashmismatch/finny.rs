@@ -1,8 +1,6 @@
 //! An example Finny use case that showcases the generated documentation.
 
-use std::marker::PhantomData;
-
-use finny::{FsmBackend, FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmResult, FsmStates, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{decl::{BuiltFsm, FsmBuilder}, finny_fsm};
 
 extern crate finny;
 
@@ -42,15 +40,15 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventClick>()
         .transition_to::<StateB>()
-        .guard(|ev, ctx| {
+        .guard(|ev, _ctx| {
             ev.time > 100
         })
-        .action(|ev, ctx, state_from, state_to| {
+        .action(|ev, ctx, _state_from, _state_to| {
             ctx.context.total_time += ev.time;
         });
 
     fsm.state::<StateB>()
-        .on_entry(|state_b, ctx| {
+        .on_entry(|state_b, _ctx| {
             state_b.counter += 1;
         });
         
