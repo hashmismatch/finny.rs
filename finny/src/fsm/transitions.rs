@@ -97,23 +97,26 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
     fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId)
         where 
             I: Inspect<F>,
-            <F as FsmBackend>::States: FsmStateTransitionAsMut<TStateFrom, TStateTo>
-    {
+            <F as FsmBackend>::States: FsmStateTransitionAsMut<TStateFrom, TStateTo>,
+            <F as FsmBackend>::States: AsMut<TStateFrom>,
+            <F as FsmBackend>::States: AsMut<TStateTo>,
+            TStateFrom: FsmState<F>,
+            TStateTo: FsmState<F>
+    {       
+        <TStateFrom>::execute_on_exit(frontend, region);
+        
         let mut event_context = EventContext {
             context: &mut frontend.backend.context,
             queue: &mut frontend.queue,
             region
         };
-
         let states: (&mut TStateFrom, &mut TStateTo) = frontend.backend.states.as_state_transition_mut();
-
-        // todo: state exit
-            
         Self::action(event, &mut event_context, states.0, states.1);
 
-        // todo: state enter
+        <TStateTo>::execute_on_entry(frontend, region);
 
-        // todo: change current state
+        let cs = frontend.backend.current_states.as_mut();
+        cs[region] = FsmCurrentState::State(<TStateTo>::fsm_state());
     }
 }
 
@@ -140,9 +143,20 @@ pub trait FsmAction<F: FsmBackend, E, State> {
 
     //fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &FsmEvent<<F as FsmBackend>::Events>, region: FsmRegionId)
     fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId)
-        where I: Inspect<F> {
-            todo!("act")
+        where I: Inspect<F>,
+            State: FsmState<F>,
+            <F as FsmBackend>::States: AsMut<State>
+    {
+        if Self::should_trigger_state_actions() {
+            <State>::execute_on_exit(frontend, region);
         }
+
+        Self::execute_action(frontend, event, region);
+
+        if Self::should_trigger_state_actions() {
+            <State>::execute_on_entry(frontend, region);
+        }
+    }
 }
 
 /*
