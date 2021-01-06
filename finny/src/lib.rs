@@ -66,11 +66,16 @@
 pub mod decl;
 mod fsm;
 
+
+#[cfg(feature="inspect_slog")]
+pub mod inspect_slog;
+
 pub use fsm::*;
 
 extern crate finny_derive;
 extern crate derive_more;
 
+/// The procedural macro that will transform the builder function into the FSM.
 pub use finny_derive::finny_fsm;
 
 /// External bundled libraries to be used by the procedural macros.
@@ -90,9 +95,12 @@ mod lib {
    }
 
    pub use self::core::marker::{self, PhantomData};
-   pub use self::core::ops::{Deref, DerefMut};
+   pub use self::core::ops::{Deref, DerefMut, Index, IndexMut};
    pub use self::core::fmt::Debug;
    pub use self::core::result::Result;
+   pub use self::core::fmt;
+   pub use self::core::any::type_name;
+   pub use self::core::slice::SliceIndex;
 
    #[cfg(feature="std")]
    pub use std::collections::VecDeque;

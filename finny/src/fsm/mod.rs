@@ -8,6 +8,7 @@ mod queue;
 mod states;
 mod transitions;
 mod tests_fsm;
+mod inspect;
 
 pub use self::events::*;
 pub use self::fsm_factory::*;
@@ -15,6 +16,7 @@ pub use self::fsm_impl::*;
 pub use self::queue::*;
 pub use self::states::*;
 pub use self::transitions::*;
+pub use self::inspect::*;
 
 use crate::lib::*;
 
@@ -38,11 +40,6 @@ pub trait FsmBackend where Self: Sized {
     /// A tagged union type with all the supported events.
     type Events;
 
-    /*
-    fn dispatch_event<Q>(backend: &mut FsmBackendImpl<Self>, event: &FsmEvent<Self::Events>, queue: &mut Q) -> FsmResult<()>
-        where Q: FsmEventQueue<Self>;
-        */
-
-    fn dispatch_event<Q>(frontend: &mut FsmFrontend<Self, Q>, event: &FsmEvent<Self::Events>) -> FsmResult<()>
-        where Q: queue::FsmEventQueue<Self>;
+    fn dispatch_event<Q, I>(frontend: &mut FsmFrontend<Self, Q, I>, event: &FsmEvent<Self::Events>) -> FsmResult<()>
+        where Q: queue::FsmEventQueue<Self>, I: Inspect<Self>;
 }

@@ -5,10 +5,24 @@ use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
 use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
+#[derive(Copy, Clone, Debug)]
+pub struct FsmCodegenOptions {
+    pub event_debug: bool
+}
+
+impl FsmCodegenOptions {
+    pub fn new() -> Self {
+        Self {
+            event_debug: false
+        }
+    }
+}
+
 pub struct FsmParser {
     initial_states: Vec<syn::Type>,
     states: HashMap<Type, FsmState>,
-    events: HashMap<Type, FsmEvent>
+    events: HashMap<Type, FsmEvent>,
+    options: FsmCodegenOptions
 }
 
 impl FsmParser {
@@ -16,7 +30,8 @@ impl FsmParser {
         FsmParser {
             initial_states: vec![],
             states: HashMap::new(),
-            events: HashMap::new()
+            events: HashMap::new(),
+            options: FsmCodegenOptions::new()
         }
     }
 
@@ -35,6 +50,9 @@ impl FsmParser {
                     match methods.as_slice() {
                         [MethodOverviewRef { name: "build", .. } ] => {
                             
+                        },
+                        [MethodOverviewRef { name: "events_debug", generics: [], .. }] => {
+                            self.options.event_debug = true;
                         },
                         [MethodOverviewRef { name: "initial_state", generics: [ty], .. }] => {
                             assert_no_generics(ty)?;
@@ -160,7 +178,7 @@ impl FsmParser {
         Ok(())
     }
 
-    pub fn validate(self, input_fn: &ItemFn) -> syn::Result<ValidatedFsm> {
+    pub fn validate(mut self, input_fn: &ItemFn) -> syn::Result<ValidatedFsm> {
         let mut transitions = vec![];
 
         if self.initial_states.len() == 0 {
@@ -248,7 +266,7 @@ impl FsmParser {
             transitions
         };
 
-        let regions = create_regions(dec)?;
+        let regions = create_regions(dec, self.options)?;
 
         Ok(regions)
     }

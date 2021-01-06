@@ -15,10 +15,23 @@ impl<E> From<E> for FsmEvent<E> {
     }
 }
 
+impl<E> Debug for FsmEvent<E> where E: Debug {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FsmEvent::Start => f.write_str("Fsm::Start"),
+            FsmEvent::Stop => f.write_str("Fsm::Stop"),
+            FsmEvent::Event(ev) => ev.fmt(f)
+        }
+    }
+}
+
+pub type FsmRegionId = usize;
+
 /// The context that is given to all of the guards and actions.
 pub struct EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm> {
     pub context: &'a mut TFsm::Context,
-    pub queue: &'a mut Q
+    pub queue: &'a mut Q,
+    pub region: FsmRegionId
 }
 
 impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm>

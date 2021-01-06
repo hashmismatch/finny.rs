@@ -1,4 +1,4 @@
-use crate::lib::*;
+use crate::{Inspect, lib::*};
 use crate::{FsmBackend, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
@@ -51,13 +51,16 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
-pub struct FsmFrontend<F, Q> where F: FsmBackend, Q: FsmEventQueue<F> {
+pub struct FsmFrontend<F, Q, I> 
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+{
+    pub backend: FsmBackendImpl<F>,
     pub queue: Q,
-    pub backend: FsmBackendImpl<F>
+    pub inspect: I    
 }
 
-impl<F, Q> FsmFrontend<F, Q>
-    where F: FsmBackend, Q: FsmEventQueue<F>
+impl<F, Q, I> FsmFrontend<F, Q, I>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
 {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
@@ -86,7 +89,9 @@ impl<F, Q> FsmFrontend<F, Q>
     }
 }
 
-impl<F, Q> Deref for FsmFrontend<F, Q> where F: FsmBackend, Q: FsmEventQueue<F> {
+impl<F, Q, I> Deref for FsmFrontend<F, Q, I>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+{
     type Target = FsmBackendImpl<F>;
 
     fn deref(&self) -> &Self::Target {

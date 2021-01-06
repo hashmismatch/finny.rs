@@ -7,7 +7,7 @@ pub trait FsmStates: FsmStateFactory {
     /// The enum type for all states that's used as the "current state" field in the FSM's backend.
     type StateKind: Clone + Copy + Debug + PartialEq;
     /// An array of current states for the machine, one for each region.
-    type CurrentState: Clone + Copy + Debug + Default;
+    type CurrentState: Clone + Copy + Debug + Default + AsMut<[FsmCurrentState<Self::StateKind>]>;
 }
 
 /// The current state of the FSM.
@@ -37,10 +37,12 @@ impl<TState> FsmStateFactory for TState where TState: Default {
     }
 }
 
+/// Retrieve a pair of states as immutable references. Used in state transitions.
 pub trait FsmStateTransitionAsRef<T1, T2> {
     fn as_state_transition_ref(&self) -> (&T1, &T2);
 }
 
+/// Retrieve a pair of states as mutable references. Used in state transitions.
 pub trait FsmStateTransitionAsMut<T1, T2> {
     fn as_state_transition_mut(&mut self) -> (&mut T1, &mut T2);
 }
