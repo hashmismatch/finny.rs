@@ -11,7 +11,7 @@ pub struct FsmFnInput {
     pub fsm: ValidatedFsm,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FsmFnBase {
     pub context_ty: syn::Type,
     pub fsm_ty: syn::Type,
@@ -254,8 +254,8 @@ pub struct EventGuardAction{
 
 impl FsmDeclarations {
     pub fn parse(base: &FsmFnBase, input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<ValidatedFsm> {
-        let mut parser = FsmParser::new();
-        parser.parse(base, input_fn, blocks)?;
+        let mut parser = FsmParser::new(base.clone());
+        parser.parse(input_fn, blocks)?;
         return parser.validate(input_fn);
     }
 }

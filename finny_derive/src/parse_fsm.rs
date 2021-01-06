@@ -22,20 +22,22 @@ pub struct FsmParser {
     initial_states: Vec<syn::Type>,
     states: HashMap<Type, FsmState>,
     events: HashMap<Type, FsmEvent>,
-    options: FsmCodegenOptions
+    options: FsmCodegenOptions,
+    base: FsmFnBase
 }
 
 impl FsmParser {
-    pub fn new() -> Self {
+    pub fn new(base: FsmFnBase) -> Self {
         FsmParser {
             initial_states: vec![],
             states: HashMap::new(),
             events: HashMap::new(),
-            options: FsmCodegenOptions::new()
+            options: FsmCodegenOptions::new(),
+            base
         }
     }
 
-    pub fn parse(&mut self, _base: &FsmFnBase, _input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<()> {
+    pub fn parse(&mut self, _input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<()> {
         for block in blocks {
             match block {
                 FsmBlock::MethodCall(mc) => {
@@ -187,14 +189,11 @@ impl FsmParser {
         
         // build and validate the transitions table
         {
-            let mut i = 1;
+            let mut i = 0;
 
-            fn generate_transition_ty(i: &mut usize) -> syn::Type {
-                let ident = syn::Ident::new(&format!("Transition{}", i), Span::call_site());
+            fn generate_transition_ty(base: &FsmFnBase, i: &mut usize) -> syn::Type {
                 *i = *i + 1;
-                let mut p = syn::punctuated::Punctuated::new();
-                p.push(syn::PathSegment {ident, arguments: syn::PathArguments::None });
-                syn::Type::Path(syn::TypePath { qself: None, path: syn::Path { leading_colon: None, segments: p }})
+                crate::utils::ty_append(&base.fsm_ty, &format!("Transition{}", i))
             }
 
             // start transition
@@ -202,7 +201,7 @@ impl FsmParser {
                 let fsm_initial_state = self.states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
 
                 transitions.push(FsmTransition {
-                    transition_ty: generate_transition_ty(&mut i),
+                    transition_ty: generate_transition_ty(&self.base, &mut i),
                     ty: FsmTransitionType::StateTransition(FsmStateTransition {
                         action: EventGuardAction::default(),
                         event: FsmTransitionEvent::Start,
@@ -221,7 +220,7 @@ impl FsmParser {
                             let to = self.states.get(to).ok_or(syn::Error::new(to.span(), "State not found."))?;
 
                             transitions.push(FsmTransition {
-                                transition_ty: generate_transition_ty(&mut i),
+                                transition_ty: generate_transition_ty(&self.base, &mut i),
                                 ty: FsmTransitionType::StateTransition(FsmStateTransition {
                                     action: action.clone(),
                                     state_from: FsmTransitionState::State(from.clone()),
@@ -234,7 +233,7 @@ impl FsmParser {
                             // todo: code duplication!
                             let state = self.states.get(state).ok_or(syn::Error::new(state.span(), "State not found."))?;
                             transitions.push(FsmTransition {
-                                transition_ty: generate_transition_ty(&mut i),
+                                transition_ty: generate_transition_ty(&self.base, &mut i),
                                 ty: FsmTransitionType::InternalTransition(FsmStateAction {
                                     state: FsmTransitionState::State(state.clone()),
                                     action: action.clone(),
@@ -246,7 +245,7 @@ impl FsmParser {
                             // todo: code duplication!
                             let state = self.states.get(state).ok_or(syn::Error::new(state.span(), "State not found."))?;
                             transitions.push(FsmTransition {
-                                transition_ty: generate_transition_ty(&mut i),
+                                transition_ty: generate_transition_ty(&self.base, &mut i),
                                 ty: FsmTransitionType::SelfTransition(FsmStateAction {
                                     state: FsmTransitionState::State(state.clone()),
                                     action: action.clone(),
