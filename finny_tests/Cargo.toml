@@ -3,6 +3,9 @@ name = "finny_tests"
 version = "0.1.0"
 authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
 publish = false
+edition = "2018"
 
 [dependencies]
 finny = { path = "../finny/" }
+slog = "2.7.0"
+slog-term = "2.6.0"

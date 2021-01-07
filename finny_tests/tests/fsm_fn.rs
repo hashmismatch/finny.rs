@@ -1,6 +1,7 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{FsmCurrentState, FsmError, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect_slog::{self, InspectSlog}};
+use slog::{Drain, Logger, info, o};
 
 #[derive(Debug)]
 pub struct StateMachineContext {
@@ -19,13 +20,14 @@ pub struct StateB {
 }
 #[derive(Default)]
 pub struct StateC;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventClick { time: usize }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EventEnter { shift: bool }
 
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm {
+    fsm.events_debug();
     fsm.initial_state::<StateA>();
 
     fsm.state::<StateA>()
@@ -65,9 +67,15 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 
 #[test]
 fn test_fsm() -> FsmResult<()> {
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let logger = Logger::root(
+        slog_term::FullFormat::new(plain)
+        .build().fuse(), o!()
+    );
+
     let ctx = StateMachineContext { count: 0, total_time: 0 };
     
-    let mut fsm = StateMachine::new(ctx)?;
+    let mut fsm = StateMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)))?;
     
     let current_state = fsm.get_current_states()[0];
     let state: &StateA = fsm.get_state();
@@ -99,6 +107,29 @@ fn test_fsm() -> FsmResult<()> {
     fsm.dispatch(EventEnter { shift: false })?;
     let state_b: &StateB = fsm.get_state();
     assert_eq!(2, state_b.counter);
+    
+    Ok(())
+}
+
+#[test]
+fn test_inspect_slog() -> FsmResult<()> {
+    use finny::Inspect;
+
+    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
+    let logger = Logger::root(
+        slog_term::FullFormat::new(plain)
+        .build().fuse(), o!()
+    );
+
+    info!(logger, "Logging ready!");
+
+    let inspect_slog = InspectSlog::new(Some(logger));
+    
+    let ctx = StateMachineContext { count: 0, total_time: 0 };
+    let mut fsm = StateMachine::new(ctx)?;
+
+    let mut log_ctx = inspect_slog.on_dispatch_event(&fsm.backend, &FsmEvent::Event(EventClick { time: 99 }.into()));
+    inspect_slog.on_state_enter::<StateA>(&fsm.backend, &mut log_ctx);
     
     Ok(())
 }

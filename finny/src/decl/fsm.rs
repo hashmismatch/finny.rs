@@ -29,6 +29,11 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 
 	}
 
+	/// Require the `Debug` trait on the Events.
+	pub fn events_debug(&mut self) {
+		
+	}
+
 	/// Adds some information about a state.
 	pub fn state<TState>(&mut self) -> FsmStateBuilder<TFsm, TContext, TState> {
 		FsmStateBuilder {

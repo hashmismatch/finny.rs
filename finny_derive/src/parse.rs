@@ -3,15 +3,15 @@ use std::collections::{HashMap, HashSet};
 use proc_macro2::{Span, TokenStream};
 use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
 
-use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, parse_fsm::FsmParser, utils::{assert_no_generics, get_closure, to_field_name}};
+use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, parse_fsm::{FsmCodegenOptions, FsmParser}, utils::{assert_no_generics, get_closure, to_field_name}};
 
 
 pub struct FsmFnInput {
     pub base: FsmFnBase,
-    pub fsm: ValidatedFsm
+    pub fsm: ValidatedFsm,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FsmFnBase {
     pub context_ty: syn::Type,
     pub fsm_ty: syn::Type,
@@ -134,6 +134,7 @@ pub struct FsmDeclarations {
 
 #[derive(Debug)]
 pub struct ValidatedFsm {
+    pub codegen_options: FsmCodegenOptions,
     pub regions: Vec<FsmRegion>,
     pub states: HashMap<syn::Type, FsmState>,
     pub events: HashMap<syn::Type, FsmEvent>
@@ -253,8 +254,8 @@ pub struct EventGuardAction{
 
 impl FsmDeclarations {
     pub fn parse(base: &FsmFnBase, input_fn: &ItemFn, blocks: &Vec<FsmBlock>) -> syn::Result<ValidatedFsm> {
-        let mut parser = FsmParser::new();
-        parser.parse(base, input_fn, blocks)?;
+        let mut parser = FsmParser::new(base.clone());
+        parser.parse(input_fn, blocks)?;
         return parser.validate(input_fn);
     }
 }

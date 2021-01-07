@@ -4,7 +4,7 @@ use petgraph::{Graph, graph::NodeIndex, visit::Dfs};
 use proc_macro2::Span;
 use syn::spanned::Spanned;
 
-use crate::{parse::{FsmDeclarations, FsmRegion, ValidatedFsm}, utils::tokens_to_string};
+use crate::{parse::{FsmDeclarations, FsmRegion, ValidatedFsm}, parse_fsm::FsmCodegenOptions, utils::tokens_to_string};
 
 #[derive(Debug)]
 struct TypeNode {
@@ -12,7 +12,7 @@ struct TypeNode {
     region: Option<usize>
 }
 
-pub fn create_regions(decl: FsmDeclarations) -> syn::Result<ValidatedFsm> {
+pub fn create_regions(decl: FsmDeclarations, options: FsmCodegenOptions) -> syn::Result<ValidatedFsm> {
     let mut graph = Graph::new();
     let mut nodes = HashMap::new();
 
@@ -101,6 +101,7 @@ pub fn create_regions(decl: FsmDeclarations) -> syn::Result<ValidatedFsm> {
     Ok(ValidatedFsm {
         events: decl.events,
         states: decl.states,
-        regions
+        regions,
+        codegen_options: options
     })
 }
