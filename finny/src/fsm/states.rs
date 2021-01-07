@@ -11,12 +11,21 @@ pub trait FsmStates: FsmStateFactory {
 }
 
 /// The current state of the FSM.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum FsmCurrentState<S> where S: Clone + Copy {
     /// The FSM is halted and has to be started using the `start()` method.
     Stopped,
     /// The FSM is in this state.
     State(S)
+}
+
+impl<S> Debug for FsmCurrentState<S> where S: Debug + Copy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            FsmCurrentState::Stopped => f.write_str("Fsm::Stopped"),
+            FsmCurrentState::State(s) => s.fmt(f)
+        }
+    }
 }
 
 impl<S> Default for FsmCurrentState<S> where S: Clone + Copy {

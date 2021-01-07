@@ -36,8 +36,10 @@ impl<F> Inspect<F> for InspectSlog
         }
     }
 
-    fn on_dispatched_event(&self, _fsm: &crate::FsmBackendImpl<F>, ctx: Self::CtxEvent, result: &FsmDispatchResult) {
-        info!(ctx.logger, "Finished the dispatching.");
+    fn on_dispatched_event(&self, fsm: &crate::FsmBackendImpl<F>, ctx: Self::CtxEvent, result: &FsmDispatchResult) {
+        let states = format!("{:?}",  fsm.current_states);
+        let result = format!("{:?}", result);
+        info!(ctx.logger, "Finished the dispatching. The new state is {states} and the result of the dispatch is {result}", states = &states, result = &result);
     }
 
     fn on_state_enter<State>(&self, _fsm: &crate::FsmBackendImpl<F>, ctx: &mut InspectSlogSubContext) where <F as FsmBackend>::States: AsRef<State> {
