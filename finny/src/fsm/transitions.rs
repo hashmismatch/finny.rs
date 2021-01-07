@@ -45,8 +45,8 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
     /// Return a boolean value whether this transition is usable at the moment. The check shouln't mutate any structures.
     fn guard<'a, Q: FsmEventQueue<F>>(event: &E, context: &EventContext<'a, F, Q>) -> bool;
 
-    fn execute_guard<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId) -> bool
-        where I: Inspect<F>
+    fn execute_guard<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut <I as Inspect<F>>::CtxEvent) -> bool
+        where I: Inspect<F>, Self: Sized
     {
         let event_context = EventContext {
             context: &mut frontend.backend.context,
@@ -54,16 +54,23 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
             region
         };
 
-        Self::guard(event, &event_context)
+        let guard_result = Self::guard(event, &event_context);
+
+        frontend.inspect.on_guard::<Self>(&mut frontend.backend, inspect_event_ctx, guard_result);
+
+        guard_result
     }
 }
 
 
 pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
-    fn execute_transition<Q: FsmEventQueue<F>, I >(frontend: &mut FsmFrontend<F, Q, I>, fsm_event: &FsmEvent<<F as FsmBackend>::Events>, region: FsmRegionId)
-        //where <F as FsmBackend>::States: AsMut<TInitialState>, I: Inspect<F>
-        where I: Inspect<F>, TInitialState: FsmState<F>, <F as FsmBackend>::States: AsMut<TInitialState>
+    fn execute_transition<Q: FsmEventQueue<F>, I >(frontend: &mut FsmFrontend<F, Q, I>, fsm_event: &FsmEvent<<F as FsmBackend>::Events>, region: FsmRegionId, inspect_event_ctx: &mut <I as Inspect<F>>::CtxEvent)
+        where I: Inspect<F>, TInitialState: FsmState<F>, <F as FsmBackend>::States: AsMut<TInitialState>, Self: Sized,
+            <F as FsmBackend>::States: AsRef<TInitialState>
     {
+        let mut ctx= frontend.inspect.on_matched_transition::<Self>(&frontend.backend, region, inspect_event_ctx);
+
+        frontend.inspect.on_state_enter::<TInitialState>(&frontend.backend, &mut ctx);
         <TInitialState>::execute_on_entry(frontend, region);
         
         let cs = frontend.backend.current_states.as_mut();
@@ -76,42 +83,31 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
     /// This action is executed after the first state's exit event, and just before the second event's entry action. It can mutate both states.
     fn action<'a, Q: FsmEventQueue<F>>(event: &E, context: &mut EventContext<'a, F, Q>, from: &mut TStateFrom, to: &mut TStateTo);
 
-
-    /*
-    fn execute_action_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId)
-        where <F as FsmBackend>::States: FsmStateTransitionAsMut<TStateFrom, TStateTo>, I: Inspect<F>
-    {
-        let mut event_context = EventContext {
-            context: &mut frontend.backend.context,
-            queue: &mut frontend.queue,
-            region
-        };
-
-        let states: (&mut TStateFrom, &mut TStateTo) = frontend.backend.states.as_state_transition_mut();
-
-        Self::action(event, &mut event_context, states.0, states.1);
-    }
-    */
-
-    //fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &FsmEvent<<F as FsmBackend>::Events>, region: FsmRegionId)
-    fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId)
+    fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut <I as Inspect<F>>::CtxEvent)
         where 
             I: Inspect<F>,
             <F as FsmBackend>::States: FsmStateTransitionAsMut<TStateFrom, TStateTo>,
             <F as FsmBackend>::States: AsMut<TStateFrom>,
             <F as FsmBackend>::States: AsMut<TStateTo>,
             TStateFrom: FsmState<F>,
-            TStateTo: FsmState<F>
-    {       
+            TStateTo: FsmState<F>, Self: Sized
+    {
+        let mut ctx= frontend.inspect.on_matched_transition::<Self>(&frontend.backend, region, inspect_event_ctx);
+
         <TStateFrom>::execute_on_exit(frontend, region);
         
-        let mut event_context = EventContext {
-            context: &mut frontend.backend.context,
-            queue: &mut frontend.queue,
-            region
-        };
-        let states: (&mut TStateFrom, &mut TStateTo) = frontend.backend.states.as_state_transition_mut();
-        Self::action(event, &mut event_context, states.0, states.1);
+        // transition action
+        {
+            frontend.inspect.on_action::<Self>(&frontend.backend, &mut ctx);
+
+            let mut event_context = EventContext {
+                context: &mut frontend.backend.context,
+                queue: &mut frontend.queue,
+                region
+            };        
+            let states: (&mut TStateFrom, &mut TStateTo) = frontend.backend.states.as_state_transition_mut();        
+            Self::action(event, &mut event_context, states.0, states.1);        
+        }
 
         <TStateTo>::execute_on_entry(frontend, region);
 
@@ -141,12 +137,13 @@ pub trait FsmAction<F: FsmBackend, E, State> {
         Self::action(event, &mut event_context, state);
     }
 
-    //fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &FsmEvent<<F as FsmBackend>::Events>, region: FsmRegionId)
-    fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId)
+    fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut <I as Inspect<F>>::CtxEvent)
         where I: Inspect<F>,
             State: FsmState<F>,
-            <F as FsmBackend>::States: AsMut<State>
+            <F as FsmBackend>::States: AsMut<State>, Self: Sized
     {
+        let ctx= frontend.inspect.on_matched_transition::<Self>(&frontend.backend, region, inspect_event_ctx);
+
         if Self::should_trigger_state_actions() {
             <State>::execute_on_exit(frontend, region);
         }
@@ -158,12 +155,3 @@ pub trait FsmAction<F: FsmBackend, E, State> {
         }
     }
 }
-
-/*
-pub trait FsmTransitionExecutor<F>
-    where F: FsmBackend
-{
-    fn execute_transition<Q: FsmEventQueue<F>, I>(frontend: &mut FsmFrontend<F, Q, I>, event: &<F as FsmBackend>::Events, region: FsmRegionId)
-        where I: Inspect<F>;
-}
-*/

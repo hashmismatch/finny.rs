@@ -2,7 +2,7 @@ use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
 use crate::utils::remap_closure_inputs;
 
-use crate::{parse::{EventGuardAction, FsmFnInput, FsmStateAction, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::{ty_append}};
+use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
 
 
@@ -329,69 +329,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
                 };
 
-                /*
-                let state_from_action = {
-                    let state = match &transition.ty {                    
-                        FsmTransitionType::SelfTransition(s) => Some(&s.state),
-                        FsmTransitionType::StateTransition(s) => Some(&s.state_from),
-                        FsmTransitionType::InternalTransition(_) => None
-                    };
-
-                    match state {
-                        Some(FsmTransitionState::State(st)) => {
-                            let ty = &st.ty;
-                            quote! {
-                                <#ty>::execute_on_exit(frontend, #region_id);
-                            }
-                        },
-                        _ => TokenStream::new()
-                    }
-                };
-                */
-
-                /*
-                let state_to_action = {
-                    let state = match &transition.ty {                    
-                        FsmTransitionType::SelfTransition(s) => Some(&s.state),
-                        FsmTransitionType::StateTransition(s) => Some(&s.state_to),
-                        FsmTransitionType::InternalTransition(_) => None
-                    };
-
-                    match state {
-                        Some(FsmTransitionState::State(st)) => {
-                            let ty = &st.ty;
-                            quote! {
-                                <#ty>::execute_on_entry(frontend, #region_id);
-                            }
-                        },
-                        _ => TokenStream::new()
-                    }
-                };
-                */
-
-                /*
-                let current_state_update = {
-                    match &transition.ty {
-                        FsmTransitionType::InternalTransition(_) | FsmTransitionType::SelfTransition(_) => TokenStream::new(),
-                        FsmTransitionType::StateTransition(ref s) => {
-                            match s.state_to {
-                                FsmTransitionState::None => {
-                                    quote! {
-                                        frontend.backend.current_states[#region_id] = finny::FsmCurrentState::None;
-                                    }
-                                }
-                                FsmTransitionState::State(ref st) => {
-                                    let kind = &st.ty;
-                                    quote! {
-                                        frontend.backend.current_states[#region_id] = finny::FsmCurrentState::State(#states_enum_ty :: #kind);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                };
-                */
-                
                 let guard = {
                     let has_guard = match &transition.ty {
                         FsmTransitionType::StateTransition(s) => {
@@ -404,46 +341,18 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     if has_guard {
                         quote! {
-                            if <#transition_ty>::execute_guard(frontend, ev, #region_id)
+                            if <#transition_ty>::execute_guard(frontend, ev, #region_id, &mut inspect_event_ctx)
                         }
                     } else {
                         TokenStream::new()
                     }
                 };
-
-                /*
-                let event_action = {
-                    match &transition.ty {
-                        FsmTransitionType::InternalTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, .. }) |
-                        FsmTransitionType::SelfTransition(FsmStateAction { action: EventGuardAction { action: Some(_), ..}, .. }) => {
-                            quote! {
-                                <#transition_ty>::execute_action(frontend, ev, #region_id);
-                            }
-                        },
-                        FsmTransitionType::StateTransition(FsmStateTransition { action: EventGuardAction { action: Some(_), .. }, .. }) => {
-                            quote! {
-                                <#transition_ty>::execute_action_transition(frontend, ev, #region_id);
-                            }
-                        },
-                        _ => TokenStream::new()
-                    }
-                };
-                */
                 
                 let m = quote! {
                     ( #match_state , #match_event ) #guard => {
 
-                        <#transition_ty>::execute_transition(frontend, ev, #region_id);
-
-                        /*
-                        { #state_from_action }
-
-                        { #event_action }
-
-                        { #state_to_action }
-
-                        { #current_state_update }
-                        */
+                        <#transition_ty>::execute_transition(frontend, ev, #region_id, &mut inspect_event_ctx);
+                        
                     },
                 };
 
@@ -478,15 +387,19 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let mut transition_misses = 0;
 
-                    let mut inspect_ctx = frontend.inspect.on_dispatch_event(&frontend.backend, event);
+                    let mut inspect_event_ctx = frontend.inspect.on_dispatch_event(&frontend.backend, event);
                     
                     #regions
 
-                    if transition_misses == #region_count {
-                        return Err(finny::FsmError::NoTransition);
-                    }
+                    let result = if transition_misses == #region_count {
+                        Err(finny::FsmError::NoTransition)
+                    } else {
+                        Ok(())
+                    };
 
-                    Ok(())
+                    frontend.inspect.on_dispatched_event(&frontend.backend, inspect_event_ctx, &result);
+
+                    result
                 }
             }
         }

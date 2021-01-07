@@ -29,6 +29,7 @@ pub enum FsmError {
     QueueOverCapacity
 }
 
+pub type FsmDispatchResult = FsmResult<()>;
 
 /// Finite State Machine backend. Handles the dispatching, the types are
 /// defined by the code generator.
@@ -40,6 +41,6 @@ pub trait FsmBackend where Self: Sized {
     /// A tagged union type with all the supported events.
     type Events;
 
-    fn dispatch_event<Q, I>(frontend: &mut FsmFrontend<Self, Q, I>, event: &FsmEvent<Self::Events>) -> FsmResult<()>
+    fn dispatch_event<Q, I>(frontend: &mut FsmFrontend<Self, Q, I>, event: &FsmEvent<Self::Events>) -> FsmDispatchResult
         where Q: queue::FsmEventQueue<Self>, I: Inspect<Self>;
 }
