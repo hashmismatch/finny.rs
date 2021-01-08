@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
 #[derive(Copy, Clone, Debug)]
 pub struct FsmCodegenOptions {
@@ -75,6 +75,23 @@ impl FsmParser {
                                 _ => { return Err(syn::Error::new(ty_tuple.span(), "Expected a tuple of states!")); }
                             }
                         },
+
+                        [MethodOverviewRef { name: "sub_machine", generics: [ty_sub_fsm], ..}] => {
+
+                            assert_no_generics(ty_sub_fsm)?;
+                            let field_name = to_field_name(&ty_sub_fsm)?;
+                            let sub_machine_state = self.states
+                                .entry(ty_sub_fsm.clone())
+                                .or_insert(FsmState {
+                                    ty: ty_sub_fsm.clone(),
+                                    state_storage_field: field_name,
+                                    on_entry_closure: None,
+                                    on_exit_closure: None,
+                                    kind: FsmStateKind::SubMachine
+                                });
+
+                        },
+
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
                             assert_no_generics(ty_state)?;
@@ -85,7 +102,8 @@ impl FsmParser {
                                     ty: ty_state.clone(),
                                     on_entry_closure: None,
                                     on_exit_closure: None,
-                                    state_storage_field: field_name
+                                    state_storage_field: field_name,
+                                    kind: FsmStateKind::Normal
                                 });
 
                             for (i, method) in st.iter().enumerate() {

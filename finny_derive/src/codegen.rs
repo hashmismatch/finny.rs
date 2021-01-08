@@ -1,6 +1,6 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use crate::utils::remap_closure_inputs;
+use crate::{parse::FsmStateKind, utils::remap_closure_inputs};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
@@ -444,7 +444,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
                 }
 
-            })
+            });
+
+            // sub machine factory
+            if state.kind == FsmStateKind::SubMachine {
+                
+            }
         }
 
         states

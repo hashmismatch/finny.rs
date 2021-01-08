@@ -223,9 +223,16 @@ pub struct FsmStateTransition {
     pub event: FsmTransitionEvent,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum FsmStateKind {
+    Normal,
+    SubMachine
+}
+
 #[derive(Debug, Clone)]
 pub struct FsmState {
     pub ty: syn::Type,
+    pub kind: FsmStateKind,
     pub state_storage_field: syn::Ident,
     pub on_entry_closure: Option<syn::ExprClosure>,
     pub on_exit_closure: Option<syn::ExprClosure>

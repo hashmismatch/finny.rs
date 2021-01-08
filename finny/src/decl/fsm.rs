@@ -43,6 +43,13 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 		}
 	}
 
+	/// Adds a sub machine
+	pub fn sub_machine<TSubFsm>(&mut self) -> ()
+		where TSubFsm: FsmBackend
+	{
+
+	}
+
 	/// Builds the final machine. Has to be returned from the definition function.
     pub fn build(self) -> BuiltFsm {
         BuiltFsm
