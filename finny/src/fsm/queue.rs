@@ -2,13 +2,16 @@ use crate::lib::*;
 use crate::{FsmBackend, FsmResult};
 
 /// The event queueing trait for FSMs. Can be used from outside or from within the actions of the FSM.
-pub trait FsmEventQueue<F: FsmBackend> {
-    /// Try to enqueue an event.
-    fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()>;
+pub trait FsmEventQueue<F: FsmBackend>: FsmEventQueueSender<F> {
     /// Try to dequeue an event.
     fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events>;
     /// Number of messages to be dequeued.
     fn len(&self) -> usize;
+}
+
+pub trait FsmEventQueueSender<F: FsmBackend> {
+    /// Try to enqueue an event.
+    fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()>;
 }
 
 #[cfg(feature = "std")]
@@ -30,17 +33,19 @@ mod queue_vec {
     }
 
     impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueVec<F> {
-        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
-            self.queue.push_back(event.into());
-            Ok(())
-        }
-
         fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
             self.queue.pop_front()
         }
 
         fn len(&self) -> usize {
             self.queue.len()
+        }
+    }
+
+    impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueVec<F> {
+        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
+            self.queue.push_back(event.into());
+            Ok(())
         }
     }
 }
@@ -75,19 +80,23 @@ mod queue_array {
     impl<F, A> FsmEventQueue<F> for FsmEventQueueArray<F, A> 
         where F: FsmBackend, A: Array<Item = <F as FsmBackend>::Events>
     {
-        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
-            match self.dequeue.push_back(event.into()) {
-                Ok(_) => Ok(()),
-                Err(_) => Err(crate::FsmError::QueueOverCapacity)
-            }
-        }
-
         fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
             self.dequeue.pop_front()
         }
 
         fn len(&self) -> usize {
             self.dequeue.len()
+        }
+    }
+
+    impl<F, A> FsmEventQueueSender<F> for FsmEventQueueArray<F, A> 
+        where F: FsmBackend, A: Array<Item = <F as FsmBackend>::Events>
+    {
+        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
+            match self.dequeue.push_back(event.into()) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(crate::FsmError::QueueOverCapacity)
+            }
         }
     }
 }
@@ -105,16 +114,18 @@ impl<F> FsmEventQueueNull<F> {
 }
 
 impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueNull<F> {
-    fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, _event: E) -> FsmResult<()> {
-        Ok(())
-    }
-
     fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
         None
     }
 
     fn len(&self) -> usize {
         0
+    }
+}
+
+impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueNull<F> {
+    fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, _event: E) -> FsmResult<()> {
+        Ok(())
     }
 }
 

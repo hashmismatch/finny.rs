@@ -1,4 +1,4 @@
-use crate::lib::*;
+use crate::{FsmEventQueueSender, lib::*};
 
 use crate::{FsmBackend, FsmEventQueue};
 
@@ -28,7 +28,7 @@ impl<E> Debug for FsmEvent<E> where E: Debug {
 pub type FsmRegionId = usize;
 
 /// The context that is given to all of the guards and actions.
-pub struct EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm> {
+pub struct EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSender<TFsm> {
     pub context: &'a mut TFsm::Context,
     pub queue: &'a mut Q,
     pub region: FsmRegionId

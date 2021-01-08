@@ -1,6 +1,6 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmEventQueue, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmEventQueue, FsmEventQueueSender, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
 
 #[derive(Default)]
 pub struct StateA {
@@ -22,16 +22,16 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, ()>) -> BuiltFsm {
     fsm.state::<StateA>()
         .on_event::<Event>()
         .internal_transition()
-        .guard(|ev, _| { ev.n < 100 })
+        .guard(|ev, _| ev.n < 100)
         .action(|ev, ctx, _| {
-            ctx.queue.enqueue(Event { n: ev.n + 100 });
+            ctx.queue.enqueue(Event { n: ev.n + 100 }).unwrap();
         });
 
     // transition to state B if the events payload is more than 100
     fsm.state::<StateA>()
        .on_event::<Event>()
        .transition_to::<StateB>()
-       .guard(|ev, _| { ev.n >= 100 });
+       .guard(|ev, _| ev.n >= 100);
         
     fsm.state::<StateB>()
         .on_entry(|state, _| {

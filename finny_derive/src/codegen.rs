@@ -1,6 +1,6 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use crate::{parse::FsmStateKind, utils::remap_closure_inputs};
+use crate::{parse::FsmStateKind, utils::{remap_closure_inputs, to_field_name}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
@@ -8,6 +8,7 @@ use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTrans
 
 pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
+    let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
     let ctx_ty = &fsm.base.context_ty;
 
     let states_store_ty = ty_append(&fsm.base.fsm_ty, "States");
