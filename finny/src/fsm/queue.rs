@@ -129,6 +129,30 @@ impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueNull<F> {
     }
 }
 
+pub struct FsmEventQueueSub<'a, Q, F, FSub>
+    where 
+        F: FsmBackend,
+        Q: FsmEventQueueSender<F>
+{
+    parent: &'a mut Q,
+    _parent_fsm: PhantomData<F>,
+    _sub_fsm: PhantomData<FSub>
+}
+
+impl<'a, Q, F, FSub> FsmEventQueueSender<FSub> for FsmEventQueueSub<'a, Q, F, FSub>
+    where 
+        F: FsmBackend,
+        Q: FsmEventQueueSender<F>,
+        FSub: FsmBackend,
+        <F as FsmBackend>::Events: From<<FSub as FsmBackend>::Events>
+{
+    fn enqueue<E: Into<<FSub as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()>
+    {
+        self.parent.enqueue(event.into())
+    }
+}
+
+
 #[cfg(test)]
 use super::tests_fsm::TestFsm;
 
