@@ -128,8 +128,8 @@ fn test_inspect_slog() -> FsmResult<()> {
     let ctx = StateMachineContext { count: 0, total_time: 0 };
     let mut fsm = StateMachine::new(ctx)?;
 
-    let mut log_ctx = inspect_slog.on_dispatch_event(&fsm.backend, &FsmEvent::Event(EventClick { time: 99 }.into()));
-    inspect_slog.on_state_enter::<StateA>(&fsm.backend, &mut log_ctx);
+    //let mut log_ctx = inspect_slog.on_dispatch_event(&fsm.backend, &FsmEvent::Event(EventClick { time: 99 }.into()));
+    //inspect_slog.on_state_enter::<StateA>(&fsm.backend, &mut log_ctx);
     
     Ok(())
 }

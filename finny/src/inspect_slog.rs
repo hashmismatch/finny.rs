@@ -1,15 +1,17 @@
 use slog::{OwnedKV, debug, info, o};
 
-use crate::{FsmBackend, FsmDispatchResult, FsmEvent, Inspect};
+use crate::{FsmBackend, FsmDispatchResult, FsmEvent, Inspect, InspectNull};
 use super::lib::*;
 
 pub struct InspectSlog {
     logger: slog::Logger
 }
 
+/*
 pub struct InspectSlogSubContext {
     logger: slog::Logger
 }
+*/
 
 impl InspectSlog {
     pub fn new(logger: Option<slog::Logger>) -> Self {
@@ -19,6 +21,41 @@ impl InspectSlog {
     }
 }
 
+impl Inspect for InspectSlog {
+    fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events>) -> Self {
+        todo!()
+    }
+
+    fn for_transition<T>(&self) -> Self {
+        todo!()
+    }
+
+    fn for_sub_machine<FSub: FsmBackend>(&self) -> Self {
+        todo!()
+    }
+
+    fn on_guard<T>(&self, guard_result: bool) {
+        todo!()
+    }
+
+    fn on_state_enter<S>(&self) {
+        todo!()
+    }
+
+    fn on_state_exit<S>(&self) {
+        todo!()
+    }
+
+    fn on_action<S>(&self) {
+        todo!()
+    }
+
+    fn event_done(self) {
+        todo!()
+    }
+}
+
+/*
 impl<F> Inspect<F> for InspectSlog 
     where F: FsmBackend, <F as FsmBackend>::Events: Debug
 {
@@ -70,5 +107,6 @@ impl<F> Inspect<F> for InspectSlog
         }
     }
 }
+*/
 
 

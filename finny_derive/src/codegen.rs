@@ -382,13 +382,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type Events = #event_enum_ty;
 
                 fn dispatch_event<Q, I>(frontend: &mut finny::FsmFrontend<Self, Q, I>, event: &finny::FsmEvent<Self::Events>) -> finny::FsmResult<()>
-                    where Q: finny::FsmEventQueue<Self>, I: finny::Inspect<Self>
+                    where Q: finny::FsmEventQueue<Self>, I: finny::Inspect
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState, FsmTransitionFsmStart};
 
                     let mut transition_misses = 0;
 
-                    let mut inspect_event_ctx = frontend.inspect.on_dispatch_event(&frontend.backend, event);
+                    let mut inspect_event_ctx = frontend.inspect.new_event::<Self>(event);
                     
                     #regions
 
@@ -398,7 +398,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         Ok(())
                     };
 
-                    frontend.inspect.on_dispatched_event(&frontend.backend, inspect_event_ctx, &result);
+                    inspect_event_ctx.event_done();
 
                     result
                 }

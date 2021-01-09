@@ -52,7 +52,7 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
 pub struct FsmFrontend<F, Q, I> 
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect
 {
     pub backend: FsmBackendImpl<F>,
     pub queue: Q,
@@ -60,7 +60,7 @@ pub struct FsmFrontend<F, Q, I>
 }
 
 impl<F, Q, I> FsmFrontend<F, Q, I>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect
 {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
@@ -90,7 +90,7 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
 }
 
 impl<F, Q, I> Deref for FsmFrontend<F, Q, I>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect
 {
     type Target = FsmBackendImpl<F>;
 

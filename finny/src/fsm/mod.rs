@@ -42,5 +42,5 @@ pub trait FsmBackend where Self: Sized {
     type Events;
 
     fn dispatch_event<Q, I>(frontend: &mut FsmFrontend<Self, Q, I>, event: &FsmEvent<Self::Events>) -> FsmDispatchResult
-        where Q: queue::FsmEventQueue<Self>, I: Inspect<Self>;
+        where Q: queue::FsmEventQueue<Self>, I: Inspect;
 }
