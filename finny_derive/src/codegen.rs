@@ -342,7 +342,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     if has_guard {
                         quote! {
-                            if <#transition_ty>::execute_guard(frontend, ev, #region_id, &mut inspect_event_ctx)
+                            if <#transition_ty>::execute_guard(&mut ctx, ev, #region_id, &mut inspect_event_ctx)
                         }
                     } else {
                         TokenStream::new()
@@ -352,7 +352,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 let m = quote! {
                     ( #match_state , #match_event ) #guard => {
 
-                        <#transition_ty>::execute_transition(frontend, ev, #region_id, &mut inspect_event_ctx);
+                        <#transition_ty>::execute_transition(&mut ctx, ev, #region_id, &mut inspect_event_ctx);
                         
                     },
                 };
@@ -361,7 +361,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             }            
 
             regions.append_all(quote! {
-                match (frontend.backend.current_states[#region_id], event) {
+                match (ctx.backend.current_states[#region_id], event) {
                     
                     #region_transitions
 
@@ -381,14 +381,15 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type States = #states_store_ty;
                 type Events = #event_enum_ty;
 
-                fn dispatch_event<Q, I>(frontend: &mut finny::FsmFrontend<Self, Q, I>, event: &finny::FsmEvent<Self::Events>) -> finny::FsmResult<()>
-                    where Q: finny::FsmEventQueue<Self>, I: finny::Inspect
+                fn dispatch_event<Q, I>(mut ctx: finny::DispatchContext<Self, Q, I>, event: &finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
+                    where Q: finny::FsmEventQueue<Self>,
+                    I: finny::Inspect
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState, FsmTransitionFsmStart};
 
                     let mut transition_misses = 0;
 
-                    let mut inspect_event_ctx = frontend.inspect.new_event::<Self>(event);
+                    let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(event);
                     
                     #regions
 

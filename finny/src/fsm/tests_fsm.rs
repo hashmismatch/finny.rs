@@ -42,9 +42,10 @@ impl FsmBackend for TestFsm {
     type States = States;
     type Events = Events;
 
-    fn dispatch_event<Q, I>(_frontend: &mut crate::FsmFrontend<Self, Q, I>, _event: &crate::FsmEvent<Self::Events>) -> crate::FsmResult<()>
-        where Q: crate::FsmEventQueue<Self>, I: crate::Inspect
-    {
+    fn dispatch_event<Q, I>(_ctx: crate::DispatchContext<Self, Q, I>, _event: &crate::FsmEvent<Self::Events>) -> crate::FsmDispatchResult
+        where Q: crate::FsmEventQueue<Self>,
+            I: crate::Inspect
+     {
         todo!()
     }
 }

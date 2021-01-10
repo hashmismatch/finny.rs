@@ -1,4 +1,4 @@
-use crate::{Inspect, lib::*};
+use crate::{DispatchContext, Inspect, lib::*};
 use crate::{FsmBackend, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
@@ -85,7 +85,13 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
 
     /// Dispatch only this event, do not run it to completition.
     pub fn dispatch_single_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
-        F::dispatch_event(self, event)
+        let dispatch_ctx = DispatchContext {
+            backend: &mut self.backend,
+            inspect: &mut self.inspect,
+            queue: &mut self.queue
+        };
+
+        F::dispatch_event(dispatch_ctx, event)
     }
 }
 
