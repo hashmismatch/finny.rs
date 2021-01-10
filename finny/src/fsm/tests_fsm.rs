@@ -30,6 +30,12 @@ pub enum Events {
     EventA(EventA)
 }
 
+impl AsRef<str> for Events {
+    fn as_ref(&self) -> &'static str {
+        todo!()
+    }
+}
+
 
 impl FsmBackend for TestFsm {
     type Context = ();

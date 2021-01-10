@@ -18,7 +18,6 @@ pub trait Inspect<F> where F: FsmBackend {
     fn on_action<T>(&self, fsm: &FsmBackendImpl<F>, ctx: &mut Self::CtxTransition);
 }
 */
-
 pub trait Inspect {
     
     fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events>) -> Self;

@@ -25,6 +25,16 @@ impl<E> Debug for FsmEvent<E> where E: Debug {
     }
 }
 
+impl<E> AsRef<str> for FsmEvent<E> where E: AsRef<str> {
+    fn as_ref(&self) -> &str {
+        match self {
+            FsmEvent::Start => "Fsm::Start",
+            FsmEvent::Stop => "Fsm::Stop",
+            FsmEvent::Event(e) => e.as_ref()
+        }
+    }
+}
+
 pub type FsmRegionId = usize;
 
 /// The context that is given to all of the guards and actions.

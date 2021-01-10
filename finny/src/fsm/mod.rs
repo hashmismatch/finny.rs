@@ -18,7 +18,7 @@ pub use self::states::*;
 pub use self::transitions::*;
 pub use self::inspect::*;
 
-use crate::lib::*;
+use crate::{bundled, lib::*};
 
 pub type FsmResult<T> = Result<T, FsmError>;
 
@@ -39,7 +39,7 @@ pub trait FsmBackend where Self: Sized {
     /// The type that holds the states of the machine.
     type States: FsmStates;
     /// A tagged union type with all the supported events.
-    type Events;
+    type Events: AsRef<str>;
 
     fn dispatch_event<Q, I>(frontend: &mut FsmFrontend<Self, Q, I>, event: &FsmEvent<Self::Events>) -> FsmDispatchResult
         where Q: queue::FsmEventQueue<Self>, I: Inspect;
