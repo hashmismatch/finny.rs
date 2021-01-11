@@ -469,9 +469,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             });
 
-            // sub machine factory
+            // todo: sub machine on enter/exit actions?
             if let FsmStateKind::SubMachine(ref sub) = state.kind {
-                
+
             }
         }
 
@@ -493,6 +493,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     Ok(Self {
                         backend
                     })
+                }
+            }
+
+            impl #fsm_generics_impl core::ops::Deref for #fsm_ty #fsm_generics_type #fsm_generics_where {
+                type Target = finny::FsmBackendImpl<#fsm_ty #fsm_generics_type >;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.backend
                 }
             }
             

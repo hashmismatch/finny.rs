@@ -50,9 +50,12 @@ fn test_sub() -> FsmResult<()> {
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
 
     fsm.dispatch(Event)?;
-
-    // todo: have to have them nested...
+    
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
+    let sub: &SubStateMachine = fsm.get_state();
+    assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateA), sub.get_current_states()[0]);
+
+    // todo: access the sub machine and get its state
 
     /*
     
