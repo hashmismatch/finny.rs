@@ -13,12 +13,12 @@ pub struct Event;
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<StateMachine, ()>) -> BuiltFsm {
     fsm.initial_state::<StateA>();
-    fsm.state::<StateA>()
-        
-        //.on_event::<Event>().transition_to::<SubStateMachine>()
+    fsm.state::<StateA>()        
+        .on_event::<Event>().transition_to::<SubStateMachine>()
     ;
 
-    //fsm.sub_machine::<SubStateMachine>();
+    fsm.sub_machine::<SubStateMachine>()
+        .with_context(|_ctx| ());
 
     fsm.build()
 }
@@ -49,7 +49,10 @@ fn test_sub() -> FsmResult<()> {
     fsm.start()?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
 
-    //fsm.dispatch(Event)?;
+    fsm.dispatch(Event)?;
+
+    // todo: have to have them nested...
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
 
     /*
     

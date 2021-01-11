@@ -1,4 +1,4 @@
-use crate::lib::*;
+use crate::{FsmBackend, FsmBackendImpl, lib::*};
 
 use crate::FsmResult;
 

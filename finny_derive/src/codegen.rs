@@ -30,8 +30,29 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let name = &state.state_storage_field;
             let ty = &state.ty;
             code_fields.append_all(quote! { #name: #ty, });
-            new_state_fields.append_all(quote! { #name: #ty::new_state(context)?, });
+            //new_state_fields.append_all(quote! { #name: #ty::new_state(context)?, });
             state_variants.append_all(quote!{ #ty, });
+
+            let new_state_field = match state.kind {
+                FsmStateKind::Normal => {
+                    quote! {
+                        #name: #ty::new_state(context)?,
+                    }
+                }
+                FsmStateKind::SubMachine(ref sub) => {
+                    quote! {
+                        #name: {
+                            use finny::{FsmFactory};
+                            
+                            let sub_ctx = (); // todo
+                            let fsm_backend = finny::FsmBackendImpl::<#ty>::new(sub_ctx)?;
+                            let fsm = <#ty>::new_submachine_backend(fsm_backend)?;
+                            fsm
+                        },
+                    }
+                }
+            };
+            new_state_fields.append_all(new_state_field);
 
             state_accessors.append_all(quote! {
                 impl core::convert::AsRef<#ty> for #states_store_ty {
@@ -449,7 +470,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             });
 
             // sub machine factory
-            if state.kind == FsmStateKind::SubMachine {
+            if let FsmStateKind::SubMachine(ref sub) = state.kind {
                 
             }
         }
@@ -467,6 +488,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             impl #fsm_generics_impl finny::FsmFactory for #fsm_ty #fsm_generics_type #fsm_generics_where {
                 type Fsm = #fsm_ty #fsm_generics_type;
+
+                fn new_submachine_backend(backend: finny::FsmBackendImpl<Self::Fsm>) -> finny::FsmResult<Self> where Self: Sized {
+                    Ok(Self {
+                        backend
+                    })
+                }
             }
             
         }

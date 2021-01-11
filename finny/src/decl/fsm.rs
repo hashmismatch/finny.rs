@@ -1,7 +1,7 @@
-use crate::lib::*;
+use crate::{FsmBackendImpl, lib::*};
 
 use crate::FsmBackend;
-use super::FsmStateBuilder;
+use super::{FsmStateBuilder, FsmSubMachineBuilder};
 
 /// The main builder-API for defining your Finny state machine.
 #[derive(Default)]
@@ -14,7 +14,7 @@ pub struct FsmBuilder<TFsm, TContext> {
 pub struct BuiltFsm;
 
 impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
-	where TFsm: FsmBackend
+	where TFsm: FsmBackend<Context = TContext>
 {
 	/// Sets the initial state of the state machine. Required!
 	pub fn initial_state<TSTate>(&mut self) {
@@ -44,10 +44,14 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 	}
 
 	/// Adds a sub machine
-	pub fn sub_machine<TSubFsm>(&mut self) -> ()
+	pub fn sub_machine<TSubFsm>(&mut self) -> FsmSubMachineBuilder<TFsm, TContext, TSubFsm>
 		where TSubFsm: FsmBackend
 	{
-
+		FsmSubMachineBuilder {
+			_fsm: PhantomData::default(),
+			_ctx: PhantomData::default(),
+			_sub: PhantomData::default()
+		}
 	}
 
 	/// Builds the final machine. Has to be returned from the definition function.

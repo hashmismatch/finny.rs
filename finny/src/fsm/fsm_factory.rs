@@ -7,6 +7,9 @@ use crate::FsmEventQueueVec;
 pub trait FsmFactory {
     type Fsm: FsmBackend;
 
+    /// For submachines, for use with codegen.
+    fn new_submachine_backend(backend: FsmBackendImpl<Self::Fsm>) -> FsmResult<Self> where Self: Sized;
+
     /// Build a new frontend for the FSM with all the environmental services provided by the caller.
     fn new_with<Q, I>(context: <Self::Fsm as FsmBackend>::Context, queue: Q, inspect: I) -> FsmResult<FsmFrontend<Self::Fsm, Q, I>>
         where Q: FsmEventQueue<Self::Fsm>, I: Inspect

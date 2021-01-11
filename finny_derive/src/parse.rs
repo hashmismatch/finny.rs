@@ -223,10 +223,15 @@ pub struct FsmStateTransition {
     pub event: FsmTransitionEvent,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FsmStateKind {
     Normal,
-    SubMachine
+    SubMachine(FsmSubMachineOptions)
+}
+
+#[derive(Default, Debug, Clone, PartialEq)]
+pub struct FsmSubMachineOptions {
+    pub context_constructor: Option<syn::ExprClosure>
 }
 
 #[derive(Debug, Clone)]

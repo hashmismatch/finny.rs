@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmSubMachineOptions, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
 #[derive(Copy, Clone, Debug)]
 pub struct FsmCodegenOptions {
@@ -76,10 +76,12 @@ impl FsmParser {
                             }
                         },
 
-                        [MethodOverviewRef { name: "sub_machine", generics: [ty_sub_fsm], ..}] => {
+                        [MethodOverviewRef { name: "sub_machine", generics: [ty_sub_fsm], ..}, st @ .. ] => {
 
                             assert_no_generics(ty_sub_fsm)?;
                             let field_name = to_field_name(&ty_sub_fsm)?;
+
+                            let mut sub_options = FsmSubMachineOptions::default();
                             let sub_machine_state = self.states
                                 .entry(ty_sub_fsm.clone())
                                 .or_insert(FsmState {
@@ -87,9 +89,24 @@ impl FsmParser {
                                     state_storage_field: field_name,
                                     on_entry_closure: None,
                                     on_exit_closure: None,
-                                    kind: FsmStateKind::SubMachine
+                                    kind: FsmStateKind::SubMachine(sub_options.clone())
                                 });
 
+
+                            for (i, method) in st.iter().enumerate() {
+                                match method {
+                                    MethodOverviewRef { name: "with_context", .. } => {
+                                        let closure = get_closure(&method.call)?;
+                                        if sub_options.context_constructor.is_some() {
+                                            return Err(syn::Error::new(closure.span(), "Duplicate constructor!"));
+                                        }
+                                        sub_options.context_constructor = Some(closure.clone());
+                                    },
+                                    _ => { return Err(syn::Error::new(mc.expr_call.span(), format!("Unsupported method '{}'!", method.name))); }
+                                }
+                            }
+
+                            sub_machine_state.kind = FsmStateKind::SubMachine(sub_options);
                         },
 
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {

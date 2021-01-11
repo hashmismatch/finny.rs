@@ -69,8 +69,8 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
         where
             I: Inspect,
             TInitialState: FsmState<F>,
-            <F as FsmBackend>::States: AsMut<TInitialState> + 'a,
-            <F as FsmBackend>::States: AsRef<TInitialState> + 'a,
+            <F as FsmBackend>::States: AsMut<TInitialState>,
+            <F as FsmBackend>::States: AsRef<TInitialState>,
             Self: Sized,
     {
         let ctx = inspect_event_ctx.for_transition::<Self>();
