@@ -134,9 +134,25 @@ pub struct FsmEventQueueSub<'a, Q, F, FSub>
         F: FsmBackend,
         Q: FsmEventQueueSender<F>
 {
-    parent: &'a mut Q,
-    _parent_fsm: PhantomData<F>,
-    _sub_fsm: PhantomData<FSub>
+    pub (crate) parent: &'a mut Q,
+    pub (crate) _parent_fsm: PhantomData<F>,
+    pub (crate) _sub_fsm: PhantomData<FSub>
+}
+
+impl<'a, Q, F, FSub> FsmEventQueue<FSub> for FsmEventQueueSub<'a, Q, F, FSub>
+    where 
+        F: FsmBackend,
+        Q: FsmEventQueueSender<F>,
+        FSub: FsmBackend,
+        <F as FsmBackend>::Events: From<<FSub as FsmBackend>::Events>
+{
+    fn dequeue(&mut self) -> Option<<FSub as FsmBackend>::Events> {
+        None
+    }
+
+    fn len(&self) -> usize {
+        0
+    }
 }
 
 impl<'a, Q, F, FSub> FsmEventQueueSender<FSub> for FsmEventQueueSub<'a, Q, F, FSub>

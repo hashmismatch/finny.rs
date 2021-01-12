@@ -1,5 +1,7 @@
 //! All of these traits will be implemented by the procedural code generator.
 
+use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, lib::*};
+
 use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmFrontend, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
 
 /// A state's entry and exit actions.
@@ -61,6 +63,7 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
 }
 
 
+/// The transition that starts the machine, triggered using the `start()` method.
 pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
     fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I >(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I>, 
         _fsm_event: &FsmEvent<<F as FsmBackend>::Events>,
@@ -83,7 +86,7 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
     }
 }
 
-/// A transition's action that can operate on both the exit and entry states.
+/// A transition's action that operates on both the exit and entry states.
 pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
     /// This action is executed after the first state's exit event, and just before the second event's entry action. It can mutate both states.
     fn action<'a, Q: FsmEventQueue<F>>(event: &E, context: &mut EventContext<'a, F, Q>, from: &mut TStateFrom, to: &mut TStateTo);
@@ -101,7 +104,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
 
         <TStateFrom>::execute_on_exit(context, region);
         
-        // transition action        
+        // transition action
         {
             inspect_ctx.on_action::<Self>();
 
@@ -119,6 +122,41 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
 
         let cs = context.backend.current_states.as_mut();
         cs[region] = FsmCurrentState::State(<TStateTo>::fsm_state());
+    }
+
+    /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary. Subsequent
+    /// dispatches are handled using the main dispatch table.
+    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I>, _region: FsmRegionId, inspect_event_ctx: &mut I) 
+        -> FsmDispatchResult
+        where
+            TStateTo: FsmBackend,
+            Q: FsmEventQueue<F>,
+            I: Inspect,
+            <F as FsmBackend>::Events: From<<TStateTo as FsmBackend>::Events>,
+            <F as FsmBackend>::States: AsMut<TStateTo>,
+            TStateTo: DerefMut<Target = FsmBackendImpl<TStateTo>>
+    {
+        let sub_backend: &mut TStateTo = context.backend.states.as_mut();
+        let states = sub_backend.get_current_states();
+        if FsmCurrentState::all_stopped(states.as_ref()) {
+            let mut queue_adapter = FsmEventQueueSub {
+                parent: context.queue,
+                _parent_fsm: PhantomData::<F>::default(),
+                _sub_fsm: PhantomData::<TStateTo>::default()
+            };
+
+            let mut inspect = inspect_event_ctx.for_sub_machine::<TStateTo>();
+
+            let sub_dispatch_context = DispatchContext {
+                backend: sub_backend,
+                inspect: &mut inspect,
+                queue: &mut queue_adapter
+            };
+
+            return TStateTo::dispatch_event(sub_dispatch_context, &FsmEvent::Start);
+        }
+
+        Ok(())
     }
 }
 

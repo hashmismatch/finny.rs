@@ -1,6 +1,6 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use crate::{parse::FsmStateKind, utils::{remap_closure_inputs, to_field_name}};
+use crate::{parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs, to_field_name}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
@@ -133,6 +133,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     let events_enum = {
 
+        // todo: submachine events!
+        todo!("handle submachine events!");
+
         let mut variants = TokenStream::new();
         for (ty, _ev) in  fsm.fsm.events.iter() {
             variants.append_all(quote! { #ty ( #ty ),  });
@@ -168,6 +171,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 };
 
                 match &transition.ty {
+                    // internal or self transtion (only the current state)
                     FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
                         
                         let state = s.state.get_fsm_state()?;
@@ -227,6 +231,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                             }
                         });
                     },
+
+                    // fsm start transition
                     FsmTransitionType::StateTransition(s @ FsmStateTransition { state_from: FsmTransitionState::None, .. }) => {
                         let initial_state_ty = &s.state_to.get_fsm_state()?.ty;
 
@@ -237,6 +243,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         });
 
                     },
+
+                    // normal state transition
                     FsmTransitionType::StateTransition(s) => {
 
                         if let Some(ref guard) = s.action.guard {
@@ -370,10 +378,21 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
                 };
                 
+                let fsm_sub_entry = match transition.ty {
+                    FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => {
+                        quote! {
+                            <#transition_ty>::execute_on_sub_entry(&mut ctx, #region_id, &mut inspect_event_ctx);
+                        }
+                    },
+                    _ => TokenStream::new()
+                };
+
                 let m = quote! {
                     ( #match_state , #match_event ) #guard => {
 
                         <#transition_ty>::execute_transition(&mut ctx, ev, #region_id, &mut inspect_event_ctx);
+
+                        #fsm_sub_entry
                         
                     },
                 };
@@ -501,6 +520,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                 fn deref(&self) -> &Self::Target {
                     &self.backend
+                }
+            }
+
+            impl #fsm_generics_impl core::ops::DerefMut for #fsm_ty #fsm_generics_type #fsm_generics_where {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.backend
                 }
             }
             

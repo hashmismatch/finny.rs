@@ -37,7 +37,10 @@ pub struct SubEvent;
 #[finny_fsm]
 fn build_sub_fsm(mut fsm: FsmBuilder<SubStateMachine, ()>) -> BuiltFsm {
     fsm.initial_state::<SubStateA>();
-    fsm.state::<SubStateA>();
+    fsm.state::<SubStateA>()
+        .on_entry(|state, _ctx| {
+            state.value += 1;
+        });
     fsm.build()
 }
 
@@ -54,8 +57,8 @@ fn test_sub() -> FsmResult<()> {
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
     let sub: &SubStateMachine = fsm.get_state();
     assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateA), sub.get_current_states()[0]);
-
-    // todo: access the sub machine and get its state
+    let state: &SubStateA = sub.get_state();
+    assert_eq!(1, state.value);
 
     /*
     

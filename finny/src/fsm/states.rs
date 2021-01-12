@@ -7,7 +7,7 @@ pub trait FsmStates: FsmStateFactory {
     /// The enum type for all states that's used as the "current state" field in the FSM's backend.
     type StateKind: Clone + Copy + Debug + PartialEq;
     /// An array of current states for the machine, one for each region.
-    type CurrentState: Clone + Copy + Debug + Default + AsMut<[FsmCurrentState<Self::StateKind>]>;
+    type CurrentState: Clone + Copy + Debug + Default + AsRef<[FsmCurrentState<Self::StateKind>]> + AsMut<[FsmCurrentState<Self::StateKind>]>;
 }
 
 /// The current state of the FSM.
@@ -17,6 +17,15 @@ pub enum FsmCurrentState<S> where S: Clone + Copy {
     Stopped,
     /// The FSM is in this state.
     State(S)
+}
+
+impl<S> FsmCurrentState<S> where S: Clone + Copy {
+    pub fn all_stopped(current_states: &[Self]) -> bool {
+        current_states.iter().all(|s| match s {
+            FsmCurrentState::Stopped => true,
+            _ => false
+        })
+    }
 }
 
 impl<S> Debug for FsmCurrentState<S> where S: Debug + Copy {
