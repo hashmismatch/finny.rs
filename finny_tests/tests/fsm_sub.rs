@@ -40,7 +40,13 @@ fn build_sub_fsm(mut fsm: FsmBuilder<SubStateMachine, ()>) -> BuiltFsm {
     fsm.state::<SubStateA>()
         .on_entry(|state, _ctx| {
             state.value += 1;
+        }).on_event::<SubEvent>()
+        .transition_to::<SubStateB>()
+        .action(|ev, ctx, state_a, state_b| {
+            state_a.value += 1;
         });
+
+    fsm.state::<SubStateB>();
     fsm.build()
 }
 
@@ -59,14 +65,16 @@ fn test_sub() -> FsmResult<()> {
     assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateA), sub.get_current_states()[0]);
     let state: &SubStateA = sub.get_state();
     assert_eq!(1, state.value);
-
-    /*
     
+    let ev: SubStateMachineEvents = SubEvent.into();
+    fsm.dispatch(ev)?;
 
-    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateB), fsm.get_current_states()[0]);
-    let state_b: &StateB = fsm.get_state();
-    assert_eq!(1, state_b.value);
-    */
+    
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
+    let sub: &SubStateMachine = fsm.get_state();
+    assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateB), sub.get_current_states()[0]);
+    let state: &SubStateA = sub.get_state();
+    assert_eq!(2, state.value);
     
     Ok(())
 }

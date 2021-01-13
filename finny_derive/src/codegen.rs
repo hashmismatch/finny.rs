@@ -133,12 +133,25 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     let events_enum = {
 
-        // todo: submachine events!
-        todo!("handle submachine events!");
+        let submachines: Vec<_> = fsm.fsm.states.iter().filter_map(|(_, state)| {
+            match &state.kind {
+                FsmStateKind::Normal => None,
+                FsmStateKind::SubMachine(ref sub) => {
+                    Some((sub, state))
+                }
+            }
+        }).collect();
 
         let mut variants = TokenStream::new();
         for (ty, _ev) in  fsm.fsm.events.iter() {
             variants.append_all(quote! { #ty ( #ty ),  });
+        }
+        for (_sub, state) in submachines {
+            let sub_fsm_ty = &state.ty;
+            let sub_fsm_event_ty = ty_append(&state.ty, "Events");
+            variants.append_all(quote! {
+                #sub_fsm_ty ( #sub_fsm_event_ty ),
+            })
         }
 
         let mut derives = TokenStream::new();
