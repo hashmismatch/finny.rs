@@ -67,7 +67,7 @@ fn test_sub() -> FsmResult<()> {
     assert_eq!(1, state.value);
     
     let ev: SubStateMachineEvents = SubEvent.into();
-    fsm.dispatch(ev)?;
+    fsm.dispatch(FsmEvent::Event(ev))?;
 
     
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);

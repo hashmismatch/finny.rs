@@ -150,7 +150,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let sub_fsm_ty = &state.ty;
             let sub_fsm_event_ty = ty_append(&state.ty, "Events");
             variants.append_all(quote! {
-                #sub_fsm_ty ( #sub_fsm_event_ty ),
+                #sub_fsm_ty ( finny::FsmEvent< #sub_fsm_event_ty > ),
             })
         }
 
@@ -411,10 +411,69 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 };
 
                 region_transitions.append_all(m);
-            }            
+            }
+
+            // match submachines
+            let region_submachines = {
+
+                let mut sub_matches = TokenStream::new();
+
+                let submachines: Vec<_> = region.transitions.iter().filter_map(|t| match &t.ty {
+                    FsmTransitionType::InternalTransition(_) => None,
+                    FsmTransitionType::SelfTransition(_) => None,
+                    FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => {
+                        Some(s)
+                    },
+                    _ => None
+                }).collect();
+
+                for submachine in submachines {
+                    let kind = &submachine.ty;
+                    //let current_state = quote! { finny::FsmCurrentState::State(#states_enum_ty :: #kind) };
+                    //let kind = &ev.ty;
+                    //quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
+
+                    sub_matches.append_all(quote! {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind), finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev))  ) => {
+
+                            {
+                                let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
+
+                                let mut queue_adapter = finny::FsmEventQueueSub {
+                                    parent: ctx.queue,
+                                    _parent_fsm: core::marker::PhantomData::<Self>::default(),
+                                    _sub_fsm: core::marker::PhantomData::<#kind>::default()
+                                };
+
+                                let mut inspect = inspect_event_ctx.for_sub_machine::<#kind>();
+
+                                let sub_dispatch_ctx = finny::DispatchContext {
+                                    backend: &mut sub_fsm.backend,
+                                    inspect: &mut inspect,
+                                    queue: &mut queue_adapter
+                                };
+                                
+                                return <#kind>::dispatch_event(sub_dispatch_ctx, ev);
+
+                                // todo: event dispatch done inspection event?
+                            }
+
+                            todo!("sub fsm match!");
+                        },
+                    });
+
+                }
+
+                sub_matches
+
+            };
+
+
 
             regions.append_all(quote! {
                 match (ctx.backend.current_states[#region_id], event) {
+
+                    #region_submachines
                     
                     #region_transitions
 
