@@ -7,7 +7,7 @@ pub struct StateA {
     value: usize
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Event;
 
 #[finny_fsm]
@@ -31,7 +31,7 @@ pub struct SubStateA {
 pub struct SubStateB {
     value: usize
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SubEvent;
 
 #[finny_fsm]
@@ -67,8 +67,7 @@ fn test_sub() -> FsmResult<()> {
     assert_eq!(1, state.value);
     
     let ev: SubStateMachineEvents = SubEvent.into();
-    fsm.dispatch(FsmEvent::Event(ev))?;
-
+    fsm.dispatch(ev)?;
     
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
     let sub: &SubStateMachine = fsm.get_state();

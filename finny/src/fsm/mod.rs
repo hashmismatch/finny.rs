@@ -40,8 +40,9 @@ pub trait FsmBackend where Self: Sized {
     type Context;
     /// The type that holds the states of the machine.
     type States: FsmStates;
-    /// A tagged union type with all the supported events.
-    type Events: AsRef<str>;
+    /// A tagged union type with all the supported events. This type has to support cloning to facilitate
+    /// the dispatch into sub-machines and into multiple regions.
+    type Events: AsRef<str> + Clone;
 
     fn dispatch_event<Q, I>(ctx: DispatchContext<Self, Q, I>, event: FsmEvent<Self::Events>) -> FsmDispatchResult
         where Q: FsmEventQueue<Self>, I: Inspect;

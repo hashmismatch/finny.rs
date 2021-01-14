@@ -134,9 +134,9 @@ pub struct FsmEventQueueSub<'a, Q, F, FSub>
         F: FsmBackend,
         Q: FsmEventQueueSender<F>
 {
-    pub (crate) parent: &'a mut Q,
-    pub (crate) _parent_fsm: PhantomData<F>,
-    pub (crate) _sub_fsm: PhantomData<FSub>
+    pub parent: &'a mut Q,
+    pub _parent_fsm: PhantomData<F>,
+    pub _sub_fsm: PhantomData<FSub>
 }
 
 impl<'a, Q, F, FSub> FsmEventQueue<FSub> for FsmEventQueueSub<'a, Q, F, FSub>

@@ -163,6 +163,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         
         let evs = quote! {
             #[derive(finny::bundled::derive_more::From, finny::bundled::strum::AsRefStr)]
+            #[derive(Clone)]
             #derives
             pub enum #event_enum_ty {
                 #variants
@@ -429,36 +430,27 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                 for submachine in submachines {
                     let kind = &submachine.ty;
-                    //let current_state = quote! { finny::FsmCurrentState::State(#states_enum_ty :: #kind) };
-                    //let kind = &ev.ty;
-                    //quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
 
                     sub_matches.append_all(quote! {
                         ( finny::FsmCurrentState::State(#states_enum_ty :: #kind), finny::FsmEvent::Event(#event_enum_ty::#kind(ev))  ) => {
 
-                            {
-                                let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
+                            let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
 
-                                let mut queue_adapter = finny::FsmEventQueueSub {
-                                    parent: ctx.queue,
-                                    _parent_fsm: core::marker::PhantomData::<Self>::default(),
-                                    _sub_fsm: core::marker::PhantomData::<#kind>::default()
-                                };
+                            let mut queue_adapter = finny::FsmEventQueueSub {
+                                parent: ctx.queue,
+                                _parent_fsm: core::marker::PhantomData::<Self>::default(),
+                                _sub_fsm: core::marker::PhantomData::<#kind>::default()
+                            };
 
-                                let mut inspect = inspect_event_ctx.for_sub_machine::<#kind>();
+                            let mut inspect = inspect_event_ctx.for_sub_machine::<#kind>();
 
-                                let sub_dispatch_ctx = finny::DispatchContext {
-                                    backend: &mut sub_fsm.backend,
-                                    inspect: &mut inspect,
-                                    queue: &mut queue_adapter
-                                };
-                                
-                                return <#kind>::dispatch_event(sub_dispatch_ctx, ev);
+                            let sub_dispatch_ctx = finny::DispatchContext {
+                                backend: &mut sub_fsm.backend,
+                                inspect: &mut inspect,
+                                queue: &mut queue_adapter
+                            };
 
-                                // todo: event dispatch done inspection event?
-                            }
-
-                            todo!("sub fsm match!");
+                            return <#kind>::dispatch_event(sub_dispatch_ctx, finny::FsmEvent::Event(ev.clone()));
                         },
                     });
 
