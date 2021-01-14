@@ -30,7 +30,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let name = &state.state_storage_field;
             let ty = &state.ty;
             code_fields.append_all(quote! { #name: #ty, });
-            //new_state_fields.append_all(quote! { #name: #ty::new_state(context)?, });
             state_variants.append_all(quote!{ #ty, });
 
             let new_state_field = match state.kind {
@@ -40,11 +39,32 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
                 }
                 FsmStateKind::SubMachine(ref sub) => {
+
+                    let ctx_codegen = match &sub.context_constructor {
+                        Some(c) => {
+                            let remap = remap_closure_inputs(&c.inputs, &[quote!{ context }])?;
+                            let body = &c.body;
+                            quote! {
+                                #remap
+                                {
+                                    #body
+                                }
+                            }
+                        },
+                        None => {
+                            quote! {
+                                Default::default()
+                            }
+                        }
+                    };
+
                     quote! {
                         #name: {
                             use finny::{FsmFactory};
                             
-                            let sub_ctx = (); // todo
+                            let sub_ctx = {
+                                #ctx_codegen
+                            };
                             let fsm_backend = finny::FsmBackendImpl::<#ty>::new(sub_ctx)?;
                             let fsm = <#ty>::new_submachine_backend(fsm_backend)?;
                             fsm
@@ -434,6 +454,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     sub_matches.append_all(quote! {
                         ( finny::FsmCurrentState::State(#states_enum_ty :: #kind), finny::FsmEvent::Event(#event_enum_ty::#kind(ev))  ) => {
 
+                            // todo: move this transition block out from generated code into the lib
                             let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
 
                             let mut queue_adapter = finny::FsmEventQueueSub {
