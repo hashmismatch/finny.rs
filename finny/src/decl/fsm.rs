@@ -50,7 +50,12 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 		FsmSubMachineBuilder {
 			_fsm: PhantomData::default(),
 			_ctx: PhantomData::default(),
-			_sub: PhantomData::default()
+			_sub: PhantomData::default(),
+			_state_builder: FsmStateBuilder {
+				_context: PhantomData::default(),
+				_fsm: PhantomData::default(),
+				_state: PhantomData::default()
+			}
 		}
 	}
 

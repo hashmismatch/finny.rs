@@ -18,7 +18,10 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, ()>) -> BuiltFsm {
     ;
 
     fsm.sub_machine::<SubStateMachine>()
-        .with_context(|_ctx| ());
+        .with_context(|_ctx| ())
+        .on_event::<Event>()
+        .transition_to::<StateA>()
+        ;
 
     fsm.build()
 }
@@ -74,6 +77,9 @@ fn test_sub() -> FsmResult<()> {
     assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateB), sub.get_current_states()[0]);
     let state: &SubStateA = sub.get_state();
     assert_eq!(2, state.value);
+
+    fsm.dispatch(Event)?;
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
     
     Ok(())
 }

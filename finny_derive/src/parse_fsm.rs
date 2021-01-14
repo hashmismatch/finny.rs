@@ -82,7 +82,7 @@ impl FsmParser {
                             let field_name = to_field_name(&ty_sub_fsm)?;
 
                             let mut sub_options = FsmSubMachineOptions::default();
-                            let sub_machine_state = self.states
+                            self.states
                                 .entry(ty_sub_fsm.clone())
                                 .or_insert(FsmState {
                                     ty: ty_sub_fsm.clone(),
@@ -92,71 +92,24 @@ impl FsmParser {
                                     kind: FsmStateKind::SubMachine(sub_options.clone())
                                 });
 
+                            match st {
+                                [MethodOverviewRef { name: "with_context", .. }, st @ .. ] => {
+                                    self.state_builder_parser(&ty_sub_fsm, st)?;
+                                },
+                                _ => { return Err(syn::Error::new(ty_sub_fsm.span(), "Missing with_context?")); }
+                            }                          
 
-                            for (i, method) in st.iter().enumerate() {
-                                match method {
-                                    MethodOverviewRef { name: "with_context", .. } => {
-                                        let closure = get_closure(&method.call)?;
-                                        if sub_options.context_constructor.is_some() {
-                                            return Err(syn::Error::new(closure.span(), "Duplicate constructor!"));
-                                        }
-                                        sub_options.context_constructor = Some(closure.clone());
-                                    },
-                                    _ => { return Err(syn::Error::new(mc.expr_call.span(), format!("Unsupported method '{}'!", method.name))); }
-                                }
-                            }
-
-                            sub_machine_state.kind = FsmStateKind::SubMachine(sub_options);
+                            // todo: this only works if we are parsing it once... fix this!
+                            // update the options
+                            self.states.entry(ty_sub_fsm.clone()).and_modify(|s| {
+                                s.kind = FsmStateKind::SubMachine(sub_options);
+                            });
+                            
                         },
 
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
-                            assert_no_generics(ty_state)?;
-                            let field_name = to_field_name(&ty_state)?;
-                            let state = self.states
-                                .entry(ty_state.clone())
-                                .or_insert(FsmState { 
-                                    ty: ty_state.clone(),
-                                    on_entry_closure: None,
-                                    on_exit_closure: None,
-                                    state_storage_field: field_name,
-                                    kind: FsmStateKind::Normal
-                                });
-
-                            for (i, method) in st.iter().enumerate() {
-
-                                match method {
-                                    MethodOverviewRef { name: "on_entry", .. } => {
-                                        let closure = get_closure(&method.call)?;
-
-                                        if state.on_entry_closure.is_some() {
-                                            return Err(syn::Error::new(closure.span(), "Duplicate 'on_entry'!"));
-                                        }
-                                        state.on_entry_closure = Some(closure.clone());
-                                    },
-                                    MethodOverviewRef { name: "on_exit", .. } => {
-                                        let closure = get_closure(&method.call)?;
-
-                                        if state.on_exit_closure.is_some() {
-                                            return Err(syn::Error::new(closure.span(), "Duplicate 'on_exit'!"));
-                                        }
-                                        state.on_exit_closure = Some(closure.clone());
-                                    },
-                                    MethodOverviewRef { name: "on_event", generics: [ty_event], .. } => {
-                                        assert_no_generics(ty_event)?;
-
-                                        let event = self.events
-                                            .entry(ty_event.clone())
-                                            .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![] });
-
-                                        let other_method_calls = &st[(i+1)..];
-                                        Self::parse_state_on_event(state, event, other_method_calls)?;
-
-                                        break;
-                                    },
-                                    _ => { return Err(syn::Error::new(mc.expr_call.span(), format!("Unsupported method '{}'!", method.name))); }
-                                }
-                            }
+                            self.state_builder_parser(ty_state, st)?;
                             
                         },
 
@@ -209,6 +162,7 @@ impl FsmParser {
             [MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
                 event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(ev)?));
             },
+            [] => (),
             _ => { return Err(syn::Error::new(method_calls.first().map(|m| m.call.span()).unwrap_or(Span::call_site()), "Unsupported methods.")); }
         }
 
@@ -304,6 +258,57 @@ impl FsmParser {
 
         Ok(regions)
     }
+
+    fn state_builder_parser(&mut self, ty_state: &syn::Type, st: &[MethodOverviewRef]) -> syn::Result<()> {
+        assert_no_generics(ty_state)?;
+        let field_name = to_field_name(&ty_state)?;
+        let state = self.states
+            .entry(ty_state.clone())
+            .or_insert(FsmState { 
+                ty: ty_state.clone(),
+                on_entry_closure: None,
+                on_exit_closure: None,
+                state_storage_field: field_name,
+                kind: FsmStateKind::Normal
+            });
+
+        for (i, method) in st.iter().enumerate() {
+
+            match method {
+                MethodOverviewRef { name: "on_entry", .. } => {
+                    let closure = get_closure(&method.call)?;
+
+                    if state.on_entry_closure.is_some() {
+                        return Err(syn::Error::new(closure.span(), "Duplicate 'on_entry'!"));
+                    }
+                    state.on_entry_closure = Some(closure.clone());
+                },
+                MethodOverviewRef { name: "on_exit", .. } => {
+                    let closure = get_closure(&method.call)?;
+
+                    if state.on_exit_closure.is_some() {
+                        return Err(syn::Error::new(closure.span(), "Duplicate 'on_exit'!"));
+                    }
+                    state.on_exit_closure = Some(closure.clone());
+                },
+                MethodOverviewRef { name: "on_event", generics: [ty_event], .. } => {
+                    assert_no_generics(ty_event)?;
+
+                    let event = self.events
+                        .entry(ty_event.clone())
+                        .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![] });
+
+                    let other_method_calls = &st[(i+1)..];
+                    Self::parse_state_on_event(state, event, other_method_calls)?;
+
+                    break;
+                },
+                _ => { return Err(syn::Error::new(method.call.span(), format!("Unsupported method '{}'!", method.name))); }
+            }
+        }
+
+        Ok(())
+    }    
 }
 
 
@@ -333,6 +338,7 @@ impl MethodOverview {
     }
 }
 
+#[derive(Clone)]
 struct MethodOverviewRef<'a> {
     name: &'a str,
     generics: &'a [syn::Type],
