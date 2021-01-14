@@ -153,7 +153,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
                 queue: &mut queue_adapter
             };
 
-            return TStateTo::dispatch_event(sub_dispatch_context, &FsmEvent::Start);
+            return TStateTo::dispatch_event(sub_dispatch_context, FsmEvent::Start);
         }
 
         Ok(())

@@ -150,7 +150,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let sub_fsm_ty = &state.ty;
             let sub_fsm_event_ty = ty_append(&state.ty, "Events");
             variants.append_all(quote! {
-                #sub_fsm_ty ( finny::FsmEvent< #sub_fsm_event_ty > ),
+                #sub_fsm_ty ( #sub_fsm_event_ty ),
             })
         }
 
@@ -384,7 +384,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     if has_guard {
                         quote! {
-                            if <#transition_ty>::execute_guard(&mut ctx, ev, #region_id, &mut inspect_event_ctx)
+                            if <#transition_ty>::execute_guard(&mut ctx, &ev, #region_id, &mut inspect_event_ctx)
                         }
                     } else {
                         TokenStream::new()
@@ -403,7 +403,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 let m = quote! {
                     ( #match_state , #match_event ) #guard => {
 
-                        <#transition_ty>::execute_transition(&mut ctx, ev, #region_id, &mut inspect_event_ctx);
+                        <#transition_ty>::execute_transition(&mut ctx, &ev, #region_id, &mut inspect_event_ctx);
 
                         #fsm_sub_entry
                         
@@ -434,7 +434,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     //quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
 
                     sub_matches.append_all(quote! {
-                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind), finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev))  ) => {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind), finny::FsmEvent::Event(#event_enum_ty::#kind(ev))  ) => {
 
                             {
                                 let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
@@ -471,7 +471,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
 
             regions.append_all(quote! {
-                match (ctx.backend.current_states[#region_id], event) {
+                match (ctx.backend.current_states[#region_id], &event) {
 
                     #region_submachines
                     
@@ -493,7 +493,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type States = #states_store_ty;
                 type Events = #event_enum_ty;
 
-                fn dispatch_event<Q, I>(mut ctx: finny::DispatchContext<Self, Q, I>, event: &finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
+                fn dispatch_event<Q, I>(mut ctx: finny::DispatchContext<Self, Q, I>, event: finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
                     where Q: finny::FsmEventQueue<Self>,
                     I: finny::Inspect
                 {
@@ -501,7 +501,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let mut transition_misses = 0;
 
-                    let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(event);
+                    let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event);
                     
                     #regions
 

@@ -43,6 +43,6 @@ pub trait FsmBackend where Self: Sized {
     /// A tagged union type with all the supported events.
     type Events: AsRef<str>;
 
-    fn dispatch_event<Q, I>(ctx: DispatchContext<Self, Q, I>, event: &FsmEvent<Self::Events>) -> FsmDispatchResult
+    fn dispatch_event<Q, I>(ctx: DispatchContext<Self, Q, I>, event: FsmEvent<Self::Events>) -> FsmDispatchResult
         where Q: FsmEventQueue<Self>, I: Inspect;
 }

@@ -64,7 +64,7 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
 {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
-        Self::dispatch_single_event(self, &FsmEvent::Start)
+        Self::dispatch_single_event(self, FsmEvent::Start)
     }
 
     /// Dispatch this event and run it to completition.
@@ -73,7 +73,7 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
     {
         let ev = event.into();
         let ev = FsmEvent::Event(ev);
-        Self::dispatch_single_event(self, &ev)?;
+        Self::dispatch_single_event(self, ev)?;
 
         while let Some(ev) = self.queue.dequeue() {
             let ev: <F as FsmBackend>::Events = ev.into();
@@ -84,7 +84,7 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
     }
 
     /// Dispatch only this event, do not run it to completition.
-    pub fn dispatch_single_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
+    pub fn dispatch_single_event(&mut self, event: FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
         let dispatch_ctx = DispatchContext {
             backend: &mut self.backend,
             inspect: &mut self.inspect,
