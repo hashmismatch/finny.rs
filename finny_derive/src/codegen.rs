@@ -573,10 +573,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
             });
 
-            // todo: sub machine on enter/exit actions?
-            if let FsmStateKind::SubMachine(ref sub) = state.kind {
-
-            }
         }
 
         states
