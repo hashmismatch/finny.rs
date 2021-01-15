@@ -1,6 +1,4 @@
-use crate::{FsmEventQueueSender, lib::*};
-
-use crate::{FsmBackend, FsmEventQueue};
+use crate::{FsmBackend, FsmEventQueue, FsmEventQueueSender, lib::*};
 
 /// The internal event type that also allows stopping or starting the machine.
 pub enum FsmEvent<E> {
@@ -44,7 +42,7 @@ pub struct EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSen
     pub region: FsmRegionId
 }
 
-impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm>
+impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSender<TFsm>
 {
     type Target = <TFsm as FsmBackend>::Context;
 
@@ -53,7 +51,7 @@ impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q:
     }
 }
 
-impl<'a, TFsm: FsmBackend, Q> DerefMut for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm> {
+impl<'a, TFsm: FsmBackend, Q> DerefMut for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSender<TFsm> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.context
     }

@@ -35,7 +35,12 @@ impl Inspect for InspectSlog {
     }
  
     fn for_sub_machine<FSub: FsmBackend>(&self) -> Self {
-        todo!()
+        let sub_fsm = type_name::<FSub>();
+        let kv = o!("sub_fsm" => sub_fsm);
+        info!(self.logger, "Dispatching to a submachine"; &kv);
+        InspectSlog {
+            logger: self.logger.new(kv)
+        }
     }
 
     fn on_guard<T>(&self, guard_result: bool) {

@@ -1,6 +1,7 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmFrontend, FsmEventQueue, FsmResult, FsmFactory, decl::{BuiltFsm, FsmBuilder}, finny_fsm};
+use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect_slog::InspectSlog};
+use slog::{Drain, o};
 
 #[derive(Default)]
 pub struct MainContext {
@@ -28,6 +29,12 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, MainContext>) -> BuiltFsm {
 
     fsm.sub_machine::<SubStateMachine>()
         .with_context(|_ctx| ())
+        .on_entry(|sub, ctx| {
+            ctx.sub_enter += 1;
+        })
+        .on_exit(|sub, ctx| {
+            ctx.sub_exit += 1;
+        })
         .on_event::<Event>()
         .transition_to::<StateA>()
         .action(|ev, ctx, from, to| {
@@ -75,7 +82,13 @@ fn build_sub_fsm(mut fsm: FsmBuilder<SubStateMachine, ()>) -> BuiltFsm {
 
 #[test]
 fn test_sub() -> FsmResult<()> {
-    let mut fsm = StateMachine::new(MainContext::default())?;
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
+    let drain = std::sync::Mutex::new(drain).fuse();
+
+    let logger = slog::Logger::root(drain, o!());
+    
+    let mut fsm = StateMachine::new_with(MainContext::default(), FsmEventQueueVec::new(), InspectSlog::new(Some(logger)))?;
     
     fsm.start()?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
@@ -99,13 +112,13 @@ fn test_sub() -> FsmResult<()> {
 
     let res = fsm.dispatch(EventSub { n: 0 });
     assert_eq!(Err(FsmError::NoTransition), res);
-    assert_eq!(0, fsm.sub_enter);
+    assert_eq!(1, fsm.sub_enter);
     assert_eq!(0, fsm.sub_exit);
     assert_eq!(0, fsm.sub_action);
 
     fsm.dispatch(EventSub { n: 1 })?;
-    assert_eq!(0, fsm.sub_enter);
-    assert_eq!(0, fsm.sub_exit);
+    assert_eq!(2, fsm.sub_enter);
+    assert_eq!(1, fsm.sub_exit);
     assert_eq!(1, fsm.sub_action);
 
     fsm.dispatch(Event)?;
