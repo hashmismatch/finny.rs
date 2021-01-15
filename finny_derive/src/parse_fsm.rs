@@ -80,26 +80,37 @@ impl FsmParser {
 
                             assert_no_generics(ty_sub_fsm)?;
                             let field_name = to_field_name(&ty_sub_fsm)?;
-
-                            let mut sub_options = FsmSubMachineOptions::default();
-                            self.states
+                            
+                            let state = self.states
                                 .entry(ty_sub_fsm.clone())
                                 .or_insert(FsmState {
                                     ty: ty_sub_fsm.clone(),
                                     state_storage_field: field_name,
                                     on_entry_closure: None,
                                     on_exit_closure: None,
-                                    kind: FsmStateKind::SubMachine(sub_options.clone())
+                                    kind: FsmStateKind::SubMachine(FsmSubMachineOptions::default())
                                 });
+                            let mut sub_options = match state.kind {                                
+                                FsmStateKind::SubMachine(ref sub) => sub.clone(),
+                                _ => { return Err(syn::Error::new(ty_sub_fsm.span(), "Internal error with sub machines.")); }
+                            };
 
                             match st {
-                                [MethodOverviewRef { name: "with_context", .. }, st @ .. ] => {
+                                [with_context @ MethodOverviewRef { name: "with_context", .. }, st @ .. ] => {
+                                    let closure = get_closure(&with_context.call)?;
+                                    if sub_options.context_constructor.is_some() {
+                                        return Err(syn::Error::new(closure.span(), "Duplicate constructor for the context!"));
+                                    }
+                                    sub_options.context_constructor = Some(closure.clone());
+
+                                    self.state_builder_parser(&ty_sub_fsm, st)?;
+                                },
+                                [st @ ..] => {
                                     self.state_builder_parser(&ty_sub_fsm, st)?;
                                 },
                                 _ => { return Err(syn::Error::new(ty_sub_fsm.span(), "Missing with_context?")); }
                             }                          
 
-                            // todo: this only works if we are parsing it once... fix this!
                             // update the options
                             self.states.entry(ty_sub_fsm.clone()).and_modify(|s| {
                                 s.kind = FsmStateKind::SubMachine(sub_options);
@@ -161,6 +172,9 @@ impl FsmParser {
             },
             [MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
                 event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(ev)?));
+            },
+            [MethodOverviewRef { name: "self_transition", generics: [], ..}, ev @ ..] => {
+                event.transitions.push(FsmEventTransition::SelfTransition(state.ty.clone(), Self::parse_event_guard_action(ev)?));
             },
             [] => (),
             _ => { return Err(syn::Error::new(method_calls.first().map(|m| m.call.span()).unwrap_or(Span::call_site()), "Unsupported methods.")); }
