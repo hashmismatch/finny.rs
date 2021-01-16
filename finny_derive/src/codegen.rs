@@ -1,23 +1,28 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use crate::{parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs, to_field_name}};
+use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs, strip_generics, to_field_name, tokens_to_string}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
-
-
 pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
+    let fsm_types = FsmTypes::new(&fsm.base.fsm_ty, &fsm.base.fsm_generics);
     let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
     let ctx_ty = &fsm.base.context_ty;
 
     let states_store_ty = ty_append(&fsm.base.fsm_ty, "States");
     let states_enum_ty = ty_append(&fsm.base.fsm_ty, "CurrentState");
-    let event_enum_ty = ty_append(&fsm.base.fsm_ty, "Events");
+    let event_enum_ty = fsm_types.get_fsm_events_ty();
 
     let region_count = fsm.fsm.regions.len();
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
+    
+    let fsm_all_states: Vec<_> = fsm.fsm.states.iter().map(|s| s.0).cloned().collect();
+
+    let storage_generics = fsm_types.get_generics_for(fsm_all_states.as_slice())?;
+    let (storage_generics_impl, storage_generic_type, storage_generics_where) = storage_generics.split_for_impl();
+
 
     let states_store = {
 
@@ -28,9 +33,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         for (i, (_, state)) in fsm.fsm.states.iter().enumerate() {
             let name = &state.state_storage_field;
-            let ty = &state.ty;
+            let state_ty = FsmTypes::new(&state.ty,&fsm.base.fsm_generics);
+            let ty = state_ty.get_fsm_ty();
+            let ty_name = state_ty.get_fsm_no_generics_ty();
+
             code_fields.append_all(quote! { #name: #ty, });
-            state_variants.append_all(quote!{ #ty, });
+            state_variants.append_all(quote!{ #ty_name, });
 
             let new_state_field = match state.kind {
                 FsmStateKind::Normal => {
@@ -75,13 +83,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             new_state_fields.append_all(new_state_field);
 
             state_accessors.append_all(quote! {
-                impl core::convert::AsRef<#ty> for #states_store_ty {
+                impl #storage_generics_impl core::convert::AsRef<#ty> for #states_store_ty #storage_generic_type #storage_generics_where {
                     fn as_ref(&self) -> & #ty {
                         &self. #name
                     }
                 }
 
-                impl core::convert::AsMut<#ty> for #states_store_ty {
+                impl #storage_generics_impl core::convert::AsMut<#ty> for #states_store_ty #storage_generic_type #storage_generics_where {
                     fn as_mut(&mut self) -> &mut #ty {
                         &mut self. #name
                     }
@@ -105,7 +113,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                 let state_to_field = &state_to.state_storage_field;
 
                                 transition_states.append_all(quote! {
-                                    impl finny::FsmStateTransitionAsMut<#state_from_ty, #state_to_ty> for #states_store_ty {
+                                    impl #storage_generics_impl finny::FsmStateTransitionAsMut<#state_from_ty, #state_to_ty> for #states_store_ty #storage_generic_type #storage_generics_where {
                                         fn as_state_transition_mut(&mut self) -> (&mut #state_from_ty, &mut #state_to_ty) {
                                             (&mut self. #state_from_field, &mut self. #state_to_field)
                                         }
@@ -122,11 +130,11 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
 
         quote! {
-            pub struct #states_store_ty {
+            pub struct #states_store_ty #storage_generic_type #storage_generics_where {
                 #code_fields
             }
 
-            impl finny::FsmStateFactory for #states_store_ty {
+            impl #storage_generics_impl finny::FsmStateFactory for #states_store_ty #storage_generic_type #storage_generics_where {
                 fn new_state<C>(context: &C) -> finny::FsmResult<Self> {
                     let s = Self {
                         #new_state_fields
@@ -140,7 +148,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 #state_variants
             }
 
-            impl finny::FsmStates for #states_store_ty {
+            impl #storage_generics_impl finny::FsmStates for #states_store_ty #storage_generic_type #storage_generics_where {
                 type StateKind = #states_enum_ty;
                 type CurrentState = [finny::FsmCurrentState<Self::StateKind>; #region_count];
             }
@@ -150,6 +158,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             #transition_states
         }
     };
+    
+    //panic!("states: {}", tokens_to_string(&states_store));
+
 
     let events_enum = {
 
@@ -167,8 +178,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             variants.append_all(quote! { #ty ( #ty ),  });
         }
         for (_sub, state) in submachines {
-            let sub_fsm_ty = &state.ty;
-            let sub_fsm_event_ty = ty_append(&state.ty, "Events");
+            let sub_fsm = FsmTypes::new(&state.ty, &fsm.base.fsm_generics);
+            let sub_fsm_event_ty = sub_fsm.get_fsm_events_ty();
+            let sub_fsm_ty = sub_fsm.get_fsm_no_generics_ty();            
+
             variants.append_all(quote! {
                 #sub_fsm_ty ( #sub_fsm_event_ty ),
             })
@@ -192,6 +205,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         evs
     };
+
+    //panic!("events: {}", tokens_to_string(&events_enum));
 
     let transition_types = {
         let mut t = TokenStream::new();
@@ -371,8 +386,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     match state_from {
                         FsmTransitionState::None => quote! { finny::FsmCurrentState::Stopped },
                         FsmTransitionState::State(st) => {
-                            let kind = &st.ty;
-                            quote! { finny::FsmCurrentState::State(#states_enum_ty :: #kind) }
+                            let state_ty = FsmTypes::new(&st.ty, &fsm.base.fsm_generics);
+                            let variant = state_ty.get_fsm_no_generics_ty();
+                            quote! { finny::FsmCurrentState::State(#states_enum_ty :: #variant) }
                         }
                     }
                 };
@@ -450,9 +466,11 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                 for submachine in submachines {
                     let kind = &submachine.ty;
+                    let fsm_sub = FsmTypes::new(&submachine.ty, &fsm.base.fsm_generics);
+                    let kind_variant = fsm_sub.get_fsm_no_generics_ty();
 
-                    sub_matches.append_all(quote! {
-                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind), finny::FsmEvent::Event(#event_enum_ty::#kind(ev))  ) => {
+                    let sub = quote! {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
 
                             // todo: move this transition block out from generated code into the lib
                             let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
@@ -471,9 +489,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                 queue: &mut queue_adapter
                             };
 
-                            return <#kind>::dispatch_event(sub_dispatch_ctx, finny::FsmEvent::Event(ev.clone()));
+                            return < #kind >::dispatch_event(sub_dispatch_ctx, finny::FsmEvent::Event(ev.clone()));
                         },
-                    });
+                    };
+
+                    //panic!("sub: {}", tokens_to_string(&sub));
+
+                    sub_matches.append_all(sub);
 
                 }
 
@@ -503,7 +525,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 #fsm_generics_where
             {
                 type Context = #ctx_ty;
-                type States = #states_store_ty;
+                type States = #states_store_ty #storage_generic_type;
                 type Events = #event_enum_ty;
 
                 fn dispatch_event<Q, I>(mut ctx: finny::DispatchContext<Self, Q, I>, event: finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
@@ -532,6 +554,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
     };
 
+    //panic!("dispatch: {}", tokens_to_string(&dispatch));
+
     let states = {
 
         let mut states = TokenStream::new();
@@ -555,7 +579,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let on_entry = remap_closure(&state.on_entry_closure)?;
             let on_exit = remap_closure(&state.on_exit_closure)?;
 
-            states.append_all(quote! {
+            let state_ty = FsmTypes::new(&ty, &fsm.base.fsm_generics);
+            let variant = state_ty.get_fsm_no_generics_ty();            
+
+            let state = quote! {
 
                 impl #fsm_generics_impl finny::FsmState<#fsm_ty #fsm_generics_type> for #ty #fsm_generics_where {
                     fn on_entry<'a, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'a, #fsm_ty #fsm_generics_type, Q>) {
@@ -567,11 +594,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     }
 
                     fn fsm_state() -> #states_enum_ty {
-                        #states_enum_ty :: #ty
+                        #states_enum_ty :: #variant
                     }
                 }
 
-            });
+            };
+
+            states.append_all(state);
 
         }
 

@@ -78,7 +78,7 @@ impl FsmParser {
 
                         [MethodOverviewRef { name: "sub_machine", generics: [ty_sub_fsm], ..}, st @ .. ] => {
 
-                            assert_no_generics(ty_sub_fsm)?;
+                            //assert_no_generics(ty_sub_fsm)?;
                             let field_name = to_field_name(&ty_sub_fsm)?;
                             
                             let state = self.states
@@ -103,10 +103,10 @@ impl FsmParser {
                                     }
                                     sub_options.context_constructor = Some(closure.clone());
 
-                                    self.state_builder_parser(&ty_sub_fsm, st)?;
+                                    self.state_builder_parser(&ty_sub_fsm, st, true)?;
                                 },
                                 [st @ ..] => {
-                                    self.state_builder_parser(&ty_sub_fsm, st)?;
+                                    self.state_builder_parser(&ty_sub_fsm, st, true)?;
                                 },
                                 _ => { return Err(syn::Error::new(ty_sub_fsm.span(), "Missing with_context?")); }
                             }                          
@@ -120,7 +120,7 @@ impl FsmParser {
 
                         [MethodOverviewRef { name: "state", generics: [ty_state], .. }, st @ .. ] => {
 
-                            self.state_builder_parser(ty_state, st)?;
+                            self.state_builder_parser(ty_state, st, false)?;
                             
                         },
 
@@ -273,8 +273,8 @@ impl FsmParser {
         Ok(regions)
     }
 
-    fn state_builder_parser(&mut self, ty_state: &syn::Type, st: &[MethodOverviewRef]) -> syn::Result<()> {
-        assert_no_generics(ty_state)?;
+    fn state_builder_parser(&mut self, ty_state: &syn::Type, st: &[MethodOverviewRef], is_sub_fsm: bool) -> syn::Result<()> {
+        if !is_sub_fsm { assert_no_generics(ty_state)?; }
         let field_name = to_field_name(&ty_state)?;
         let state = self.states
             .entry(ty_state.clone())
