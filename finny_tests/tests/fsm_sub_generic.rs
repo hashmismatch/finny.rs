@@ -26,7 +26,7 @@ pub struct EventSub { n: usize }
 fn build_fsm<X, Y>(mut fsm: FsmBuilder<StateMachine<X, Y>, MainContext<X>>) -> BuiltFsm
     where
         X: Add<usize> + Add<usize, Output = X> + Copy,
-        Y: Add<isize> + Add<isize, Output = Y> + Copy
+        Y: Add<isize> + Add<isize, Output = Y> + Copy + Default
 {
     fsm.initial_state::<StateA>();
     fsm.state::<StateA>()        
@@ -35,7 +35,7 @@ fn build_fsm<X, Y>(mut fsm: FsmBuilder<StateMachine<X, Y>, MainContext<X>>) -> B
 
     fsm.sub_machine::<SubStateMachine<Y>>()
         .with_context(|_ctx| {
-            SubContext { f2: -10 }
+            SubContext { f2: Default::default() }
         })
         .on_entry(|sub, ctx| {
             ctx.field = ctx.field + 1;
@@ -108,43 +108,37 @@ fn test_sub_generics() -> FsmResult<()> {
     let main_ctx = MainContext {
         field: 0usize
     };
-    let mut fsm = StateMachine::new_with(main_ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)))?;
+    let mut fsm = StateMachine::<usize, isize>::new_with(main_ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)))?;
     
     fsm.start()?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
 
-    /*
+    
     fsm.dispatch(Event)?;
     
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
-    let sub: &SubStateMachine = fsm.get_state();
+    let sub: &SubStateMachine<_> = fsm.get_state();
     assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateA), sub.get_current_states()[0]);
     let state: &SubStateA = sub.get_state();
     assert_eq!(1, state.value);
-    
+
+
     let ev: SubStateMachineEvents = SubEvent.into();
     fsm.dispatch(ev)?;
     
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
-    let sub: &SubStateMachine = fsm.get_state();
+    let sub: &SubStateMachine<_> = fsm.get_state();
     assert_eq!(FsmCurrentState::State(SubStateMachineCurrentState::SubStateB), sub.get_current_states()[0]);
     let state: &SubStateA = sub.get_state();
     assert_eq!(2, state.value);
 
     let res = fsm.dispatch(EventSub { n: 0 });
     assert_eq!(Err(FsmError::NoTransition), res);
-    assert_eq!(1, fsm.sub_enter);
-    assert_eq!(0, fsm.sub_exit);
-    assert_eq!(0, fsm.sub_action);
 
     fsm.dispatch(EventSub { n: 1 })?;
-    assert_eq!(2, fsm.sub_enter);
-    assert_eq!(1, fsm.sub_exit);
-    assert_eq!(1, fsm.sub_action);
 
     fsm.dispatch(Event)?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
-    */
 
     Ok(())
 }
