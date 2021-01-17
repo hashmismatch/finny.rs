@@ -12,6 +12,7 @@
 //! * Transition guards and actions
 //! * FSM regions, also known as orthogonal states
 //! * Event queueing and run-to-completition execution
+//! * Submachines, also known as Hieararchical State Machines
 //!
 //! ## Example
 //!
