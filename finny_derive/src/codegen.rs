@@ -1,13 +1,13 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs, strip_generics, to_field_name, tokens_to_string}};
+use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
 pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
     let fsm_types = FsmTypes::new(&fsm.base.fsm_ty, &fsm.base.fsm_generics);
-    let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
+    //let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
     let ctx_ty = &fsm.base.context_ty;
 
     let states_store_ty = ty_append(&fsm.base.fsm_ty, "States");
@@ -18,12 +18,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
     
-    let fsm_all_states: Vec<_> = fsm.fsm.states.iter().map(|s| s.0).cloned().collect();
-
-    let storage_generics = fsm_types.get_generics_for(fsm_all_states.as_slice())?;
-    let (storage_generics_impl, storage_generic_type, storage_generics_where) = storage_generics.split_for_impl();
-
-
     let states_store = {
 
         let mut code_fields = TokenStream::new();
@@ -83,13 +77,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             new_state_fields.append_all(new_state_field);
 
             state_accessors.append_all(quote! {
-                impl #storage_generics_impl core::convert::AsRef<#ty> for #states_store_ty #storage_generic_type #storage_generics_where {
+                impl #fsm_generics_impl core::convert::AsRef<#ty> for #states_store_ty #fsm_generics_type #fsm_generics_where {
                     fn as_ref(&self) -> & #ty {
                         &self. #name
                     }
                 }
 
-                impl #storage_generics_impl core::convert::AsMut<#ty> for #states_store_ty #storage_generic_type #storage_generics_where {
+                impl #fsm_generics_impl core::convert::AsMut<#ty> for #states_store_ty #fsm_generics_type #fsm_generics_where {
                     fn as_mut(&mut self) -> &mut #ty {
                         &mut self. #name
                     }
@@ -113,7 +107,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                 let state_to_field = &state_to.state_storage_field;
 
                                 transition_states.append_all(quote! {
-                                    impl #storage_generics_impl finny::FsmStateTransitionAsMut<#state_from_ty, #state_to_ty> for #states_store_ty #storage_generic_type #storage_generics_where {
+                                    impl #fsm_generics_impl finny::FsmStateTransitionAsMut<#state_from_ty, #state_to_ty> for #states_store_ty #fsm_generics_type #fsm_generics_where {
                                         fn as_state_transition_mut(&mut self) -> (&mut #state_from_ty, &mut #state_to_ty) {
                                             (&mut self. #state_from_field, &mut self. #state_to_field)
                                         }
@@ -130,14 +124,16 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
 
         quote! {
-            pub struct #states_store_ty #storage_generic_type #storage_generics_where {
+            pub struct #states_store_ty #fsm_generics_type #fsm_generics_where {
                 #code_fields
+                _fsm: core::marker::PhantomData< #fsm_ty #fsm_generics_type >
             }
             
-            impl #fsm_generics_impl finny::FsmStateFactory< #fsm_ty #fsm_generics_type > for #states_store_ty #storage_generic_type #fsm_generics_where {
+            impl #fsm_generics_impl finny::FsmStateFactory< #fsm_ty #fsm_generics_type > for #states_store_ty #fsm_generics_type #fsm_generics_where {
                 fn new_state(context: & #ctx_ty ) -> finny::FsmResult<Self> {
                     let s = Self {
                         #new_state_fields
+                        _fsm: core::marker::PhantomData::default()
                     };
                     Ok(s)
                 }
@@ -148,7 +144,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 #state_variants
             }
 
-            impl #fsm_generics_impl finny::FsmStates< #fsm_ty #fsm_generics_type > for #states_store_ty #storage_generic_type #fsm_generics_where {
+            impl #fsm_generics_impl finny::FsmStates< #fsm_ty #fsm_generics_type > for #states_store_ty #fsm_generics_type #fsm_generics_where {
                 type StateKind = #states_enum_ty;
                 type CurrentState = [finny::FsmCurrentState<Self::StateKind>; #region_count];
             }
@@ -525,7 +521,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 #fsm_generics_where
             {
                 type Context = #ctx_ty;
-                type States = #states_store_ty #storage_generic_type;
+                type States = #states_store_ty #fsm_generics_type;
                 type Events = #event_enum_ty;
 
                 fn dispatch_event<Q, I>(mut ctx: finny::DispatchContext<Self, Q, I>, event: finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult

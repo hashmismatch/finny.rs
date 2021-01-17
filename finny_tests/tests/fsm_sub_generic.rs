@@ -9,6 +9,7 @@ use slog::{Drain, o};
 pub struct MainContext<X>
     where X: Add<usize> + Add<usize, Output = X> + Copy
 {
+    some_string: String,
     field: X
 }
 
@@ -23,7 +24,7 @@ pub struct Event;
 pub struct EventSub { n: usize }
 
 #[finny_fsm]
-fn build_fsm<X, Y>(mut fsm: FsmBuilder<StateMachine<X, Y>, MainContext<X>>) -> BuiltFsm
+fn build_fsm<'b, X, Y>(mut fsm: FsmBuilder<StateMachine<X, Y>, MainContext<X>>) -> BuiltFsm
     where
         X: Add<usize> + Add<usize, Output = X> + Copy,
         Y: Add<isize> + Add<isize, Output = Y> + Copy + Default
@@ -34,7 +35,7 @@ fn build_fsm<X, Y>(mut fsm: FsmBuilder<StateMachine<X, Y>, MainContext<X>>) -> B
     ;
 
     fsm.sub_machine::<SubStateMachine<Y>>()
-        .with_context(|_ctx| {
+        .with_context(|ctx| {
             SubContext { f2: Default::default() }
         })
         .on_entry(|sub, ctx| {
@@ -106,7 +107,8 @@ fn test_sub_generics() -> FsmResult<()> {
     let logger = slog::Logger::root(drain, o!());
     
     let main_ctx = MainContext {
-        field: 0usize
+        field: 0usize,
+        some_string: "Hello".into()
     };
     let mut fsm = StateMachine::<usize, isize>::new_with(main_ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)))?;
     
