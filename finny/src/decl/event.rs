@@ -46,7 +46,7 @@ impl<'a, TFsm, TContext, TEvent, TState> FsmEventBuilderTransition<'a, TFsm, TCo
     }
     
     /// A guard for executing this action.
-    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmQueueMock<TFsm>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
+    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmQueueMock<TFsm>>, &<TFsm as FsmBackend>::States) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
 }
@@ -66,7 +66,7 @@ impl<'a, TFsm, TContext, TEvent, TStateFrom, TStateTo> FsmEventBuilderTransition
     }
 
     /// A guard for starting this transition from one state to another, including executing the action.
-    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmQueueMock<TFsm>>) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
+    pub fn guard<TGuard: Fn(&TEvent, &EventContext<'a, TFsm, FsmQueueMock<TFsm>>, &<TFsm as FsmBackend>::States) -> bool>(&mut self, _guard: TGuard) -> &mut Self {
         self
     }
 }

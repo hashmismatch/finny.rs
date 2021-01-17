@@ -43,7 +43,7 @@
 //!         })
 //!        .on_event::<MyEvent>()
 //!        .transition_to::<MyStateB>()
-//!        .guard(|_ev, ctx| { ctx.context.val > 0 })
+//!        .guard(|_ev, ctx, _states| { ctx.context.val > 0 })
 //!        .action(|_ev, ctx, state_a, state_b| { ctx.context.val += 1; });
 //!     fsm.state::<MyStateB>();
 //!     fsm.initial_state::<MyStateA>();

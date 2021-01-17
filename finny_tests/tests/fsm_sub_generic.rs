@@ -53,7 +53,7 @@ fn build_fsm<'b, X, Y>(mut fsm: FsmBuilder<StateMachine<X, Y>, MainContext<X>>) 
     fsm.sub_machine::<SubStateMachine<Y>>()
         .on_event::<EventSub>()
         .self_transition()
-        .guard(|ev, ctx| ev.n > 0)
+        .guard(|ev, ctx, _| ev.n > 0)
         .action(|ev, ctx, state| {
             ctx.field = ctx.field + 1;
         });

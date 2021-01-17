@@ -27,7 +27,7 @@ fn build_fsm<'a, TT>(mut fsm: FsmBuilder<StateMachine<'a, TT>, Ctx<'a, TT>>) -> 
         })
         .on_event::<Event>()
         .transition_to::<StateB>()
-        .guard(|_ev, ctx| {
+        .guard(|_ev, ctx, _| {
             ctx.context.val > 100
         })
         .action(|_ev, ctx, _, _| {

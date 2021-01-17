@@ -44,7 +44,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, MainContext>) -> BuiltFsm {
     fsm.sub_machine::<SubStateMachine>()
         .on_event::<EventSub>()
         .self_transition()
-        .guard(|ev, ctx| ev.n > 0)
+        .guard(|ev, ctx, _| ev.n > 0)
         .action(|ev, ctx, state| {
             ctx.context.sub_action += 1;
         });

@@ -41,8 +41,9 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventClick>()
         .transition_to::<StateB>()
-        .guard(|ev, _| {
-            ev.time > 100
+        .guard(|ev, _, states| {
+            let state_a: &StateA = states.as_ref();
+            ev.time > 100 && state_a.enter == 1
         })
         .action(|ev, ctx, _state_from, _state_to| {
             ctx.context.total_time += ev.time;
@@ -54,7 +55,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventEnter>()
         .internal_transition()
-        .guard(|ev, _| {
+        .guard(|ev, _, _| {
             ev.shift == false
         })
         .action(|_, _, state_b| {

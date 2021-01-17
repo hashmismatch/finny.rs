@@ -240,14 +240,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                         if let Some(ref guard) = s.action.guard {
                             let remap = remap_closure_inputs(&guard.inputs, vec![
-                                quote! { event }, quote! { context }
+                                quote! { event }, quote! { context }, quote! { states }
                             ].as_slice())?;
 
                             let body = &guard.body;
 
                             let g = quote! {
                                 impl #fsm_generics_impl finny::FsmTransitionGuard<#fsm_ty #fsm_generics_type, #event_ty> for #ty #fsm_generics_where {
-                                    fn guard<'fsm_event, Q>(event: & #event_ty, context: &finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>) -> bool
+                                    fn guard<'fsm_event, Q>(event: & #event_ty, context: &finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>, states: & #states_store_ty #fsm_generics_type ) -> bool
                                         where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
                                     {
                                         #remap
@@ -310,14 +310,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                             let event_ty = &s.event.get_event()?.ty;
 
                             let remap = remap_closure_inputs(&guard.inputs, vec![
-                                quote! { event }, quote! { context }
+                                quote! { event }, quote! { context }, quote! { states }
                             ].as_slice())?;
 
                             let body = &guard.body;
 
                             let g = quote! {
                                 impl #fsm_generics_impl finny::FsmTransitionGuard<#fsm_ty #fsm_generics_type, #event_ty> for #ty #fsm_generics_where {
-                                    fn guard<'fsm_event, Q>(event: & #event_ty, context: &finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>) -> bool
+                                    fn guard<'fsm_event, Q>(event: & #event_ty, context: &finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>, states: & #states_store_ty #fsm_generics_type) -> bool
                                         where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
                                     {
                                         #remap

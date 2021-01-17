@@ -43,7 +43,7 @@ pub trait FsmState<F: FsmBackend> {
 /// Check if this transition is allowed to be entered.
 pub trait FsmTransitionGuard<F: FsmBackend, E> {
     /// Return a boolean value whether this transition is usable at the moment. The check shouln't mutate any structures.
-    fn guard<'a, Q: FsmEventQueue<F>>(event: &E, context: &EventContext<'a, F, Q>) -> bool;
+    fn guard<'a, Q: FsmEventQueue<F>>(event: &E, context: &EventContext<'a, F, Q>, states: &'a <F as FsmBackend>::States) -> bool;
 
     fn execute_guard<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut I) -> bool
         where I: Inspect, Self: Sized
@@ -54,7 +54,7 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
             region
         };
 
-        let guard_result = Self::guard(event, &event_context);
+        let guard_result = Self::guard(event, &event_context, &context.backend.states);
 
         inspect_event_ctx.on_guard::<Self>(guard_result);
 
