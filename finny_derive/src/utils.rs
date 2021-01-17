@@ -6,7 +6,7 @@ use crate::parse::{FsmState, FsmTransitionState};
 
 pub fn remap_closure_inputs(inputs: &syn::punctuated::Punctuated<syn::Pat, syn::token::Comma>, access: &[TokenStream]) -> syn::Result<TokenStream> {
     if inputs.len() != access.len() {
-        panic!("Expected {} closure arguments, actually have {}.", access.len(), inputs.len());
+        return Err(syn::Error::new(inputs.span(), &format!("Expected {} closure arguments, actually have {}.", access.len(), inputs.len())));
     }
     
     let input_remap: syn::Result<Vec<_>> = inputs.iter().enumerate().map(|(idx, input)| {
@@ -38,8 +38,23 @@ pub fn get_closure(call: &syn::ExprMethodCall) -> syn::Result<&syn::ExprClosure>
     }
 }
 
+pub fn strip_generics(mut ty: syn::Type) -> syn::Type {
+    match ty {
+        syn::Type::Path(ref mut tp) => {
+            for mut seg in &mut tp.path.segments {
+                seg.arguments = syn::PathArguments::None;
+            }
+        },
+        _ => ()
+    }
+
+    ty
+}
+
 pub fn to_field_name(ty: &syn::Type) -> syn::Result<syn::Ident> {
-    let s = tokens_to_string(ty);
+    let ty = strip_generics(ty.clone());
+
+    let s = tokens_to_string(&ty);
     let snake = to_snake_case(&s);
     Ok(syn::Ident::new(&snake, ty.span()))
 }
@@ -116,4 +131,14 @@ pub fn assert_no_generics(ty: &syn::Type) -> syn::Result<()> {
     }
 
     Ok(())
+}
+
+pub fn get_ty_ident(ty: &syn::Type) -> syn::Result<&syn::Ident> {
+    match ty {
+        syn::Type::Path(syn::TypePath { path, .. }) if path.segments.len() == 1 => {
+            let seg = path.segments.first().unwrap();
+            return Ok(&seg.ident);
+        },
+        _ => Err(syn::Error::new(ty.span(), "Expected a single identifier type."))        
+    }
 }

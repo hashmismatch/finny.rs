@@ -3,7 +3,8 @@ use std::{fmt::Debug, ops::AddAssign};
 
 extern crate finny;
 
-pub struct Ctx<T> {
+pub struct Ctx<'a, T> {
+    ref_str: &'a str,
     val: T
 }
 
@@ -16,7 +17,7 @@ pub struct StateB;
 pub struct Event;
 
 #[finny_fsm]
-fn build_fsm<TT>(mut fsm: FsmBuilder<StateMachine<TT>, Ctx<TT>>) -> BuiltFsm
+fn build_fsm<'a, TT>(mut fsm: FsmBuilder<StateMachine<'a, TT>, Ctx<'a, TT>>) -> BuiltFsm
     where TT: Debug + AddAssign<usize> + PartialOrd<usize>
 {
     fsm.initial_state::<StateA>();
@@ -26,7 +27,7 @@ fn build_fsm<TT>(mut fsm: FsmBuilder<StateMachine<TT>, Ctx<TT>>) -> BuiltFsm
         })
         .on_event::<Event>()
         .transition_to::<StateB>()
-        .guard(|_ev, ctx| {
+        .guard(|_ev, ctx, _| {
             ctx.context.val > 100
         })
         .action(|_ev, ctx, _, _| {
@@ -40,7 +41,8 @@ fn build_fsm<TT>(mut fsm: FsmBuilder<StateMachine<TT>, Ctx<TT>>) -> BuiltFsm
 
 #[test]
 fn test_generic_ctx() -> FsmResult<()> {
-    let ctx = Ctx { val: 123 };
+    let some_str = "hello!";
+    let ctx = Ctx { val: 123, ref_str: &some_str };
     
     let mut fsm = StateMachine::new(ctx)?;
     assert_eq!(123, fsm.val);

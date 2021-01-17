@@ -1,6 +1,4 @@
-use crate::lib::*;
-
-use crate::{FsmBackend, FsmEventQueue};
+use crate::{FsmBackend, FsmEventQueue, FsmEventQueueSender, lib::*};
 
 /// The internal event type that also allows stopping or starting the machine.
 pub enum FsmEvent<E> {
@@ -25,16 +23,26 @@ impl<E> Debug for FsmEvent<E> where E: Debug {
     }
 }
 
+impl<E> AsRef<str> for FsmEvent<E> where E: AsRef<str> {
+    fn as_ref(&self) -> &str {
+        match self {
+            FsmEvent::Start => "Fsm::Start",
+            FsmEvent::Stop => "Fsm::Stop",
+            FsmEvent::Event(e) => e.as_ref()
+        }
+    }
+}
+
 pub type FsmRegionId = usize;
 
 /// The context that is given to all of the guards and actions.
-pub struct EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm> {
+pub struct EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSender<TFsm> {
     pub context: &'a mut TFsm::Context,
     pub queue: &'a mut Q,
     pub region: FsmRegionId
 }
 
-impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm>
+impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSender<TFsm>
 {
     type Target = <TFsm as FsmBackend>::Context;
 
@@ -43,7 +51,7 @@ impl<'a, TFsm, Q> Deref for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q:
     }
 }
 
-impl<'a, TFsm: FsmBackend, Q> DerefMut for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueue<TFsm> {
+impl<'a, TFsm: FsmBackend, Q> DerefMut for EventContext<'a, TFsm, Q> where TFsm: FsmBackend, Q: FsmEventQueueSender<TFsm> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.context
     }

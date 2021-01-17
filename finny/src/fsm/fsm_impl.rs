@@ -1,4 +1,4 @@
-use crate::{Inspect, lib::*};
+use crate::{DispatchContext, Inspect, lib::*};
 use crate::{FsmBackend, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
@@ -8,14 +8,14 @@ use super::FsmStateFactory;
 pub struct FsmBackendImpl<F: FsmBackend> {
     pub context: <F as FsmBackend>::Context,
     pub states: <F as FsmBackend>::States,
-    pub current_states: <<F as FsmBackend>::States as FsmStates>::CurrentState
+    pub current_states: <<F as FsmBackend>::States as FsmStates<F>>::CurrentState
 }
 
 impl<F: FsmBackend> FsmBackendImpl<F> {
     pub fn new(context: <F as FsmBackend>::Context) -> FsmResult<Self> {
 
         let states = <<F as FsmBackend>::States>::new_state(&context)?;
-        let current_states = <<<F as FsmBackend>::States as FsmStates>::CurrentState>::default();
+        let current_states = <<<F as FsmBackend>::States as FsmStates<F>>::CurrentState>::default();
 
         let backend = FsmBackendImpl::<F> {
             context,
@@ -30,7 +30,7 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
         &self.context
     }
 
-    pub fn get_current_states(&self) -> <<F as FsmBackend>::States as FsmStates>::CurrentState {
+    pub fn get_current_states(&self) -> <<F as FsmBackend>::States as FsmStates<F>>::CurrentState {
         self.current_states
     }
 
@@ -52,7 +52,7 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
 pub struct FsmFrontend<F, Q, I> 
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect
 {
     pub backend: FsmBackendImpl<F>,
     pub queue: Q,
@@ -60,11 +60,11 @@ pub struct FsmFrontend<F, Q, I>
 }
 
 impl<F, Q, I> FsmFrontend<F, Q, I>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect
 {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
-        Self::dispatch_single_event(self, &FsmEvent::Start)
+        Self::dispatch_single_event(self, FsmEvent::Start)
     }
 
     /// Dispatch this event and run it to completition.
@@ -73,7 +73,7 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
     {
         let ev = event.into();
         let ev = FsmEvent::Event(ev);
-        Self::dispatch_single_event(self, &ev)?;
+        Self::dispatch_single_event(self, ev)?;
 
         while let Some(ev) = self.queue.dequeue() {
             let ev: <F as FsmBackend>::Events = ev.into();
@@ -84,13 +84,19 @@ impl<F, Q, I> FsmFrontend<F, Q, I>
     }
 
     /// Dispatch only this event, do not run it to completition.
-    pub fn dispatch_single_event(&mut self, event: &FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
-        F::dispatch_event(self, event)
+    pub fn dispatch_single_event(&mut self, event: FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
+        let dispatch_ctx = DispatchContext {
+            backend: &mut self.backend,
+            inspect: &mut self.inspect,
+            queue: &mut self.queue
+        };
+
+        F::dispatch_event(dispatch_ctx, event)
     }
 }
 
 impl<F, Q, I> Deref for FsmFrontend<F, Q, I>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect<F>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect
 {
     type Target = FsmBackendImpl<F>;
 

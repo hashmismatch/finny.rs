@@ -40,7 +40,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventClick>()
         .transition_to::<StateB>()
-        .guard(|ev, _ctx| {
+        .guard(|ev, _ctx, _states| {
             ev.time > 100
         })
         .action(|ev, ctx, _state_from, _state_to| {

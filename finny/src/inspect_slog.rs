@@ -1,13 +1,9 @@
-use slog::{OwnedKV, debug, info, o};
-
-use crate::{FsmBackend, FsmDispatchResult, FsmEvent, Inspect};
+use slog::{info, o};
+use crate::{FsmBackend, FsmEvent, Inspect};
 use super::lib::*;
+use AsRef;
 
 pub struct InspectSlog {
-    logger: slog::Logger
-}
-
-pub struct InspectSlogSubContext {
     logger: slog::Logger
 }
 
@@ -19,56 +15,55 @@ impl InspectSlog {
     }
 }
 
-impl<F> Inspect<F> for InspectSlog 
-    where F: FsmBackend, <F as FsmBackend>::Events: Debug
-{
-    type CtxEvent = InspectSlogSubContext;
-    type CtxTransition = InspectSlogSubContext;
-
-    fn on_dispatch_event(&self, fsm: &crate::FsmBackendImpl<F>, event: &FsmEvent<<F as FsmBackend>::Events>) -> InspectSlogSubContext {
-        
-        let log_event = format!("{:?}", event);
-        let log_current_states = format!("{:?}", fsm.current_states);
-        let kv = o!("event" => log_event, "current_states" => log_current_states);
-        info!(self.logger, "Dispatching the event."; &kv);
-        InspectSlogSubContext {
+impl Inspect for InspectSlog {
+    fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events>) -> Self {
+        let event = event.as_ref().to_string();
+        let kv = o!("event" => event);
+        info!(self.logger, "Dispatching"; &kv);
+        InspectSlog {
             logger: self.logger.new(kv)
         }
     }
 
-    fn on_dispatched_event(&self, fsm: &crate::FsmBackendImpl<F>, ctx: Self::CtxEvent, result: &FsmDispatchResult) {
-        let states = format!("{:?}",  fsm.current_states);
-        let result = format!("{:?}", result);
-        info!(ctx.logger, "Finished the dispatching. The new state is {states} and the result of the dispatch is {result}", states = &states, result = &result);
-    }
-
-    fn on_state_enter<State>(&self, _fsm: &crate::FsmBackendImpl<F>, ctx: &mut InspectSlogSubContext) where <F as FsmBackend>::States: AsRef<State> {
-        info!(ctx.logger, "Entering state {:?}", type_name::<State>());
-    }
-
-    fn on_state_exit<State>(&self, _fsm: &crate::FsmBackendImpl<F>, ctx: &mut InspectSlogSubContext) where <F as FsmBackend>::States: AsRef<State> {
-        info!(ctx.logger, "Exiting state {:?}", type_name::<State>());
-    }
-
-    fn on_action<T>(&self, _fsm: &crate::FsmBackendImpl<F>, ctx: &mut InspectSlogSubContext) {
-        info!(ctx.logger, "Executing the action for {transition}", transition = type_name::<T>());
-    }
-
-    fn on_guard<T>(&self, _fsm: &crate::FsmBackendImpl<F>, ctx: &mut Self::CtxEvent, guard_result: bool) {
-        let guard_result = format!("{}", guard_result);
+    fn for_transition<T>(&self) -> Self {
         let transition = type_name::<T>();
-        info!(ctx.logger, "The guard for {transition} evaluated to {guard_result}", transition = transition, guard_result = &guard_result);
-    }
-
-    fn on_matched_transition<T>(&self, fsm: &crate::FsmBackendImpl<F>, region: crate::FsmRegionId, ctx: &mut InspectSlogSubContext) -> InspectSlogSubContext {
-        let transition = type_name::<T>();
-        let kv = o!("transition" => transition, "region" => region);
-        info!(ctx.logger, "Matched transition {transition} in region {region}", transition = transition, region = region);
-
-        InspectSlogSubContext {
-            logger: ctx.logger.new(kv)
+        let kv = o!("transition" => transition);
+        info!(self.logger, "Matched transition"; &kv);
+        InspectSlog {
+            logger: self.logger.new(kv)
         }
     }
+ 
+    fn for_sub_machine<FSub: FsmBackend>(&self) -> Self {
+        let sub_fsm = type_name::<FSub>();
+        let kv = o!("sub_fsm" => sub_fsm);
+        info!(self.logger, "Dispatching to a submachine"; &kv);
+        InspectSlog {
+            logger: self.logger.new(kv)
+        }
+    }
+
+    fn on_guard<T>(&self, guard_result: bool) {
+        let guard = type_name::<T>();
+        info!(self.logger, "Guard {guard} evaluated to {guard_result}", guard = guard, guard_result = guard_result);
+    }
+
+    fn on_state_enter<S>(&self) {
+        let state = type_name::<S>();
+        info!(self.logger, "Entering {state}", state = state);
+    }
+
+    fn on_state_exit<S>(&self) {
+        let state = type_name::<S>();
+        info!(self.logger, "Exiting {state}", state = state);
+    }
+
+    fn on_action<S>(&self) {
+        let action = type_name::<S>();
+        info!(self.logger, "Executing {action}", action = action);
+    }
+
+    fn event_done(self) {
+        info!(self.logger, "Dispatch done");
+    }
 }
-
-

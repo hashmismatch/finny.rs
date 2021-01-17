@@ -41,8 +41,9 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventClick>()
         .transition_to::<StateB>()
-        .guard(|ev, _| {
-            ev.time > 100
+        .guard(|ev, _, states| {
+            let state_a: &StateA = states.as_ref();
+            ev.time > 100 && state_a.enter == 1
         })
         .action(|ev, ctx, _state_from, _state_to| {
             ctx.context.total_time += ev.time;
@@ -54,7 +55,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
         })
         .on_event::<EventEnter>()
         .internal_transition()
-        .guard(|ev, _| {
+        .guard(|ev, _, _| {
             ev.shift == false
         })
         .action(|_, _, state_b| {
@@ -107,29 +108,6 @@ fn test_fsm() -> FsmResult<()> {
     fsm.dispatch(EventEnter { shift: false })?;
     let state_b: &StateB = fsm.get_state();
     assert_eq!(2, state_b.counter);
-    
-    Ok(())
-}
-
-#[test]
-fn test_inspect_slog() -> FsmResult<()> {
-    use finny::Inspect;
-
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
-    let logger = Logger::root(
-        slog_term::FullFormat::new(plain)
-        .build().fuse(), o!()
-    );
-
-    info!(logger, "Logging ready!");
-
-    let inspect_slog = InspectSlog::new(Some(logger));
-    
-    let ctx = StateMachineContext { count: 0, total_time: 0 };
-    let mut fsm = StateMachine::new(ctx)?;
-
-    let mut log_ctx = inspect_slog.on_dispatch_event(&fsm.backend, &FsmEvent::Event(EventClick { time: 99 }.into()));
-    inspect_slog.on_state_enter::<StateA>(&fsm.backend, &mut log_ctx);
     
     Ok(())
 }

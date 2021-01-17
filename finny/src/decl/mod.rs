@@ -4,10 +4,12 @@
 mod fsm;
 mod state;
 mod event;
+mod sub;
 
 pub use self::fsm::*;
 pub use self::state::*;
 pub use self::event::*;
+pub use self::sub::*;
 
 #[cfg(feature = "std")]
 pub type FsmQueueMock<F> = crate::FsmEventQueueVec<F>;

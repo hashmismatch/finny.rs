@@ -20,7 +20,7 @@ pub enum StateKind {
     StateA
 }
 
-impl FsmStates for States {
+impl FsmStates<TestFsm> for States {
     type StateKind = StateKind;
     type CurrentState = [FsmCurrentState<StateKind>; 1];
 }
@@ -30,15 +30,22 @@ pub enum Events {
     EventA(EventA)
 }
 
+impl AsRef<str> for Events {
+    fn as_ref(&self) -> &'static str {
+        todo!()
+    }
+}
+
 
 impl FsmBackend for TestFsm {
     type Context = ();
     type States = States;
     type Events = Events;
 
-    fn dispatch_event<Q, I>(_frontend: &mut crate::FsmFrontend<Self, Q, I>, _event: &crate::FsmEvent<Self::Events>) -> crate::FsmResult<()>
-        where Q: crate::FsmEventQueue<Self>, I: crate::Inspect<Self>
-    {
+    fn dispatch_event<Q, I>(_ctx: crate::DispatchContext<Self, Q, I>, _event: crate::FsmEvent<Self::Events>) -> crate::FsmDispatchResult
+        where Q: crate::FsmEventQueue<Self>,
+            I: crate::Inspect
+     {
         todo!()
     }
 }
