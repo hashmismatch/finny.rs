@@ -111,26 +111,3 @@ fn test_fsm() -> FsmResult<()> {
     
     Ok(())
 }
-
-#[test]
-fn test_inspect_slog() -> FsmResult<()> {
-    use finny::Inspect;
-
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
-    let logger = Logger::root(
-        slog_term::FullFormat::new(plain)
-        .build().fuse(), o!()
-    );
-
-    info!(logger, "Logging ready!");
-
-    let inspect_slog = InspectSlog::new(Some(logger));
-    
-    let ctx = StateMachineContext { count: 0, total_time: 0 };
-    let mut fsm = StateMachine::new(ctx)?;
-
-    //let mut log_ctx = inspect_slog.on_dispatch_event(&fsm.backend, &FsmEvent::Event(EventClick { time: 99 }.into()));
-    //inspect_slog.on_state_enter::<StateA>(&fsm.backend, &mut log_ctx);
-    
-    Ok(())
-}

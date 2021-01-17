@@ -19,6 +19,8 @@ pub struct StateA {
 pub struct Event;
 #[derive(Debug, Clone)]
 pub struct EventSub { n: usize }
+#[derive(Debug, Clone)]
+pub struct EventSubSecond;
 
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<StateMachine, MainContext>) -> BuiltFsm {
@@ -48,6 +50,13 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, MainContext>) -> BuiltFsm {
         .action(|ev, ctx, state| {
             ctx.context.sub_action += 1;
         });
+
+    fsm.sub_machine::<SubStateMachine>()
+        .on_event::<EventSubSecond>()
+        .transition_to::<SecondSubStateMachine>();
+
+    fsm.sub_machine::<SecondSubStateMachine>()
+        .with_context(|_| SecondSubContext { value: 0 });
 
     fsm.build()
 }
@@ -80,6 +89,37 @@ fn build_sub_fsm(mut fsm: FsmBuilder<SubStateMachine, SubContext>) -> BuiltFsm {
         });
 
     fsm.state::<SubStateB>();
+    fsm.build()
+}
+
+#[derive(Default)]
+pub struct SecondSubStateA {
+    value: usize
+}
+#[derive(Default)]
+pub struct SecondSubStateB {
+    value: usize
+}
+#[derive(Debug, Clone)]
+pub struct SecondSubEvent;
+
+pub struct SecondSubContext {
+    value: usize
+}
+
+#[finny_fsm]
+fn build_second_sub_fsm(mut fsm: FsmBuilder<SecondSubStateMachine, SecondSubContext>) -> BuiltFsm {
+    fsm.initial_state::<SecondSubStateA>();
+    fsm.state::<SecondSubStateA>()
+        .on_entry(|state, _ctx| {
+            state.value += 1;
+        }).on_event::<SecondSubEvent>()
+        .transition_to::<SecondSubStateB>()
+        .action(|ev, ctx, state_a, state_b| {
+            state_a.value += 1;
+        });
+
+    fsm.state::<SecondSubStateB>();
     fsm.build()
 }
 
@@ -127,6 +167,12 @@ fn test_sub() -> FsmResult<()> {
 
     fsm.dispatch(Event)?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
+
+    fsm.dispatch(Event)?;
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SubStateMachine), fsm.get_current_states()[0]);
+
+    fsm.dispatch(EventSubSecond)?;
+    assert_eq!(FsmCurrentState::State(StateMachineCurrentState::SecondSubStateMachine), fsm.get_current_states()[0]);
     
     Ok(())
 }
