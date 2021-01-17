@@ -3,7 +3,7 @@ use crate::{FsmBackend, FsmBackendImpl, lib::*};
 use crate::FsmResult;
 
 /// The implementation should hold all of the FSM's states as fields.
-pub trait FsmStates: FsmStateFactory {
+pub trait FsmStates<TFsm>: FsmStateFactory<TFsm> where TFsm: FsmBackend {
     /// The enum type for all states that's used as the "current state" field in the FSM's backend.
     type StateKind: Clone + Copy + Debug + PartialEq;
     /// An array of current states for the machine, one for each region.
@@ -44,13 +44,13 @@ impl<S> Default for FsmCurrentState<S> where S: Clone + Copy {
 }
 
 /// Create a new state from the shared global context.
-pub trait FsmStateFactory where Self: Sized {
+pub trait FsmStateFactory<TFsm> where Self: Sized, TFsm: FsmBackend {
     /// Constructor for building this state from the shared global context.
-    fn new_state<C>(context: &C) -> FsmResult<Self>;
+    fn new_state(context: &<TFsm as FsmBackend>::Context) -> FsmResult<Self>;
 }
 
-impl<TState> FsmStateFactory for TState where TState: Default {
-    fn new_state<C>(_context: &C) -> FsmResult<Self> {
+impl<TState, TFsm> FsmStateFactory<TFsm> for TState where TState: Default, TFsm: FsmBackend {
+    fn new_state(_context: &<TFsm as FsmBackend>::Context) -> FsmResult<Self> {
         Ok(Default::default())
     }
 }

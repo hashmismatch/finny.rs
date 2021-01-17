@@ -20,7 +20,7 @@ pub enum StateKind {
     StateA
 }
 
-impl FsmStates for States {
+impl FsmStates<TestFsm> for States {
     type StateKind = StateKind;
     type CurrentState = [FsmCurrentState<StateKind>; 1];
 }

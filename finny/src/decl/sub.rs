@@ -15,7 +15,7 @@ impl<TFsm, TContext, TSubMachine> FsmSubMachineBuilder<TFsm, TContext, TSubMachi
 {
 	/// Adds a context adapter. A referenced context of the parent machine is provided, and a new
 	/// instance of the submachine's context has to be instantiated.
-	pub fn with_context<TCtxFactory: Fn(&<TFsm as FsmBackend>::Context) -> <TSubMachine as FsmBackend>::Context>(&mut self, _sub_context_factory: TCtxFactory) -> &Self {
+	pub fn with_context<TCtxFactory: Fn(&TContext) -> <TSubMachine as FsmBackend>::Context>(&mut self, _sub_context_factory: TCtxFactory) -> &Self {
 		self
 	}
 

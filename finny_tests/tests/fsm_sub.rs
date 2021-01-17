@@ -28,7 +28,7 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, MainContext>) -> BuiltFsm {
     ;
 
     fsm.sub_machine::<SubStateMachine>()
-        .with_context(|_ctx| ())
+        .with_context(|ctx| SubContext { value: ctx.sub_enter })
         .on_entry(|sub, ctx| {
             ctx.sub_enter += 1;
         })
@@ -63,8 +63,12 @@ pub struct SubStateB {
 #[derive(Debug, Clone)]
 pub struct SubEvent;
 
+pub struct SubContext {
+    value: usize
+}
+
 #[finny_fsm]
-fn build_sub_fsm(mut fsm: FsmBuilder<SubStateMachine, ()>) -> BuiltFsm {
+fn build_sub_fsm(mut fsm: FsmBuilder<SubStateMachine, SubContext>) -> BuiltFsm {
     fsm.initial_state::<SubStateA>();
     fsm.state::<SubStateA>()
         .on_entry(|state, _ctx| {

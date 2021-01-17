@@ -43,7 +43,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let new_state_field = match state.kind {
                 FsmStateKind::Normal => {
                     quote! {
-                        #name: #ty::new_state(context)?,
+                        #name: < #ty as finny::FsmStateFactory< #fsm_ty #fsm_generics_type > >::new_state(context)?,
                     }
                 }
                 FsmStateKind::SubMachine(ref sub) => {
@@ -133,22 +133,22 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             pub struct #states_store_ty #storage_generic_type #storage_generics_where {
                 #code_fields
             }
-
-            impl #storage_generics_impl finny::FsmStateFactory for #states_store_ty #storage_generic_type #storage_generics_where {
-                fn new_state<C>(context: &C) -> finny::FsmResult<Self> {
+            
+            impl #fsm_generics_impl finny::FsmStateFactory< #fsm_ty #fsm_generics_type > for #states_store_ty #storage_generic_type #fsm_generics_where {
+                fn new_state(context: & #ctx_ty ) -> finny::FsmResult<Self> {
                     let s = Self {
                         #new_state_fields
                     };
                     Ok(s)
                 }
             }
-
+                        
             #[derive(Copy, Clone, Debug, PartialEq)]
             pub enum #states_enum_ty {
                 #state_variants
             }
 
-            impl #storage_generics_impl finny::FsmStates for #states_store_ty #storage_generic_type #storage_generics_where {
+            impl #fsm_generics_impl finny::FsmStates< #fsm_ty #fsm_generics_type > for #states_store_ty #storage_generic_type #fsm_generics_where {
                 type StateKind = #states_enum_ty;
                 type CurrentState = [finny::FsmCurrentState<Self::StateKind>; #region_count];
             }

@@ -37,7 +37,7 @@ pub trait FsmState<F: FsmBackend> {
         state.on_exit(&mut event_context);
     }
 
-    fn fsm_state() -> <<F as FsmBackend>::States as FsmStates>::StateKind;
+    fn fsm_state() -> <<F as FsmBackend>::States as FsmStates<F>>::StateKind;
 }
 
 /// Check if this transition is allowed to be entered.
