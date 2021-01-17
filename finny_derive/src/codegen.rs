@@ -168,17 +168,27 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }).collect();
 
         let mut variants = TokenStream::new();
+        let mut as_ref_str = TokenStream::new();
+
         for (ty, _ev) in  fsm.fsm.events.iter() {
-            variants.append_all(quote! { #ty ( #ty ),  });
+            let ty_str = crate::utils::tokens_to_string(ty);
+
+            variants.append_all(quote! { #ty ( #ty ),  });            
+            as_ref_str.append_all(quote! { #event_enum_ty:: #ty(_) => #ty_str, });
         }
         for (_sub, state) in submachines {
             let sub_fsm = FsmTypes::new(&state.ty, &fsm.base.fsm_generics);
             let sub_fsm_event_ty = sub_fsm.get_fsm_events_ty();
             let sub_fsm_ty = sub_fsm.get_fsm_no_generics_ty();            
 
+            let sub_fsm_event_ty_str = crate::utils::tokens_to_string(&sub_fsm_event_ty);
+
             variants.append_all(quote! {
                 #sub_fsm_ty ( #sub_fsm_event_ty ),
-            })
+            });
+            as_ref_str.append_all(quote! {
+                #event_enum_ty :: #sub_fsm_ty(_) => #sub_fsm_event_ty_str ,
+            });
         }
 
         let mut derives = TokenStream::new();
@@ -189,11 +199,19 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
         
         let evs = quote! {
-            #[derive(finny::bundled::derive_more::From, finny::bundled::strum::AsRefStr)]
+            #[derive(finny::bundled::derive_more::From)]
             #[derive(Clone)]
             #derives
             pub enum #event_enum_ty {
                 #variants
+            }
+
+            impl core::convert::AsRef<str> for #event_enum_ty {
+                fn as_ref(&self) -> &'static str {
+                    match self {
+                        #as_ref_str
+                    }
+                }
             }
         };
 

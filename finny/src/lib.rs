@@ -74,7 +74,6 @@ pub use fsm::*;
 
 extern crate finny_derive;
 extern crate derive_more;
-extern crate strum_macros;
 
 /// The procedural macro that will transform the builder function into the FSM.
 pub use finny_derive::finny_fsm;
@@ -84,10 +83,6 @@ pub mod bundled {
     /// Derive_more crate for deriving the enum conversions.
     pub mod derive_more {
         pub use crate::derive_more::From;
-    }
-    /// Strum_macros for deriving the event's enum variant display.
-    pub mod strum {
-        pub use crate::strum_macros::AsRefStr;
     }
 }
 
