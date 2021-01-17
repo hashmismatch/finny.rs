@@ -155,8 +155,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
     };
     
-    //panic!("states: {}", tokens_to_string(&states_store));
-
 
     let events_enum = {
 
@@ -201,9 +199,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         evs
     };
-
-    //panic!("events: {}", tokens_to_string(&events_enum));
-
+    
     let transition_types = {
         let mut t = TokenStream::new();
         
@@ -446,7 +442,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 region_transitions.append_all(m);
             }
 
-            // match submachines
+            // match and dispatch to submachines
             let region_submachines = {
 
                 let mut sub_matches = TokenStream::new();
@@ -467,39 +463,15 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let sub = quote! {
                         ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
-
-                            // todo: move this transition block out from generated code into the lib
-                            let sub_fsm: &mut #kind = ctx.backend.states.as_mut();
-
-                            let mut queue_adapter = finny::FsmEventQueueSub {
-                                parent: ctx.queue,
-                                _parent_fsm: core::marker::PhantomData::<Self>::default(),
-                                _sub_fsm: core::marker::PhantomData::<#kind>::default()
-                            };
-
-                            let mut inspect = inspect_event_ctx.for_sub_machine::<#kind>();
-
-                            let sub_dispatch_ctx = finny::DispatchContext {
-                                backend: &mut sub_fsm.backend,
-                                inspect: &mut inspect,
-                                queue: &mut queue_adapter
-                            };
-
-                            return < #kind >::dispatch_event(sub_dispatch_ctx, finny::FsmEvent::Event(ev.clone()));
+                            return finny::dispatch_to_submachine::<_, #kind, _, _, _>(&mut ctx, ev, &mut inspect_event_ctx);
                         },
                     };
 
-                    //panic!("sub: {}", tokens_to_string(&sub));
-
                     sub_matches.append_all(sub);
-
                 }
 
                 sub_matches
-
             };
-
-
 
             regions.append_all(quote! {
                 match (ctx.backend.current_states[#region_id], &event) {
@@ -549,9 +521,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             }
         }
     };
-
-    //panic!("dispatch: {}", tokens_to_string(&dispatch));
-
+    
     let states = {
 
         let mut states = TokenStream::new();
