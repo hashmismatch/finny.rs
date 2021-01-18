@@ -102,6 +102,7 @@ mod lib {
    pub use self::core::fmt;
    pub use self::core::any::type_name;
    pub use self::core::slice::SliceIndex;
+   pub use self::core::time::Duration;
 
    #[cfg(feature="std")]
    pub use std::collections::VecDeque;

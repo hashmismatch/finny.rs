@@ -1,4 +1,4 @@
-use crate::lib::*;
+use crate::{TimerSettings, lib::*};
 
 use crate::{EventContext, FsmBackend};
 use super::{FsmQueueMock, event::FsmEventBuilderState};
@@ -28,5 +28,17 @@ impl<TFsm, TContext, TState> FsmStateBuilder<TFsm, TContext, TState>
 			_state_builder: self,
 			_event: PhantomData::default()
 		}
+	}
+
+	/// Start a new timer when entering this state. The timer should be unit struct with a implemented
+	/// Default trait. The timer is setup within a closure and the trigger is another closure
+	/// that returns an event to be enqueued in the FSM.
+	pub fn on_entry_start_timer<TTimer, FSetup, FTrigger>(&self, _setup: FSetup, _trigger: FTrigger) -> &Self
+		where 
+			TTimer: Default,
+			FSetup: FnOnce(&TContext, &mut TimerSettings),
+			FTrigger: Fn(&TContext, &TState) -> Option< <TFsm as FsmBackend>::Events >
+	{
+		self
 	}
 }

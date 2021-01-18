@@ -10,6 +10,7 @@ mod transitions;
 mod tests_fsm;
 mod inspect;
 mod dispatch;
+mod timers;
 
 pub use self::events::*;
 pub use self::fsm_factory::*;
@@ -19,8 +20,9 @@ pub use self::states::*;
 pub use self::transitions::*;
 pub use self::inspect::*;
 pub use self::dispatch::*;
+pub use self::timers::*;
 
-use crate::{bundled, lib::*};
+use crate::lib::*;
 
 pub type FsmResult<T> = Result<T, FsmError>;
 
