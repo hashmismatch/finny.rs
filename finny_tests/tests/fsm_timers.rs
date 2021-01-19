@@ -2,7 +2,7 @@ extern crate finny;
 
 use std::time::Duration;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect_slog::{self, InspectSlog}};
+use finny::{FsmCurrentState, FsmError, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect_slog::{self, InspectSlog}};
 use slog::{Drain, Logger, info, o};
 
 #[derive(Debug)]
@@ -76,7 +76,9 @@ fn test_timers_fsm() -> FsmResult<()> {
 
     let ctx = TimersMachineContext { };
     
-    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)))?;
+    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), FsmTimersNull)?;
+
+    let foo = TimersMachineTimer1::default();
     
     fsm.start()?;   
     Ok(())

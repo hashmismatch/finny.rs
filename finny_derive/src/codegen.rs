@@ -1,5 +1,6 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
+use syn::punctuated::Punctuated;
 use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
@@ -626,6 +627,26 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         }
     };
 
+    let timers = {
+
+        let mut code = TokenStream::new();
+
+        let timers = fsm.fsm.states.iter().map(|s| &s.1.timers).flatten();
+        for timer in timers {
+            let timer_ty = ty_append(&fsm.base.fsm_ty, &format!("Timer{}", timer.id));
+
+            code.append_all(quote! {
+
+                #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
+                pub struct #timer_ty;
+
+            });
+
+        }
+
+        code
+    };
+
     let mut q = quote! {
         #states_store
 
@@ -638,6 +659,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         #dispatch
 
         #builder
+
+        #timers
     };
 
     // this goes in front of our definition function

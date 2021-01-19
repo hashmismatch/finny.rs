@@ -1,4 +1,4 @@
-use crate::lib::*;
+use crate::{FsmError, lib::*};
 use crate::{FsmBackend, FsmResult};
 
 
@@ -53,7 +53,8 @@ pub trait FsmTimers {
     fn create(&mut self, id: TimerId, settings: TimerSettings) -> FsmResult<()>;
     fn cancel(&mut self, id: TimerId) -> FsmResult<()>;
     
-    /// Return the latest timer that was triggered. Poll this until it returns None.
+    /// Return the timer that was triggered. Poll this until it returns None. The events
+    /// should be dequeued in a FIFO manner.
     fn get_triggered_timer(&mut self) -> Option<TimerId>;
 }
 
@@ -61,4 +62,21 @@ pub trait FsmTimers {
 #[derive(Debug, Copy, Clone)]
 pub struct FsmTimersTriggerEventsResult {
     pub triggered_events: usize
+}
+
+#[derive(Debug, Default, Copy, Clone)]
+pub struct FsmTimersNull;
+
+impl FsmTimers for FsmTimersNull {
+    fn create(&mut self, id: TimerId, settings: TimerSettings) -> FsmResult<()> {
+        Err(FsmError::NotSupported)
+    }
+
+    fn cancel(&mut self, id: TimerId) -> FsmResult<()> {
+        Err(FsmError::NotSupported)
+    }
+
+    fn get_triggered_timer(&mut self) -> Option<TimerId> {
+        None
+    }
 }

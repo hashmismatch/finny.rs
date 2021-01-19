@@ -30,7 +30,8 @@ pub type FsmResult<T> = Result<T, FsmError>;
 #[derive(Debug, PartialEq)]
 pub enum FsmError {
     NoTransition,
-    QueueOverCapacity
+    QueueOverCapacity,
+    NotSupported
 }
 
 pub type FsmDispatchResult = FsmResult<()>;
