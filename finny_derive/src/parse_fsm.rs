@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmSubMachineOptions, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmSubMachineOptions, FsmTimer, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
 #[derive(Copy, Clone, Debug)]
 pub struct FsmCodegenOptions {
@@ -23,7 +23,8 @@ pub struct FsmParser {
     states: HashMap<Type, FsmState>,
     events: HashMap<Type, FsmEvent>,
     options: FsmCodegenOptions,
-    base: FsmFnBase
+    base: FsmFnBase,
+    timer_id: usize
 }
 
 impl FsmParser {
@@ -33,7 +34,8 @@ impl FsmParser {
             states: HashMap::new(),
             events: HashMap::new(),
             options: FsmCodegenOptions::new(),
-            base
+            base,
+            timer_id: 1
         }
     }
 
@@ -88,7 +90,8 @@ impl FsmParser {
                                     state_storage_field: field_name,
                                     on_entry_closure: None,
                                     on_exit_closure: None,
-                                    kind: FsmStateKind::SubMachine(FsmSubMachineOptions::default())
+                                    kind: FsmStateKind::SubMachine(FsmSubMachineOptions::default()),
+                                    timers: vec![]
                                 });
                             let mut sub_options = match state.kind {                                
                                 FsmStateKind::SubMachine(ref sub) => sub.clone(),
@@ -283,7 +286,8 @@ impl FsmParser {
                 on_entry_closure: None,
                 on_exit_closure: None,
                 state_storage_field: field_name,
-                kind: FsmStateKind::Normal
+                kind: FsmStateKind::Normal,
+                timers: vec![]
             });
 
         for (i, method) in st.iter().enumerate() {
@@ -317,6 +321,30 @@ impl FsmParser {
 
                     break;
                 },
+                MethodOverviewRef { name: "on_entry_start_timer", generics: [], .. } => {
+
+                    let call_args: Vec<_> = method.call.args.iter().collect();
+                    match call_args.as_slice() {
+                        [syn::Expr::Closure(ref setup), syn::Expr::Closure(ref trigger)] => {
+
+                            let timer = FsmTimer {
+                                setup: setup.clone(),
+                                trigger: trigger.clone(),
+                                id: self.timer_id
+                            };
+
+                            state.timers.push(timer);
+
+                            self.timer_id += 1;
+                            
+                        },
+                        _ => {
+                            return Err(syn::Error::new(method.call.span(), "Unexpected arguments to the timer setup method."));
+                        }
+                    }
+
+                },
+
                 _ => { return Err(syn::Error::new(method.call.span(), format!("Unsupported method '{}'!", method.name))); }
             }
         }

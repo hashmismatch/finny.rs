@@ -11,6 +11,7 @@ pub trait FsmTimer<F, S>
 
 #[derive(Debug, Clone)]
 pub struct TimerFsmSettings {
+    pub enabled: bool,
     pub timeout: Duration,
     pub renew: bool,
     pub cancel_on_state_exit: bool
@@ -19,6 +20,7 @@ pub struct TimerFsmSettings {
 impl TimerFsmSettings {
     pub fn to_timer_settings(&self) -> TimerSettings {
         TimerSettings {
+            enabled: self.enabled,
             timeout: self.timeout,
             renew: self.renew
         }
@@ -28,6 +30,7 @@ impl TimerFsmSettings {
 impl Default for TimerFsmSettings {
     fn default() -> Self {
         Self {
+            enabled: true,
             timeout: Duration::from_secs(1),
             renew: false,
             cancel_on_state_exit: true
@@ -39,6 +42,7 @@ impl Default for TimerFsmSettings {
 #[derive(Debug, Clone)]
 pub struct TimerSettings
 {
+    pub enabled: bool,
     pub timeout: Duration,
     pub renew: bool
 }

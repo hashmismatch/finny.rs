@@ -240,8 +240,17 @@ pub struct FsmState {
     pub kind: FsmStateKind,
     pub state_storage_field: syn::Ident,
     pub on_entry_closure: Option<syn::ExprClosure>,
-    pub on_exit_closure: Option<syn::ExprClosure>
+    pub on_exit_closure: Option<syn::ExprClosure>,
+    pub timers: Vec<FsmTimer>
 }
+
+#[derive(Debug, Clone)]
+pub struct FsmTimer {
+    pub id: usize,
+    pub setup: syn::ExprClosure,
+    pub trigger: syn::ExprClosure
+}
+
 #[derive(Debug, Clone)]
 pub struct FsmEvent {
     pub ty: syn::Type,
