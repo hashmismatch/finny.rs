@@ -3,9 +3,9 @@ use crate::{FsmBackend, FsmResult};
 
 
 pub trait FsmTimer<F, S>
-    where F: FsmBackend
+    where F: FsmBackend, Self: Default
 {
-    fn setup(ctx: &<F as FsmBackend>::Context, settings: &mut TimerSettings);
+    fn setup(ctx: &<F as FsmBackend>::Context, settings: &mut TimerFsmSettings);
     fn trigger(ctx: &<F as FsmBackend>::Context, state: &S) -> Option< <F as FsmBackend>::Events >;
 }
 
@@ -50,7 +50,7 @@ pub struct TimerSettings
 pub type TimerId = usize;
 
 pub trait FsmTimers {
-    fn create(&mut self, id: TimerId, settings: TimerSettings) -> FsmResult<()>;
+    fn create(&mut self, settings: TimerSettings) -> FsmResult<TimerId>;
     fn cancel(&mut self, id: TimerId) -> FsmResult<()>;
     
     /// Return the timer that was triggered. Poll this until it returns None. The events
@@ -68,7 +68,7 @@ pub struct FsmTimersTriggerEventsResult {
 pub struct FsmTimersNull;
 
 impl FsmTimers for FsmTimersNull {
-    fn create(&mut self, id: TimerId, settings: TimerSettings) -> FsmResult<()> {
+    fn create(&mut self, settings: TimerSettings) -> FsmResult<TimerId> {
         Err(FsmError::NotSupported)
     }
 

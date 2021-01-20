@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use proc_macro2::{Span, TokenStream};
 use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
 
-use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, parse_fsm::{FsmCodegenOptions, FsmParser}, utils::{assert_no_generics, get_closure, to_field_name}};
+use crate::{parse_blocks::{FsmBlock, decode_blocks, get_generics, get_method_receiver_ident}, parse_fsm::{FsmCodegenOptions, FsmParser}, utils::{assert_no_generics, get_closure, to_field_name, ty_append}};
 
 
 pub struct FsmFnInput {
@@ -249,6 +249,16 @@ pub struct FsmTimer {
     pub id: usize,
     pub setup: syn::ExprClosure,
     pub trigger: syn::ExprClosure
+}
+
+impl FsmTimer {
+    pub fn get_ty(&self, fsm: &FsmFnBase) -> syn::Type {
+        ty_append(&fsm.fsm_ty, &format!("Timer{}", self.id))
+    }
+
+    pub fn get_field(&self, fsm: &FsmFnBase) -> syn::Ident {
+        to_field_name(&self.get_ty(fsm))
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -1,20 +1,23 @@
-use crate::lib::*;
+use crate::{FsmTimers, lib::*};
 use crate::{EventContext, FsmBackend, FsmBackendImpl, FsmEvent, FsmEventQueue, FsmEventQueueSub, FsmRegionId, FsmResult, Inspect};
 
-pub struct DispatchContext<'a, 'b, 'c, F, Q, I>
+pub struct DispatchContext<'a, 'b, 'c, F, Q, I, T>
     where F: FsmBackend,
     Q: FsmEventQueue<F>,
-    I: Inspect
+    I: Inspect,
+    T: FsmTimers
 {
     pub queue: &'a mut Q,
     pub inspect: &'b mut I,
-    pub backend: &'c mut FsmBackendImpl<F>
+    pub backend: &'c mut FsmBackendImpl<F>,
+    pub timers: &'a mut T
 }
 
-impl<'a, 'b, 'c, F, Q, I> DispatchContext<'a, 'b, 'c, F, Q, I>
+impl<'a, 'b, 'c, F, Q, I, T> DispatchContext<'a, 'b, 'c, F, Q, I, T>
 where F: FsmBackend,
     Q: FsmEventQueue<F>,
-    I: Inspect
+    I: Inspect,
+    T: FsmTimers
 {
 
     pub fn to_event_context(&'a mut self, region: FsmRegionId) -> EventContext<'a, F, Q>
@@ -28,7 +31,7 @@ where F: FsmBackend,
 }
 
 /// Used to funnel the event down to the sub-machine.
-pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I>, ev: &TEvent, inspect_event_ctx: &mut I)
+pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>, ev: &TEvent, inspect_event_ctx: &mut I)
     -> FsmResult<()>
     where
         TFsm: FsmBackend,
@@ -37,7 +40,8 @@ pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I>(ctx: 
         Q: FsmEventQueue<TFsm>,
         I: Inspect,
         <TFsm as FsmBackend>::Events: From<<TSubMachine as FsmBackend>::Events>,
-        TEvent: Clone
+        TEvent: Clone,
+        T: FsmTimers
 {
     let sub_fsm: &mut TSubMachine = ctx.backend.states.as_mut();
 
@@ -52,7 +56,8 @@ pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I>(ctx: 
     let sub_dispatch_ctx = DispatchContext {
         backend: sub_fsm,
         inspect: &mut inspect,
-        queue: &mut queue_adapter
+        queue: &mut queue_adapter,
+        timers: ctx.timers
     };
 
     <TSubMachine>::dispatch_event(sub_dispatch_ctx, FsmEvent::Event(ev.clone()))

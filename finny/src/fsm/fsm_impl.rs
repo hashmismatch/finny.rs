@@ -89,7 +89,8 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
         let dispatch_ctx = DispatchContext {
             backend: &mut self.backend,
             inspect: &mut self.inspect,
-            queue: &mut self.queue
+            queue: &mut self.queue,
+            timers: &mut self.timers
         };
 
         F::dispatch_event(dispatch_ctx, event)

@@ -1,7 +1,7 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
 use syn::punctuated::Punctuated;
-use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateKind}, utils::{remap_closure_inputs}};
+use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
@@ -31,6 +31,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let state_ty = FsmTypes::new(&state.ty,&fsm.base.fsm_generics);
             let ty = state_ty.get_fsm_ty();
             let ty_name = state_ty.get_fsm_no_generics_ty();
+
+            for timer in &state.timers {
+                let timer_ty = timer.get_ty(&fsm.base);
+                let timer_field = timer.get_field(&fsm.base);
+
+                code_fields.append_all(quote! { #timer_field: #timer_ty, });
+                new_state_fields.append_all(quote! { #timer_field: #timer_ty::default(), });
+            }
 
             code_fields.append_all(quote! { #name: #ty, });
             state_variants.append_all(quote!{ #ty_name, });
@@ -448,6 +456,41 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     _ => TokenStream::new()
                 };
 
+                let timers_enter = {
+                    let mut timers_enter = TokenStream::new();
+
+                    let state = match &transition.ty {
+                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                            Some(st)
+                        },
+                        FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                            Some(st)
+                        },
+                        _ => None
+                    };
+
+                    if let Some(state) = state {
+                        for timer in &state.timers {
+                            let timer_ty = timer.get_ty(&fsm.base);
+                            let timer_field = timer.get_field(&fsm.base);
+
+                            timers_enter.append_all(quote! {
+
+                                {
+                                    use finny::FsmTimer;
+
+                                    let mut settings = finny::TimerFsmSettings::default();
+                                    < #timer_ty > :: setup ( &ctx.backend.context, &mut settings);
+                                    //ctx.
+                                }
+
+                            });
+                        }
+                    }
+
+                    timers_enter
+                };
+
                 let m = quote! {
                     ( #match_state , #match_event ) #guard => {
 
@@ -455,6 +498,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                         #fsm_sub_entry
                         
+                        #timers_enter                        
                     },
                 };
 
@@ -482,7 +526,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let sub = quote! {
                         ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
-                            return finny::dispatch_to_submachine::<_, #kind, _, _, _>(&mut ctx, ev, &mut inspect_event_ctx);
+                            return finny::dispatch_to_submachine::<_, #kind, _, _, _, _>(&mut ctx, ev, &mut inspect_event_ctx);
                         },
                     };
 
@@ -515,9 +559,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type States = #states_store_ty #fsm_generics_type;
                 type Events = #event_enum_ty;
 
-                fn dispatch_event<Q, I>(mut ctx: finny::DispatchContext<Self, Q, I>, event: finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
+                fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<Self, Q, I, T>, event: finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
                     where Q: finny::FsmEventQueue<Self>,
-                    I: finny::Inspect
+                    I: finny::Inspect, T: finny::FsmTimers
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState, FsmTransitionFsmStart};
 
@@ -631,17 +675,45 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         let mut code = TokenStream::new();
 
-        let timers = fsm.fsm.states.iter().map(|s| &s.1.timers).flatten();
-        for timer in timers {
-            let timer_ty = ty_append(&fsm.base.fsm_ty, &format!("Timer{}", timer.id));
+        let states = fsm.fsm.states.iter().map(|s| s.1);
+        for state in states {
 
-            code.append_all(quote! {
+            for timer in &state.timers {
+                let state_ty = &state.ty;
+                let timer_ty = timer.get_ty(&fsm.base);
 
-                #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Default)]
-                pub struct #timer_ty;
+                let setup = remap_closure_inputs(&timer.setup.inputs, &[quote! { ctx }, quote! { settings }])?;
+                let setup_body = &timer.setup.body;
 
-            });
+                let trigger = remap_closure_inputs(&timer.trigger.inputs, &[quote! { ctx }, quote! { state }])?;
+                let trigger_body = &timer.trigger.body;
 
+                code.append_all(quote! {
+
+                    #[derive(Debug, Clone, Default)]
+                    pub struct #timer_ty {
+                        instance: Option<(finny::TimerId, finny::TimerFsmSettings)>
+                    }
+
+                    impl #fsm_generics_impl finny::FsmTimer< #fsm_ty #fsm_generics_type , #state_ty > for #timer_ty #fsm_generics_where {
+                        fn setup(ctx: & #ctx_ty, settings: &mut finny::TimerFsmSettings) {
+                            #setup
+                            {
+                                #setup_body
+                            }
+                        }
+
+                        fn trigger(ctx: & #ctx_ty, state: & #state_ty ) -> Option< #event_enum_ty > {
+                            #trigger
+                            let ret = {
+                                #trigger_body
+                            };
+                            ret
+                        }
+                    }
+
+                });
+            }
         }
 
         code

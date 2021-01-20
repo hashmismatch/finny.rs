@@ -78,7 +78,7 @@ fn test_timers_fsm() -> FsmResult<()> {
     
     let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), FsmTimersNull)?;
 
-    let foo = TimersMachineTimer1::default();
+    //let foo = TimersMachineTimer1::default();
     
     fsm.start()?;   
     Ok(())

@@ -47,6 +47,6 @@ pub trait FsmBackend where Self: Sized {
     /// the dispatch into sub-machines and into multiple regions.
     type Events: AsRef<str> + Clone;
 
-    fn dispatch_event<Q, I>(ctx: DispatchContext<Self, Q, I>, event: FsmEvent<Self::Events>) -> FsmDispatchResult
-        where Q: FsmEventQueue<Self>, I: Inspect;
+    fn dispatch_event<Q, I, T>(ctx: DispatchContext<Self, Q, I, T>, event: FsmEvent<Self::Events>) -> FsmDispatchResult
+        where Q: FsmEventQueue<Self>, I: Inspect, T: FsmTimers;
 }

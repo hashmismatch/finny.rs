@@ -81,7 +81,7 @@ impl FsmParser {
                         [MethodOverviewRef { name: "sub_machine", generics: [ty_sub_fsm], ..}, st @ .. ] => {
 
                             //assert_no_generics(ty_sub_fsm)?;
-                            let field_name = to_field_name(&ty_sub_fsm)?;
+                            let field_name = to_field_name(&ty_sub_fsm);
                             
                             let state = self.states
                                 .entry(ty_sub_fsm.clone())
@@ -278,7 +278,7 @@ impl FsmParser {
 
     fn state_builder_parser(&mut self, ty_state: &syn::Type, st: &[MethodOverviewRef], is_sub_fsm: bool) -> syn::Result<()> {
         if !is_sub_fsm { assert_no_generics(ty_state)?; }
-        let field_name = to_field_name(&ty_state)?;
+        let field_name = to_field_name(&ty_state);
         let state = self.states
             .entry(ty_state.clone())
             .or_insert(FsmState { 
