@@ -54,8 +54,8 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
 
     fsm.state::<StateA>()
         .on_entry_start_timer(|_ctx, timer| {
-            timer.timeout = Duration::from_millis(100);
-            //timer.renew = true;
+            timer.timeout = Duration::from_millis(50);
+            timer.renew = true;
         }, |ctx, state| {
             Some( EventTimer.into() )
         });
@@ -80,13 +80,12 @@ fn test_timers_fsm() -> FsmResult<()> {
     
     fsm.start()?;
     
-
-    sleep(Duration::from_millis(125));
+    sleep(Duration::from_millis(175));
 
     fsm.dispatch_timer_events()?;
 
     let state_a: &StateA = fsm.get_state();
-    assert_eq!(1, state_a.timers);    
+    assert_eq!(3, state_a.timers);
 
     Ok(())
 }
