@@ -144,7 +144,8 @@ pub struct ValidatedFsm {
 pub struct FsmRegion {
     pub region_id: usize,
     pub initial_state: syn::Type,
-    pub transitions: Vec<FsmTransition>
+    pub transitions: Vec<FsmTransition>,
+    pub states: Vec<FsmState>
 }
 
 #[derive(Debug, Clone)]

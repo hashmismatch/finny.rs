@@ -1,9 +1,10 @@
-use crate::{FsmBackend, FsmEventQueue, FsmEventQueueSender, lib::*};
+use crate::{FsmBackend, FsmEventQueue, FsmEventQueueSender, TimerId, lib::*};
 
 /// The internal event type that also allows stopping or starting the machine.
 pub enum FsmEvent<E> {
     Start,
     Stop,
+    Timer(TimerId),
     Event(E)
 }
 
@@ -18,6 +19,7 @@ impl<E> Debug for FsmEvent<E> where E: Debug {
         match self {
             FsmEvent::Start => f.write_str("Fsm::Start"),
             FsmEvent::Stop => f.write_str("Fsm::Stop"),
+            FsmEvent::Timer(t) => f.write_fmt(format_args!("Fsm::Timer({})", t)),
             FsmEvent::Event(ev) => ev.fmt(f)
         }
     }
@@ -28,6 +30,7 @@ impl<E> AsRef<str> for FsmEvent<E> where E: AsRef<str> {
         match self {
             FsmEvent::Start => "Fsm::Start",
             FsmEvent::Stop => "Fsm::Stop",
+            FsmEvent::Timer(_) => "Fsm::Timer",
             FsmEvent::Event(e) => e.as_ref()
         }
     }

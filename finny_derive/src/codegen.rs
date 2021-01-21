@@ -545,12 +545,72 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 sub_matches
             };
 
+            // match and dispatch timer events
+            let timers = {
+                let mut timer_dispatch = TokenStream::new();
+
+                for state in &region.states {
+                    let state_ty = &state.ty;
+
+                    for timer in &state.timers {
+
+                        let timer_id = timer.id;
+                        let timer_ty = timer.get_ty(&fsm.base);
+                        let timer_field = timer.get_field(&fsm.base);
+
+                        timer_dispatch.append_all(quote! {
+
+                            (_, finny::FsmEvent::Timer( timer_id @ #timer_id )) => {
+                                
+                                {
+                                    use crate::finny::FsmTimer;
+
+                                    let timer = &ctx.backend.states. #timer_field;
+                                    match &timer.instance {
+                                        Some((_, timer_settings)) => {
+
+                                            let state: & #state_ty = ctx.backend.states.as_ref();
+                                            match <#timer_ty> :: trigger( &ctx.backend.context, state ) {
+                                                Some(ev) => {
+                                                    match ctx.queue.enqueue(ev) {
+                                                        Ok(_) => (),
+                                                        Err(e) => {
+                                                            inspect_event_ctx.on_error("The event triggered by the timer couldn't be enqueued.", &e);
+                                                        }
+                                                    }
+                                                },
+                                                _ => ()
+                                            }
+
+                                        },
+                                        None => {
+                                            let error = finny::FsmError::TimerNotStarted(*timer_id);
+                                            inspect_event_ctx.on_error("Timer hasn't been started.", &error);
+                                        }
+                                    }
+                                }
+
+                            },
+
+                        });
+
+                    }
+                }
+
+                timer_dispatch
+            };
+
             regions.append_all(quote! {
                 match (ctx.backend.current_states[#region_id], &event) {
 
                     #region_submachines
                     
                     #region_transitions
+
+                    // do not dispatch timers if the machine is stopped
+                    (finny::FsmCurrentState::Stopped, finny::FsmEvent::Timer(_)) => (),
+
+                    #timers
 
                     _ => {
                         transition_misses += 1;

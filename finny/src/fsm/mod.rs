@@ -31,7 +31,8 @@ pub type FsmResult<T> = Result<T, FsmError>;
 pub enum FsmError {
     NoTransition,
     QueueOverCapacity,
-    NotSupported
+    NotSupported,
+    TimerNotStarted(TimerId)
 }
 
 pub type FsmDispatchResult = FsmResult<()>;
