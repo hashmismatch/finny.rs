@@ -1,6 +1,6 @@
 use slog::{info, o, error};
 use crate::{FsmBackend, FsmEvent, Inspect};
-use super::lib::*;
+use crate::lib::*;
 use AsRef;
 
 pub struct InspectSlog {

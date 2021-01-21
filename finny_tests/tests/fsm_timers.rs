@@ -1,8 +1,8 @@
 extern crate finny;
 
-use std::time::Duration;
+use std::{thread::{sleep, sleep_ms}, time::Duration};
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect_slog::{self, InspectSlog}};
+use finny::{FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog, timers::std::{TimersStd}};
 use slog::{Drain, Logger, info, o};
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
     fsm.state::<StateA>()
         .on_entry_start_timer(|_ctx, timer| {
             timer.timeout = Duration::from_millis(100);
-            timer.renew = true;
+            //timer.renew = true;
         }, |ctx, state| {
             Some( EventTimer.into() )
         });
@@ -76,10 +76,17 @@ fn test_timers_fsm() -> FsmResult<()> {
 
     let ctx = TimersMachineContext { };
     
-    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), FsmTimersNull)?;
+    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), TimersStd::new())?;
     
     fsm.start()?;
-    fsm.dispatch_single_event(FsmEvent::Timer(1))?;
+    
+
+    sleep(Duration::from_millis(125));
+
+    fsm.dispatch_timer_events()?;
+
+    let state_a: &StateA = fsm.get_state();
+    assert_eq!(1, state_a.timers);    
 
     Ok(())
 }

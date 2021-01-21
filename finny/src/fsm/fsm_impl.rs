@@ -68,6 +68,25 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
         Self::dispatch_single_event(self, FsmEvent::Start)
     }
 
+    /// Dispatch any pending timer events into the queue, then run all the
+    /// events from the queue until completition.
+    pub fn dispatch_timer_events(&mut self) -> FsmResult<()> {
+        loop {
+            if let Some(timer_id) = self.timers.get_triggered_timer() {
+                self.dispatch_single_event(FsmEvent::Timer(timer_id))?;
+            } else {
+                break;
+            }
+        }
+
+        while let Some(ev) = self.queue.dequeue() {
+            let ev: <F as FsmBackend>::Events = ev.into();
+            Self::dispatch(self, ev)?;
+        }
+
+        Ok(())
+    }
+
     /// Dispatch this event and run it to completition.
     pub fn dispatch<E>(&mut self, event: E) -> FsmResult<()>
         where E: Into<<F as FsmBackend>::Events>

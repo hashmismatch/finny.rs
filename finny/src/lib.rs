@@ -68,8 +68,8 @@ pub mod decl;
 mod fsm;
 
 
-#[cfg(feature="inspect_slog")]
-pub mod inspect_slog;
+pub mod inspect;
+pub mod timers;
 
 pub use fsm::*;
 

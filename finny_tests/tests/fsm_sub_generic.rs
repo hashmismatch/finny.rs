@@ -2,7 +2,7 @@ extern crate finny;
 
 use std::ops::{Add, AddAssign};
 
-use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect_slog::InspectSlog};
+use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog};
 use slog::{Drain, o};
 
 #[derive(Debug)]
