@@ -50,7 +50,7 @@ pub struct TimerSettings
 pub type TimerId = usize;
 
 pub trait FsmTimers {
-    fn create(&mut self, settings: TimerSettings) -> FsmResult<TimerId>;
+    fn create(&mut self, id: TimerId, settings: &TimerSettings) -> FsmResult<()>;
     fn cancel(&mut self, id: TimerId) -> FsmResult<()>;
     
     /// Return the timer that was triggered. Poll this until it returns None. The events
@@ -68,7 +68,7 @@ pub struct FsmTimersTriggerEventsResult {
 pub struct FsmTimersNull;
 
 impl FsmTimers for FsmTimersNull {
-    fn create(&mut self, settings: TimerSettings) -> FsmResult<TimerId> {
+    fn create(&mut self, id: TimerId, settings: &TimerSettings) -> FsmResult<()> {
         Err(FsmError::NotSupported)
     }
 

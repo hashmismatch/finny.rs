@@ -1,4 +1,4 @@
-use slog::{info, o};
+use slog::{info, o, error};
 use crate::{FsmBackend, FsmEvent, Inspect};
 use super::lib::*;
 use AsRef;
@@ -65,5 +65,10 @@ impl Inspect for InspectSlog {
 
     fn event_done(self) {
         info!(self.logger, "Dispatch done");
+    }
+
+    fn on_error<E>(&self, msg: &str, error: &E) where E: Debug {
+        let kv = o!("error" => format!("{:?}", error));
+        error!(self.logger, "{}", msg; kv);
     }
 }

@@ -1,4 +1,5 @@
-use crate::{FsmBackend, FsmEvent};
+use crate::lib::*;
+use crate::{FsmBackend, FsmError, FsmEvent};
 pub trait Inspect {
     
     fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events>) -> Self;
@@ -11,6 +12,8 @@ pub trait Inspect {
     fn on_state_enter<S>(&self);
     fn on_state_exit<S>(&self);
     fn on_action<S>(&self);
+
+    fn on_error<E>(&self, msg: &str, error: &E) where E: Debug;
 }
 
 #[derive(Default)]
@@ -52,6 +55,10 @@ impl Inspect for InspectNull {
     }
 
     fn event_done(self) {
+        
+    }
+
+    fn on_error<E>(&self, msg: &str, error: &E) where E: Debug {
         
     }
 }

@@ -473,15 +473,24 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         for timer in &state.timers {
                             let timer_ty = timer.get_ty(&fsm.base);
                             let timer_field = timer.get_field(&fsm.base);
+                            let timer_id = timer.id;
 
                             timers_enter.append_all(quote! {
 
                                 {
                                     use finny::FsmTimer;
 
+                                    let timer_id = #timer_id ;
                                     let mut settings = finny::TimerFsmSettings::default();
                                     < #timer_ty > :: setup ( &ctx.backend.context, &mut settings);
-                                    //ctx.
+                                    match ctx.timers.create(timer_id, &settings.to_timer_settings()) {
+                                        Ok(_) => {
+                                            ctx.backend.states. #timer_field .instance = Some( (timer_id, settings) );
+                                        },
+                                        Err(ref e) => {
+                                            inspect_event_ctx.on_error("Failed to create a timer", e);
+                                        }
+                                    }
                                 }
 
                             });
