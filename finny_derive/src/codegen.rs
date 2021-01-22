@@ -487,7 +487,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                     if settings.enabled {
                                         match ctx.timers.create(timer_id, &settings.to_timer_settings()) {
                                             Ok(_) => {
-                                                ctx.backend.states. #timer_field .instance = Some( (timer_id, settings) );
+                                                ctx.backend.states. #timer_field .instance = Some( finny::TimerInstance { id: timer_id, settings } );
                                                 log.info("Started the timer.");
                                             },
                                             Err(ref e) => {
@@ -533,8 +533,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                     let log = inspect_event_ctx.for_timer(timer_id);
                                     let mut timer = &mut ctx.backend.states. #timer_field;
                                     match timer.instance {
-                                        Some((instance_timer_id, settings)) => {
-                                            if timer_id == instance_timer_id && settings.cancel_on_state_exit {
+                                        Some(instance) => {
+                                            if timer_id == instance.id && instance.settings.cancel_on_state_exit {
                                                 match ctx.timers.cancel(timer_id) {
                                                     Ok(_) => {
                                                         timer.instance = None;
@@ -627,7 +627,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                                     let timer = &ctx.backend.states. #timer_field;
                                     match &timer.instance {
-                                        Some((_, timer_settings)) => {
+                                        Some(_) => {
 
                                             let state: & #state_ty = ctx.backend.states.as_ref();
                                             match <#timer_ty> :: trigger( &ctx.backend.context, state ) {
@@ -821,7 +821,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     #[derive(Debug, Clone, Default)]
                     pub struct #timer_ty {
-                        instance: Option<(finny::TimerId, finny::TimerFsmSettings)>
+                        instance: Option<finny::TimerInstance>
                     }
 
                     impl #fsm_generics_impl finny::FsmTimer< #fsm_ty #fsm_generics_type , #state_ty > for #timer_ty #fsm_generics_where {
@@ -838,6 +838,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                 #trigger_body
                             };
                             ret
+                        }
+
+                        fn get_instance(&self) -> &Option<finny::TimerInstance> {
+                            &self.instance
+                        }
+
+                        fn get_instance_mut(&mut self) -> &mut Option<finny::TimerInstance> {
+                            &mut self.instance
                         }
                     }
 

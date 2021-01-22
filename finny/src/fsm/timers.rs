@@ -1,12 +1,20 @@
 use crate::{FsmError, lib::*};
 use crate::{FsmBackend, FsmResult};
 
+#[derive(Debug, Clone, Copy)]
+pub struct TimerInstance {
+    pub id: TimerId,
+    pub settings: TimerFsmSettings
+}
 
 pub trait FsmTimer<F, S>
     where F: FsmBackend, Self: Default
 {
     fn setup(ctx: &<F as FsmBackend>::Context, settings: &mut TimerFsmSettings);
     fn trigger(ctx: &<F as FsmBackend>::Context, state: &S) -> Option< <F as FsmBackend>::Events >;
+    
+    fn get_instance(&self) -> &Option<TimerInstance>;
+    fn get_instance_mut(&mut self) -> &mut Option<TimerInstance>;
 }
 
 #[derive(Debug, Clone, Copy)]
