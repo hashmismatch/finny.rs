@@ -9,7 +9,7 @@ pub trait FsmTimer<F, S>
     fn trigger(ctx: &<F as FsmBackend>::Context, state: &S) -> Option< <F as FsmBackend>::Events >;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct TimerFsmSettings {
     pub enabled: bool,
     pub timeout: Duration,

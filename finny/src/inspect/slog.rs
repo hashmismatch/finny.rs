@@ -43,6 +43,13 @@ impl Inspect for InspectSlog {
         }
     }
 
+    fn for_timer(&self, timer_id: crate::TimerId) -> Self {
+        let kv = o!("timer_id" => timer_id);
+        InspectSlog {
+            logger: self.logger.new(kv)
+        }
+    }    
+
     fn on_guard<T>(&self, guard_result: bool) {
         let guard = type_name::<T>();
         info!(self.logger, "Guard {guard} evaluated to {guard_result}", guard = guard, guard_result = guard_result);
@@ -70,5 +77,9 @@ impl Inspect for InspectSlog {
     fn on_error<E>(&self, msg: &str, error: &E) where E: Debug {
         let kv = o!("error" => format!("{:?}", error));
         error!(self.logger, "{}", msg; kv);
+    }
+
+    fn info(&self, msg: &str) {
+        info!(self.logger, "{}", msg);
     }
 }

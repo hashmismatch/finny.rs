@@ -481,15 +481,21 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                                     use finny::FsmTimer;
 
                                     let timer_id = #timer_id ;
+                                    let log = inspect_event_ctx.for_timer(timer_id);
                                     let mut settings = finny::TimerFsmSettings::default();
                                     < #timer_ty > :: setup ( &ctx.backend.context, &mut settings);
-                                    match ctx.timers.create(timer_id, &settings.to_timer_settings()) {
-                                        Ok(_) => {
-                                            ctx.backend.states. #timer_field .instance = Some( (timer_id, settings) );
-                                        },
-                                        Err(ref e) => {
-                                            inspect_event_ctx.on_error("Failed to create a timer", e);
+                                    if settings.enabled {
+                                        match ctx.timers.create(timer_id, &settings.to_timer_settings()) {
+                                            Ok(_) => {
+                                                ctx.backend.states. #timer_field .instance = Some( (timer_id, settings) );
+                                                log.info("Started the timer.");
+                                            },
+                                            Err(ref e) => {
+                                                log.on_error("Failed to create a timer", e);
+                                            }
                                         }
+                                    } else {
+                                        log.info("The timer wasn't enabled.");
                                     }
                                 }
 
@@ -500,8 +506,62 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     timers_enter
                 };
 
+                let timers_exit = {
+                    let mut timers_exit = TokenStream::new();
+
+                    let state = match &transition.ty {
+                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                            Some(st)
+                        },
+                        FsmTransitionType::StateTransition(FsmStateTransition { state_from: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                            Some(st)
+                        },
+                        _ => None
+                    };
+
+                    if let Some(state) = state {
+                        for timer in &state.timers {
+                            let timer_field = timer.get_field(&fsm.base);
+                            let timer_id = timer.id;
+
+                            timers_exit.append_all(quote! {
+
+                                {
+                                    use finny::FsmTimer;
+
+                                    let timer_id = #timer_id ;
+                                    let log = inspect_event_ctx.for_timer(timer_id);
+                                    let mut timer = &mut ctx.backend.states. #timer_field;
+                                    match timer.instance {
+                                        Some((instance_timer_id, settings)) => {
+                                            if timer_id == instance_timer_id && settings.cancel_on_state_exit {
+                                                match ctx.timers.cancel(timer_id) {
+                                                    Ok(_) => {
+                                                        timer.instance = None;
+                                                        log.info("Cancelled the timer.");
+                                                    },
+                                                    Err(ref e) => {
+                                                        log.on_error("Failed to cancel the timer", e);
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        _ => ()
+                                    }
+
+                                }
+
+                            });
+                        }
+                    }
+
+                    timers_exit
+                };
+
                 let m = quote! {
                     ( #match_state , #match_event ) #guard => {
+
+                        #timers_exit
 
                         <#transition_ty>::execute_transition(&mut ctx, &ev, #region_id, &mut inspect_event_ctx);
 

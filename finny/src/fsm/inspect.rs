@@ -1,4 +1,4 @@
-use crate::lib::*;
+use crate::{TimerId, lib::*};
 use crate::{FsmBackend, FsmError, FsmEvent};
 pub trait Inspect {
     
@@ -7,6 +7,7 @@ pub trait Inspect {
 
     fn for_transition<T>(&self) -> Self;
     fn for_sub_machine<FSub: FsmBackend>(&self) -> Self;
+    fn for_timer(&self, timer_id: TimerId) -> Self;
 
     fn on_guard<T>(&self, guard_result: bool);
     fn on_state_enter<S>(&self);
@@ -14,6 +15,7 @@ pub trait Inspect {
     fn on_action<S>(&self);
 
     fn on_error<E>(&self, msg: &str, error: &E) where E: Debug;
+    fn info(&self, msg: &str);
 }
 
 #[derive(Default)]
@@ -38,6 +40,10 @@ impl Inspect for InspectNull {
         Self::default()
     }
 
+    fn for_timer(&self, timer_id: TimerId) -> Self {
+        Self::default()
+    }    
+
     fn on_guard<T>(&self, _guard_result: bool) {
         
     }
@@ -59,6 +65,10 @@ impl Inspect for InspectNull {
     }
 
     fn on_error<E>(&self, msg: &str, error: &E) where E: Debug {
+        
+    }
+
+    fn info(&self, msg: &str) {
         
     }
 }

@@ -6,6 +6,7 @@ pub struct TimersStd {
     pending_intervals: Option<(TimerId, usize)>
 }
 
+#[derive(Debug)]
 enum StdTimer {
     Timeout { started_at: Instant, duration: Duration },
     Interval { started_at: Instant, interval: Duration }

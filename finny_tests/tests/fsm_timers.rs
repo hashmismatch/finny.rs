@@ -2,7 +2,7 @@ extern crate finny;
 
 use std::{thread::{sleep, sleep_ms}, time::Duration};
 
-use finny::{FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog, timers::std::{TimersStd}};
+use finny::{FsmCurrentState, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog, timers::std::{TimersStd}};
 use slog::{Drain, Logger, info, o};
 
 #[derive(Debug)]
@@ -79,12 +79,11 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
 
 #[test]
 fn test_timers_fsm() -> FsmResult<()> {
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
-    let logger = Logger::root(
-        slog_term::FullFormat::new(plain)
-        .build().fuse(), o!()
-    );
-
+    let decorator = slog_term::TermDecorator::new().build();
+    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
+    let drain = std::sync::Mutex::new(drain).fuse();
+    let logger = slog::Logger::root(drain, o!());
+    
     let ctx = TimersMachineContext { exit_a: false };
     
     let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), TimersStd::new())?;
@@ -97,11 +96,13 @@ fn test_timers_fsm() -> FsmResult<()> {
 
     let state_a: &StateA = fsm.get_state();
     assert_eq!(5, state_a.timers);
+    fsm.dispatch(EventClick)?;
 
     sleep(Duration::from_millis(100));
 
-    fsm.dispatch_timer_events()?;
-    fsm.dispatch(EventClick)?;
+    fsm.dispatch_timer_events()?;    
+
+    assert_eq!(FsmCurrentState::State(TimersMachineCurrentState::StateB), fsm.get_current_states()[0]);
 
     let state_a: &StateA = fsm.get_state();
     assert_eq!(5, state_a.timers);
