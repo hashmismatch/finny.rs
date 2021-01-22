@@ -1,4 +1,4 @@
-use crate::{DispatchContext, FsmError, FsmEventQueue, Inspect, lib::*};
+use crate::{DispatchContext, FsmBackendImpl, FsmError, FsmEventQueue, Inspect, lib::*};
 use crate::{FsmBackend, FsmResult};
 
 #[derive(Debug, Clone, Copy)]
@@ -57,11 +57,17 @@ pub trait FsmTimer<F, S>
     }
 
     fn execute_trigger<'a, 'b, 'c, 'd, Q, I, T>(id: TimerId, context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, inspect: &mut I)
-        where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsRef<S>, T: FsmTimers
+        where 
+            Q: FsmEventQueue<F>,
+            I: Inspect,
+            <F as FsmBackend>::States: AsRef<S>,
+            <F as FsmBackend>::States: AsRef<Self>,
+            T: FsmTimers
     {
         let inspect = inspect.for_timer(id);
-        //match self.get_instance() {
-        //    Some(_) => {                
+        let timer: &Self = context.backend.states.as_ref();
+        match timer.get_instance() {
+            Some(_) => {                
                 match Self::trigger(&context.backend.context, context.backend.states.as_ref()) {
                     Some(ev) => {
                         match context.queue.enqueue(ev) {
@@ -76,12 +82,12 @@ pub trait FsmTimer<F, S>
                     _ => ()
                 }
 
-            //},
-            //None => {
-            //    let error = FsmError::TimerNotStarted(id);
-            //    inspect.on_error("Timer hasn't been started.", &error);
-            //}
-        //}
+            },
+            None => {
+                let error = FsmError::TimerNotStarted(id);
+                inspect.on_error("Timer hasn't been started.", &error);
+            }
+        }
     }
 }
 

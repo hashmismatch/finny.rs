@@ -38,6 +38,20 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                 code_fields.append_all(quote! { #timer_field: #timer_ty, });
                 new_state_fields.append_all(quote! { #timer_field: #timer_ty::default(), });
+
+                state_accessors.append_all(quote! {
+                    impl #fsm_generics_impl core::convert::AsRef<#timer_ty> for #states_store_ty #fsm_generics_type #fsm_generics_where {
+                        fn as_ref(&self) -> & #timer_ty {
+                            &self. #timer_field
+                        }
+                    }
+    
+                    impl #fsm_generics_impl core::convert::AsMut<#timer_ty> for #states_store_ty #fsm_generics_type #fsm_generics_where {
+                        fn as_mut(&mut self) -> &mut #timer_ty {
+                            &mut self. #timer_field
+                        }
+                    }
+                });
             }
 
             code_fields.append_all(quote! { #name: #ty, });
