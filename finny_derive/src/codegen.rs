@@ -476,29 +476,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                             let timer_id = timer.id;
 
                             timers_enter.append_all(quote! {
-
                                 {
                                     use finny::FsmTimer;
-
-                                    let timer_id = #timer_id ;
-                                    let log = inspect_event_ctx.for_timer(timer_id);
-                                    let mut settings = finny::TimerFsmSettings::default();
-                                    < #timer_ty > :: setup ( &ctx.backend.context, &mut settings);
-                                    if settings.enabled {
-                                        match ctx.timers.create(timer_id, &settings.to_timer_settings()) {
-                                            Ok(_) => {
-                                                ctx.backend.states. #timer_field .instance = Some( finny::TimerInstance { id: timer_id, settings } );
-                                                log.info("Started the timer.");
-                                            },
-                                            Err(ref e) => {
-                                                log.on_error("Failed to create a timer", e);
-                                            }
-                                        }
-                                    } else {
-                                        log.info("The timer wasn't enabled.");
-                                    }
+                                    ctx.backend.states. #timer_field . execute_on_enter( #timer_id, &ctx.backend.context, &mut inspect_event_ctx, ctx.timers );
                                 }
-
                             });
                         }
                     }
@@ -525,32 +506,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                             let timer_id = timer.id;
 
                             timers_exit.append_all(quote! {
-
                                 {
                                     use finny::FsmTimer;
-
-                                    let timer_id = #timer_id ;
-                                    let log = inspect_event_ctx.for_timer(timer_id);
-                                    let mut timer = &mut ctx.backend.states. #timer_field;
-                                    match timer.instance {
-                                        Some(instance) => {
-                                            if timer_id == instance.id && instance.settings.cancel_on_state_exit {
-                                                match ctx.timers.cancel(timer_id) {
-                                                    Ok(_) => {
-                                                        timer.instance = None;
-                                                        log.info("Cancelled the timer.");
-                                                    },
-                                                    Err(ref e) => {
-                                                        log.on_error("Failed to cancel the timer", e);
-                                                    }
-                                                }
-                                            }
-                                        },
-                                        _ => ()
-                                    }
-
+                                    ctx.backend.states. #timer_field . execute_on_exit( #timer_id, &mut inspect_event_ctx, ctx.timers );
                                 }
-
                             });
                         }
                     }
@@ -610,50 +569,20 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 let mut timer_dispatch = TokenStream::new();
 
                 for state in &region.states {
-                    let state_ty = &state.ty;
-
                     for timer in &state.timers {
 
                         let timer_id = timer.id;
-                        let timer_ty = timer.get_ty(&fsm.base);
                         let timer_field = timer.get_field(&fsm.base);
+                        let timer_ty = timer.get_ty(&fsm.base);
 
                         timer_dispatch.append_all(quote! {
-
                             (_, finny::FsmEvent::Timer( timer_id @ #timer_id )) => {
-                                
                                 {
                                     use crate::finny::FsmTimer;
-
-                                    let timer = &ctx.backend.states. #timer_field;
-                                    match &timer.instance {
-                                        Some(_) => {
-
-                                            let state: & #state_ty = ctx.backend.states.as_ref();
-                                            match <#timer_ty> :: trigger( &ctx.backend.context, state ) {
-                                                Some(ev) => {
-                                                    match ctx.queue.enqueue(ev) {
-                                                        Ok(_) => (),
-                                                        Err(e) => {
-                                                            inspect_event_ctx.on_error("The event triggered by the timer couldn't be enqueued.", &e);
-                                                        }
-                                                    }
-                                                },
-                                                _ => ()
-                                            }
-
-                                        },
-                                        None => {
-                                            let error = finny::FsmError::TimerNotStarted(*timer_id);
-                                            inspect_event_ctx.on_error("Timer hasn't been started.", &error);
-                                        }
-                                    }
+                                    < #timer_ty > :: execute_trigger(#timer_id, &mut ctx, &mut inspect_event_ctx);
                                 }
-
                             },
-
                         });
-
                     }
                 }
 
