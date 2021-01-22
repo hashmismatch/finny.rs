@@ -7,6 +7,7 @@ use slog::{Drain, Logger, info, o};
 
 #[derive(Debug)]
 pub struct TimersMachineContext {
+    exit_a: bool
 }
 
 #[derive(Default)]
@@ -20,9 +21,9 @@ pub struct StateB {
 #[derive(Default)]
 pub struct StateC;
 #[derive(Clone, Debug)]
-pub struct EventClick { time: usize }
+pub struct EventClick;
 #[derive(Clone, Debug)]
-pub struct EventTimer;
+pub struct EventTimer { n: usize }
 
 #[derive(Clone, Debug)]
 pub struct EventEnter { shift: bool }
@@ -36,13 +37,13 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
 
     fsm.state::<StateA>()
         .on_exit(|state, ctx| {
-            state.timers = 0;
+            ctx.exit_a = true;
         })
         .on_event::<EventClick>()
         .transition_to::<StateB>()
         .guard(|ev, ctx, states| {
             let state: &StateA = states.as_ref();
-            state.timers > 5
+            state.timers >= 5
         });
 
     fsm.state::<StateA>()
@@ -56,8 +57,18 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
         .on_entry_start_timer(|_ctx, timer| {
             timer.timeout = Duration::from_millis(50);
             timer.renew = true;
+            timer.cancel_on_state_exit = true;
         }, |ctx, state| {
-            Some( EventTimer.into() )
+            Some( EventTimer {n: 0}.into() )
+        });
+
+    fsm.state::<StateA>()
+        .on_entry_start_timer(|_ctx, timer| {
+            timer.timeout = Duration::from_millis(100);
+            timer.renew = false;
+            timer.cancel_on_state_exit = true;
+        }, |ctx, state| {
+            Some( EventTimer {n: 1}.into() )
         });
 
     fsm.state::<StateB>();
@@ -74,18 +85,27 @@ fn test_timers_fsm() -> FsmResult<()> {
         .build().fuse(), o!()
     );
 
-    let ctx = TimersMachineContext { };
+    let ctx = TimersMachineContext { exit_a: false };
     
     let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), TimersStd::new())?;
     
     fsm.start()?;
     
-    sleep(Duration::from_millis(175));
+    sleep(Duration::from_millis(225));
 
     fsm.dispatch_timer_events()?;
 
     let state_a: &StateA = fsm.get_state();
-    assert_eq!(3, state_a.timers);
+    assert_eq!(5, state_a.timers);
+
+    sleep(Duration::from_millis(100));
+
+    fsm.dispatch_timer_events()?;
+    fsm.dispatch(EventClick)?;
+
+    let state_a: &StateA = fsm.get_state();
+    assert_eq!(5, state_a.timers);
+    assert_eq!(true, fsm.exit_a);
 
     Ok(())
 }

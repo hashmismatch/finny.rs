@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, hash_map::RandomState}, time::{Duration, Instant}};
+use std::{time::{Duration, Instant}};
 use crate::{FsmTimers, TimerId};
 
 pub struct TimersStd {
@@ -22,16 +22,21 @@ impl TimersStd {
 
 impl FsmTimers for TimersStd {
     fn create(&mut self, id: crate::TimerId, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
+        // try to cancel any existing ones
+        self.cancel(id)?;
+
         if settings.renew {
             self.timers.push((id, StdTimer::Interval { started_at: Instant::now(), interval: settings.timeout }));
         } else {
             self.timers.push((id, StdTimer::Timeout { started_at: Instant::now(), duration: settings.timeout }));
         }
+
         Ok(())
     }
 
     fn cancel(&mut self, id: crate::TimerId) -> crate::FsmResult<()> {
-        todo!("cancel timer")
+        self.timers.retain(|(timer_id, _)| *timer_id != id);
+        Ok(())
     }
 
     fn get_triggered_timer(&mut self) -> Option<crate::TimerId> {
@@ -43,7 +48,6 @@ impl FsmTimers for TimersStd {
 
             return Some(id);
         }
-
 
         let mut timed_out_idx = None;
         let now = Instant::now();
