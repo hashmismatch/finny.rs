@@ -1,4 +1,4 @@
-use crate::{DispatchContext, FsmBackendImpl, FsmError, FsmEventQueue, Inspect, lib::*};
+use crate::{DispatchContext, FsmError, FsmEventQueue, Inspect, lib::*};
 use crate::{FsmBackend, FsmResult};
 
 #[derive(Debug, Clone, Copy)]
@@ -150,11 +150,11 @@ pub struct FsmTimersTriggerEventsResult {
 pub struct FsmTimersNull;
 
 impl FsmTimers for FsmTimersNull {
-    fn create(&mut self, id: TimerId, settings: &TimerSettings) -> FsmResult<()> {
+    fn create(&mut self, _id: TimerId, _settings: &TimerSettings) -> FsmResult<()> {
         Err(FsmError::NotSupported)
     }
 
-    fn cancel(&mut self, id: TimerId) -> FsmResult<()> {
+    fn cancel(&mut self, _id: TimerId) -> FsmResult<()> {
         Err(FsmError::NotSupported)
     }
 

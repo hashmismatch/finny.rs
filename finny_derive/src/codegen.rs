@@ -1,6 +1,5 @@
 use proc_macro2::{TokenStream};
 use quote::{TokenStreamExt, quote};
-use syn::punctuated::Punctuated;
 use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
@@ -586,7 +585,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     for timer in &state.timers {
 
                         let timer_id = timer.id;
-                        let timer_field = timer.get_field(&fsm.base);
                         let timer_ty = timer.get_ty(&fsm.base);
 
                         timer_dispatch.append_all(quote! {

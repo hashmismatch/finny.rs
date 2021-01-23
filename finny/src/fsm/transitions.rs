@@ -1,8 +1,7 @@
 //! All of these traits will be implemented by the procedural code generator.
 
-use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersNull, lib::*};
-
-use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmFrontend, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
+use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, lib::*};
+use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
 
 /// A state's entry and exit actions.
 pub trait FsmState<F: FsmBackend> {
