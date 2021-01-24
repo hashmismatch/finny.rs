@@ -109,7 +109,8 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
             backend: &mut self.backend,
             inspect: &mut self.inspect,
             queue: &mut self.queue,
-            timers: &mut self.timers
+            timers: &mut self.timers,
+            timers_offset: 0
         };
 
         F::dispatch_event(dispatch_ctx, event)

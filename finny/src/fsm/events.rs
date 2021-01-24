@@ -1,6 +1,7 @@
 use crate::{FsmBackend, FsmEventQueue, FsmEventQueueSender, TimerId, lib::*};
 
 /// The internal event type that also allows stopping or starting the machine.
+#[derive(Clone)]
 pub enum FsmEvent<E> {
     Start,
     Stop,

@@ -84,6 +84,44 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
         let cs = context.backend.current_states.as_mut();
         cs[region] = FsmCurrentState::State(<TInitialState>::fsm_state());
     }
+
+    /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary. Subsequent
+    /// dispatches are handled using the main dispatch table.
+    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &mut I) 
+        -> FsmDispatchResult
+        where
+        TInitialState: FsmBackend,
+            Q: FsmEventQueue<F>,
+            I: Inspect,
+            <F as FsmBackend>::Events: From<<TInitialState as FsmBackend>::Events>,
+            <F as FsmBackend>::States: AsMut<TInitialState>,
+            TInitialState: DerefMut<Target = FsmBackendImpl<TInitialState>>,
+            T: FsmTimers
+    {
+        let sub_backend: &mut TInitialState = context.backend.states.as_mut();
+        let states = sub_backend.get_current_states();
+        if FsmCurrentState::all_stopped(states.as_ref()) {
+            let mut queue_adapter = FsmEventQueueSub {
+                parent: context.queue,
+                _parent_fsm: PhantomData::<F>::default(),
+                _sub_fsm: PhantomData::<TInitialState>::default()
+            };
+
+            let mut inspect = inspect_event_ctx.for_sub_machine::<TInitialState>();
+
+            let sub_dispatch_context = DispatchContext {
+                backend: sub_backend,
+                inspect: &mut inspect,
+                queue: &mut queue_adapter,
+                timers: context.timers,
+                timers_offset: F::timer_count_self()
+            };
+
+            return TInitialState::dispatch_event(sub_dispatch_context, FsmEvent::Start);
+        }
+
+        Ok(())
+    }
 }
 
 /// A transition's action that operates on both the exit and entry states.
@@ -153,7 +191,8 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
                 backend: sub_backend,
                 inspect: &mut inspect,
                 queue: &mut queue_adapter,
-                timers: context.timers
+                timers: context.timers,
+                timers_offset: 0
             };
 
             return TStateTo::dispatch_event(sub_dispatch_context, FsmEvent::Start);

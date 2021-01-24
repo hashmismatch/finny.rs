@@ -1,4 +1,4 @@
-use proc_macro2::{TokenStream};
+use proc_macro2::{Span, TokenStream};
 use quote::{TokenStreamExt, quote};
 use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs}};
 
@@ -17,6 +17,45 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
     let region_count = fsm.fsm.regions.len();
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
+
+    let timers_count: usize = fsm.fsm.states.iter().map(|s| s.1.timers.len()).sum();
+    let sub_machines: Vec<_> = fsm.fsm.states.iter()
+        .filter_map(|(_, state)| {
+            match state.kind {
+                FsmStateKind::Normal => None,
+                FsmStateKind::SubMachine(_) => {
+                    Some(&state.ty)
+                }
+            }
+        }).collect();
+
+    let sub_machine_states: Vec<_> = fsm.fsm.states.iter()
+        .filter(|(_, state)| {
+            if let FsmStateKind::SubMachine(_) = state.kind { true } else { false }
+        }).collect();        
+    
+    let timer_ranges = {
+        let mut q = TokenStream::new();
+
+        q.append_all(quote! {
+            let self_timer_range = (ctx.timers_offset + 1)..(ctx.timers_offset + 1 + #timers_count );
+        });
+        
+        let mut prev = syn::Ident::new(&"self_timer_range", Span::call_site());
+        
+        for (ty, state) in sub_machine_states {
+            let time_range_field = &state.state_storage_field;
+
+            q.append_all(quote! {
+                let #time_range_field = (#prev . end) .. (#prev . end) + (<#ty>::timer_count_self() + <#ty>::timer_count_submachines());
+            });
+
+            prev = time_range_field.clone();
+        }
+
+        q
+    };
+    
     
     let states_store = {
 
@@ -567,7 +606,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let sub = quote! {
                         ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
-                            return finny::dispatch_to_submachine::<_, #kind, _, _, _, _>(&mut ctx, ev, &mut inspect_event_ctx);
+                            return finny::dispatch_to_submachine::<_, #kind, _, _, _, _>(&mut ctx, &finny::FsmEvent::Event(ev.clone()), &mut inspect_event_ctx);
                         },
                     };
 
@@ -581,6 +620,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             let timers = {
                 let mut timer_dispatch = TokenStream::new();
 
+                // our timers
                 for state in &region.states {
                     for timer in &state.timers {
 
@@ -588,14 +628,31 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         let timer_ty = timer.get_ty(&fsm.base);
 
                         timer_dispatch.append_all(quote! {
-                            (_, finny::FsmEvent::Timer( timer_id @ #timer_id )) => {
+                            (_, finny::FsmEvent::Timer( timer_id )) if self_timer_range.contains(timer_id) => {
                                 {
                                     use crate::finny::FsmTimer;
-                                    < #timer_ty > :: execute_trigger(#timer_id, &mut ctx, &mut inspect_event_ctx);
+                                    < #timer_ty > :: execute_trigger(*timer_id, &mut ctx, &mut inspect_event_ctx);
                                 }
                             },
                         });
                     }
+                }
+
+                // sub machines
+                for state in region.states.iter().filter(|s| if let FsmStateKind::SubMachine(_) = s.kind { true } else { false })
+                {
+                    let timer_region_field = &state.state_storage_field;
+                    let sub = &state.ty;
+
+                    timer_dispatch.append_all(quote! {
+                        (_, finny::FsmEvent::Timer( timer_id )) if #timer_region_field.contains(timer_id) => {
+                            {
+                                let ev = finny::FsmEvent::Timer(*timer_id);
+                                let mut ctx = ctx.with_timers_offset(#timer_region_field.start);
+                                return finny::dispatch_to_submachine::<_, #sub, _, _, _, _>(&mut ctx, &ev, &mut inspect_event_ctx);
+                            }
+                        }
+                    });
                 }
 
                 timer_dispatch
@@ -620,6 +677,16 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             });
         }
 
+        let fn_timer_count_submachines = {
+            let mut q = quote! { 0 };
+            if sub_machines.len() > 0 {
+                q.append_all(quote! { + });
+                q.append_separated(sub_machines.iter().map(|s| quote! { ( <#s>::timer_count_self() + <#s>::timer_count_submachines() ) }), quote! { + });
+            }
+
+            q
+        };
+
         quote! {
               
             impl #fsm_generics_impl finny::FsmBackend for #fsm_ty #fsm_generics_type
@@ -638,6 +705,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     let mut transition_misses = 0;
 
                     let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event);
+
+                    #timer_ranges
                     
                     #regions
 
@@ -650,6 +719,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     inspect_event_ctx.event_done();
 
                     result
+                }
+
+                fn timer_count_self() -> usize {
+                    #timers_count
+                }
+
+                fn timer_count_submachines() -> usize {
+                    #fn_timer_count_submachines
                 }
             }
         }

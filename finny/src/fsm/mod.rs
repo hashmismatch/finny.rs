@@ -50,4 +50,7 @@ pub trait FsmBackend where Self: Sized {
 
     fn dispatch_event<Q, I, T>(ctx: DispatchContext<Self, Q, I, T>, event: FsmEvent<Self::Events>) -> FsmDispatchResult
         where Q: FsmEventQueue<Self>, I: Inspect, T: FsmTimers;
+
+    fn timer_count_self() -> usize;
+    fn timer_count_submachines() -> usize;
 }

@@ -31,7 +31,9 @@ pub struct EventEnter { shift: bool }
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltFsm {
     fsm.events_debug();
-    fsm.initial_state::<StateA>();
+    fsm.initial_states::<(StateA, BlinkerMachine)>();
+
+    fsm.sub_machine::<BlinkerMachine>();
 
     fsm.state::<StateA>();
 
@@ -75,6 +77,40 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
 
     fsm.build()
 }
+
+#[derive(Default, Debug)]
+pub struct LightOn;
+#[derive(Default, Debug)]
+pub struct LightOff;
+#[derive(Default, Debug)]
+pub struct BlinkingOn;
+#[derive(Default, Clone, Debug)]
+pub struct BlinkToggle;
+
+#[finny_fsm]
+fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, ()>) -> BuiltFsm {
+    fsm.events_debug();
+    fsm.initial_states::<(LightOff, BlinkingOn)>();
+
+    fsm.state::<LightOff>()
+        .on_event::<BlinkToggle>()
+        .transition_to::<LightOn>();
+
+    fsm.state::<LightOn>()
+        .on_event::<BlinkToggle>()
+        .transition_to::<LightOff>();
+
+    fsm.state::<BlinkingOn>()
+        .on_entry_start_timer(|ctx, settings| {
+            settings.timeout = Duration::from_millis(50);
+            settings.renew = true;
+        }, |ctx, state| {
+            Some( BlinkToggle.into() )
+        });
+
+    fsm.build()
+}
+
 
 
 #[test]

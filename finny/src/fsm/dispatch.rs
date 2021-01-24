@@ -10,7 +10,8 @@ pub struct DispatchContext<'a, 'b, 'c, F, Q, I, T>
     pub queue: &'a mut Q,
     pub inspect: &'b mut I,
     pub backend: &'c mut FsmBackendImpl<F>,
-    pub timers: &'a mut T
+    pub timers: &'a mut T,
+    pub timers_offset: usize
 }
 
 impl<'a, 'b, 'c, F, Q, I, T> DispatchContext<'a, 'b, 'c, F, Q, I, T>
@@ -28,10 +29,22 @@ where F: FsmBackend,
             region
         }
     }
+
+    pub fn with_timers_offset(&'a mut self, timers_offset: usize) -> Self
+        where 'a: 'b + 'c
+    {
+        DispatchContext {
+            queue: &mut self.queue,
+            inspect: &mut self.inspect,
+            backend: &mut self.backend,
+            timers: &mut self.timers,
+            timers_offset
+        }
+    }
 }
 
 /// Used to funnel the event down to the sub-machine.
-pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>, ev: &TEvent, inspect_event_ctx: &mut I)
+pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>, ev: &FsmEvent<TEvent>, inspect_event_ctx: &mut I)
     -> FsmResult<()>
     where
         TFsm: FsmBackend,
@@ -57,8 +70,11 @@ pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ct
         backend: sub_fsm,
         inspect: &mut inspect,
         queue: &mut queue_adapter,
-        timers: ctx.timers
+        timers: ctx.timers,
+        timers_offset: ctx.timers_offset + TFsm::timer_count_self()
     };
 
-    <TSubMachine>::dispatch_event(sub_dispatch_ctx, FsmEvent::Event(ev.clone()))
+    let ev = ev.clone();
+
+    <TSubMachine>::dispatch_event(sub_dispatch_ctx, ev)
 }

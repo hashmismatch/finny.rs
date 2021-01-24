@@ -48,4 +48,12 @@ impl FsmBackend for TestFsm {
      {
         todo!()
     }
+
+    fn timer_count_self() -> usize {
+        0
+    }
+
+    fn timer_count_submachines() -> usize {
+        0
+    }
 }
