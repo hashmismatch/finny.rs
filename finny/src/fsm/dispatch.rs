@@ -30,6 +30,7 @@ where F: FsmBackend,
         }
     }
 
+    /*
     pub fn with_timers_offset(&'a mut self, timers_offset: usize) -> Self
         where 'a: 'b + 'c
     {
@@ -40,7 +41,8 @@ where F: FsmBackend,
             timers: &mut self.timers,
             timers_offset
         }
-    }
+    
+        */    
 }
 
 /// Used to funnel the event down to the sub-machine.

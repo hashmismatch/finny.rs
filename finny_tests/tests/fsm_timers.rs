@@ -105,7 +105,9 @@ fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, ()>) -> BuiltFsm {
             settings.timeout = Duration::from_millis(50);
             settings.renew = true;
         }, |ctx, state| {
+            // todo: this breaks it!
             Some( BlinkToggle.into() )
+            //None
         });
 
     fsm.build()

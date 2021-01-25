@@ -114,7 +114,7 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
                 inspect: &mut inspect,
                 queue: &mut queue_adapter,
                 timers: context.timers,
-                timers_offset: F::timer_count_self()
+                timers_offset: context.timers_offset
             };
 
             return TInitialState::dispatch_event(sub_dispatch_context, FsmEvent::Start);
@@ -192,7 +192,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
                 inspect: &mut inspect,
                 queue: &mut queue_adapter,
                 timers: context.timers,
-                timers_offset: 0
+                timers_offset: context.timers_offset
             };
 
             return TStateTo::dispatch_event(sub_dispatch_context, FsmEvent::Start);
