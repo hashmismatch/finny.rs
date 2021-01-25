@@ -35,16 +35,21 @@ impl AsRef<str> for Events {
         todo!()
     }
 }
+#[derive(Debug, Clone, PartialEq)]
+pub enum FsmBackendTimers {
+
+}
 
 
 impl FsmBackend for TestFsm {
     type Context = ();
     type States = States;
     type Events = Events;
+    type Timers = FsmBackendTimers;
 
-    fn dispatch_event<Q, I, T>(_ctx: crate::DispatchContext<Self, Q, I, T>, _event: crate::FsmEvent<Self::Events>) -> crate::FsmDispatchResult
+    fn dispatch_event<Q, I, T>(_ctx: crate::DispatchContext<Self, Q, I, T>, _event: crate::FsmEvent<Self::Events, Self::Timers>) -> crate::FsmDispatchResult
         where Q: crate::FsmEventQueue<Self>,
-            I: crate::Inspect, T: crate::FsmTimers
+            I: crate::Inspect, T: crate::FsmTimers<Self>
      {
         todo!()
     }

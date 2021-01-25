@@ -31,9 +31,9 @@ pub struct EventEnter { shift: bool }
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltFsm {
     fsm.events_debug();
-    fsm.initial_states::<(StateA, BlinkerMachine)>();
-
-    fsm.sub_machine::<BlinkerMachine>();
+    fsm.initial_state::<StateA>();
+    //fsm.initial_states::<(StateA, BlinkerMachine)>();
+    //fsm.sub_machine::<BlinkerMachine>();
 
     fsm.state::<StateA>();
 
@@ -78,6 +78,7 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
     fsm.build()
 }
 
+/*
 #[derive(Default, Debug)]
 pub struct LightOn;
 #[derive(Default, Debug)]
@@ -112,6 +113,7 @@ fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, ()>) -> BuiltFsm {
 
     fsm.build()
 }
+*/
 
 
 

@@ -1,9 +1,11 @@
 use std::{time::{Duration, Instant}};
-use crate::{FsmTimers, TimerId};
+use crate::{FsmBackend, FsmTimers};
 
-pub struct TimersStd {
-    timers: Vec<(TimerId, StdTimer)>,
-    pending_intervals: Option<(TimerId, usize)>
+pub struct TimersStd<F>
+    where F: FsmBackend
+{
+    timers: Vec<(<F as FsmBackend>::Timers, StdTimer)>,
+    pending_intervals: Option<(<F as FsmBackend>::Timers, usize)>
 }
 
 #[derive(Debug)]
@@ -12,7 +14,9 @@ enum StdTimer {
     Interval { started_at: Instant, interval: Duration }
 }
 
-impl TimersStd {
+impl<F> TimersStd<F>
+    where F: FsmBackend
+{
     pub fn new() -> Self {
         Self {
             timers: vec![],
@@ -21,10 +25,12 @@ impl TimersStd {
     }
 }
 
-impl FsmTimers for TimersStd {
-    fn create(&mut self, id: crate::TimerId, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
+impl<F> FsmTimers<F> for TimersStd<F>
+    where F: FsmBackend
+{
+    fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
         // try to cancel any existing ones
-        self.cancel(id)?;
+        self.cancel(id.clone())?;
 
         if settings.renew {
             self.timers.push((id, StdTimer::Interval { started_at: Instant::now(), interval: settings.timeout }));
@@ -35,16 +41,16 @@ impl FsmTimers for TimersStd {
         Ok(())
     }
 
-    fn cancel(&mut self, id: crate::TimerId) -> crate::FsmResult<()> {
+    fn cancel(&mut self, id: <F as FsmBackend>::Timers) -> crate::FsmResult<()> {
         self.timers.retain(|(timer_id, _)| *timer_id != id);
         Ok(())
     }
 
-    fn get_triggered_timer(&mut self) -> Option<crate::TimerId> {
+    fn get_triggered_timer(&mut self) -> Option<<F as FsmBackend>::Timers> {
         if let Some((id, mut times)) = self.pending_intervals.take() {
             times -= 1;
             if times > 0 {
-                self.pending_intervals = Some((id, times));
+                self.pending_intervals = Some((id.clone(), times));
             }
 
             return Some(id);
@@ -62,10 +68,10 @@ impl FsmTimers for TimersStd {
                     let t = now.duration_since(*started_at);
                     let times = ((t.as_secs_f32() / interval.as_secs_f32()).floor() as usize) - 1;
                     if times > 0 {
-                        self.pending_intervals = Some((*timer_id, times));
+                        self.pending_intervals = Some((timer_id.clone(), times));
                     }
                     *started_at = now;
-                    return Some(*timer_id);
+                    return Some(timer_id.clone());
                 },
                 _ => ()
             }

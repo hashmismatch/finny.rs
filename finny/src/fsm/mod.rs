@@ -32,7 +32,7 @@ pub enum FsmError {
     NoTransition,
     QueueOverCapacity,
     NotSupported,
-    TimerNotStarted(TimerId)
+    TimerNotStarted
 }
 
 pub type FsmDispatchResult = FsmResult<()>;
@@ -47,9 +47,11 @@ pub trait FsmBackend where Self: Sized {
     /// A tagged union type with all the supported events. This type has to support cloning to facilitate
     /// the dispatch into sub-machines and into multiple regions.
     type Events: AsRef<str> + Clone;
+    /// An enum with variants for all the possible timer instances, with support for submachines.
+    type Timers: Debug + Clone + PartialEq;
 
-    fn dispatch_event<Q, I, T>(ctx: DispatchContext<Self, Q, I, T>, event: FsmEvent<Self::Events>) -> FsmDispatchResult
-        where Q: FsmEventQueue<Self>, I: Inspect, T: FsmTimers;
+    fn dispatch_event<Q, I, T>(ctx: DispatchContext<Self, Q, I, T>, event: FsmEvent<Self::Events, Self::Timers>) -> FsmDispatchResult
+        where Q: FsmEventQueue<Self>, I: Inspect, T: FsmTimers<Self>;
 
     fn timer_count_self() -> usize;
     fn timer_count_submachines() -> usize;

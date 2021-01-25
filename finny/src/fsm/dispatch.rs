@@ -1,24 +1,23 @@
-use crate::{FsmTimers, lib::*};
+use crate::{FsmTimers, FsmTimersSub, lib::*};
 use crate::{EventContext, FsmBackend, FsmBackendImpl, FsmEvent, FsmEventQueue, FsmEventQueueSub, FsmRegionId, FsmResult, Inspect};
 
 pub struct DispatchContext<'a, 'b, 'c, F, Q, I, T>
     where F: FsmBackend,
     Q: FsmEventQueue<F>,
     I: Inspect,
-    T: FsmTimers
+    T: FsmTimers<F>
 {
     pub queue: &'a mut Q,
     pub inspect: &'b mut I,
     pub backend: &'c mut FsmBackendImpl<F>,
-    pub timers: &'a mut T,
-    pub timers_offset: usize
+    pub timers: &'a mut T
 }
 
 impl<'a, 'b, 'c, F, Q, I, T> DispatchContext<'a, 'b, 'c, F, Q, I, T>
 where F: FsmBackend,
     Q: FsmEventQueue<F>,
     I: Inspect,
-    T: FsmTimers
+    T: FsmTimers<F>
 {
 
     pub fn to_event_context(&'a mut self, region: FsmRegionId) -> EventContext<'a, F, Q>
@@ -28,25 +27,12 @@ where F: FsmBackend,
             queue: self.queue,
             region
         }
-    }
-
-    /*
-    pub fn with_timers_offset(&'a mut self, timers_offset: usize) -> Self
-        where 'a: 'b + 'c
-    {
-        DispatchContext {
-            queue: &mut self.queue,
-            inspect: &mut self.inspect,
-            backend: &mut self.backend,
-            timers: &mut self.timers,
-            timers_offset
-        }
-    
-        */    
+    } 
 }
 
 /// Used to funnel the event down to the sub-machine.
-pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>, ev: &FsmEvent<TEvent>, inspect_event_ctx: &mut I)
+pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, TTimer, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>,
+    ev: &FsmEvent<TEvent, <TSubMachine as FsmBackend>::Timers>, inspect_event_ctx: &mut I)
     -> FsmResult<()>
     where
         TFsm: FsmBackend,
@@ -55,13 +41,20 @@ pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ct
         Q: FsmEventQueue<TFsm>,
         I: Inspect,
         <TFsm as FsmBackend>::Events: From<<TSubMachine as FsmBackend>::Events>,
+        <TFsm as FsmBackend>::Timers: From<<TSubMachine as FsmBackend>::Timers>,
         TEvent: Clone,
-        T: FsmTimers
+        T: FsmTimers<TFsm>
 {
     let sub_fsm: &mut TSubMachine = ctx.backend.states.as_mut();
 
     let mut queue_adapter = FsmEventQueueSub {
         parent: ctx.queue,
+        _parent_fsm: core::marker::PhantomData::<TFsm>::default(),
+        _sub_fsm: core::marker::PhantomData::<TSubMachine>::default()
+    };
+
+    let mut timers_adapter = FsmTimersSub {
+        parent: ctx.timers,
         _parent_fsm: core::marker::PhantomData::<TFsm>::default(),
         _sub_fsm: core::marker::PhantomData::<TSubMachine>::default()
     };
@@ -72,8 +65,7 @@ pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, Q, I, T>(ct
         backend: sub_fsm,
         inspect: &mut inspect,
         queue: &mut queue_adapter,
-        timers: ctx.timers,
-        timers_offset: ctx.timers_offset + TFsm::timer_count_self()
+        timers: &mut timers_adapter
     };
 
     let ev = ev.clone();

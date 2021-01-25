@@ -17,9 +17,9 @@ impl InspectSlog {
 
 impl Inspect for InspectSlog
 {
-    fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events>) -> Self {
+    fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>) -> Self {
         let event_display = match event {
-            FsmEvent::Timer(t) => format!("Fsm::Timer({})", *t),
+            FsmEvent::Timer(t) => format!("Fsm::Timer({:?})", t),
             _ => event.as_ref().to_string()
         };
         let kv = o!("event" => event_display);
@@ -47,8 +47,8 @@ impl Inspect for InspectSlog
         }
     }
 
-    fn for_timer(&self, timer_id: crate::TimerId) -> Self {
-        let kv = o!("timer_id" => timer_id);
+    fn for_timer<F>(&self, timer_id: <F as FsmBackend>::Timers) -> Self where F: FsmBackend {
+        let kv = o!("timer_id" => format!("{:?}", timer_id));
         InspectSlog {
             logger: self.logger.new(kv)
         }

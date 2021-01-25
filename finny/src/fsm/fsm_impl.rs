@@ -52,7 +52,7 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
 pub struct FsmFrontend<F, Q, I, T> 
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
 {
     pub backend: FsmBackendImpl<F>,
     pub queue: Q,
@@ -61,7 +61,7 @@ pub struct FsmFrontend<F, Q, I, T>
 }
 
 impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
 {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {
@@ -104,13 +104,12 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
     }
 
     /// Dispatch only this event, do not run it to completition.
-    pub fn dispatch_single_event(&mut self, event: FsmEvent<<F as FsmBackend>::Events>) -> FsmResult<()> {
+    pub fn dispatch_single_event(&mut self, event: FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>) -> FsmResult<()> {
         let dispatch_ctx = DispatchContext {
             backend: &mut self.backend,
             inspect: &mut self.inspect,
             queue: &mut self.queue,
-            timers: &mut self.timers,
-            timers_offset: 1
+            timers: &mut self.timers
         };
 
         F::dispatch_event(dispatch_ctx, event)
@@ -118,7 +117,7 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
 }
 
 impl<F, Q, I, T> Deref for FsmFrontend<F, Q, I, T>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
 {
     type Target = FsmBackendImpl<F>;
 

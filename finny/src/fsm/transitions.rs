@@ -1,6 +1,6 @@
 //! All of these traits will be implemented by the procedural code generator.
 
-use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, lib::*};
+use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, lib::*};
 use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
 
 /// A state's entry and exit actions.
@@ -11,7 +11,7 @@ pub trait FsmState<F: FsmBackend> {
     fn on_exit<'a, Q: FsmEventQueue<F>>(&mut self, context: &mut EventContext<'a, F, Q>);
 
     fn execute_on_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, region: FsmRegionId) 
-        where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsMut<Self>, T: FsmTimers
+        where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsMut<Self>, T: FsmTimers<F>
     {
         let mut event_context = EventContext {
             context: &mut context.backend.context,
@@ -24,7 +24,7 @@ pub trait FsmState<F: FsmBackend> {
     }
 
     fn execute_on_exit<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, region: FsmRegionId) 
-        where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsMut<Self>, T: FsmTimers
+        where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsMut<Self>, T: FsmTimers<F>
     {
         let mut event_context = EventContext {
             context: &mut context.backend.context,
@@ -45,7 +45,7 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
     fn guard<'a, Q: FsmEventQueue<F>>(event: &E, context: &EventContext<'a, F, Q>, states: &'a <F as FsmBackend>::States) -> bool;
 
     fn execute_guard<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut I) -> bool
-        where I: Inspect, Self: Sized, T: FsmTimers
+        where I: Inspect, Self: Sized, T: FsmTimers<F>
     {
         let event_context = EventContext {
             context: &mut context.backend.context,
@@ -65,7 +65,7 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
 /// The transition that starts the machine, triggered using the `start()` method.
 pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
     fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, 
-        _fsm_event: &FsmEvent<<F as FsmBackend>::Events>,
+        _fsm_event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>,
         region: FsmRegionId,
         inspect_event_ctx: &mut I)
         where
@@ -74,7 +74,7 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
             <F as FsmBackend>::States: AsMut<TInitialState>,
             <F as FsmBackend>::States: AsRef<TInitialState>,
             Self: Sized,
-            T: FsmTimers
+            T: FsmTimers<F>
     {
         let ctx = inspect_event_ctx.for_transition::<Self>();
         ctx.on_state_enter::<TInitialState>();
@@ -96,7 +96,8 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
             <F as FsmBackend>::Events: From<<TInitialState as FsmBackend>::Events>,
             <F as FsmBackend>::States: AsMut<TInitialState>,
             TInitialState: DerefMut<Target = FsmBackendImpl<TInitialState>>,
-            T: FsmTimers
+            T: FsmTimers<F>,
+            <F as FsmBackend>::Timers: From<<TInitialState as FsmBackend>::Timers>
     {
         let sub_backend: &mut TInitialState = context.backend.states.as_mut();
         let states = sub_backend.get_current_states();
@@ -107,14 +108,19 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
                 _sub_fsm: PhantomData::<TInitialState>::default()
             };
 
+            let mut timers_adapter = FsmTimersSub {
+                parent: context.timers,
+                _parent_fsm: core::marker::PhantomData::<F>::default(),
+                _sub_fsm: core::marker::PhantomData::<TInitialState>::default()
+            };
+
             let mut inspect = inspect_event_ctx.for_sub_machine::<TInitialState>();
 
             let sub_dispatch_context = DispatchContext {
                 backend: sub_backend,
                 inspect: &mut inspect,
                 queue: &mut queue_adapter,
-                timers: context.timers,
-                timers_offset: context.timers_offset
+                timers: &mut timers_adapter
             };
 
             return TInitialState::dispatch_event(sub_dispatch_context, FsmEvent::Start);
@@ -137,7 +143,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
             <F as FsmBackend>::States: AsMut<TStateTo>,
             TStateFrom: FsmState<F>,
             TStateTo: FsmState<F>, Self: Sized,
-            T: FsmTimers
+            T: FsmTimers<F>
     {
         let inspect_ctx = inspect_event_ctx.for_transition::<Self>();
 
@@ -174,7 +180,8 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
             <F as FsmBackend>::Events: From<<TStateTo as FsmBackend>::Events>,
             <F as FsmBackend>::States: AsMut<TStateTo>,
             TStateTo: DerefMut<Target = FsmBackendImpl<TStateTo>>,
-            T: FsmTimers
+            T: FsmTimers<F>,
+            <F as FsmBackend>::Timers: From<<TStateTo as FsmBackend>::Timers>
     {
         let sub_backend: &mut TStateTo = context.backend.states.as_mut();
         let states = sub_backend.get_current_states();
@@ -185,14 +192,19 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
                 _sub_fsm: PhantomData::<TStateTo>::default()
             };
 
+            let mut timers_adapter = FsmTimersSub {
+                parent: context.timers,
+                _parent_fsm: core::marker::PhantomData::<F>::default(),
+                _sub_fsm: core::marker::PhantomData::<TStateTo>::default()
+            };
+
             let mut inspect = inspect_event_ctx.for_sub_machine::<TStateTo>();
 
             let sub_dispatch_context = DispatchContext {
                 backend: sub_backend,
                 inspect: &mut inspect,
                 queue: &mut queue_adapter,
-                timers: context.timers,
-                timers_offset: context.timers_offset
+                timers: &mut timers_adapter
             };
 
             return TStateTo::dispatch_event(sub_dispatch_context, FsmEvent::Start);
@@ -210,7 +222,7 @@ pub trait FsmAction<F: FsmBackend, E, State> {
     fn should_trigger_state_actions() -> bool;
 
     fn execute_action<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId)
-        where <F as FsmBackend>::States: AsMut<State>, I: Inspect, T: FsmTimers
+        where <F as FsmBackend>::States: AsMut<State>, I: Inspect, T: FsmTimers<F>
     {
         let mut event_context = EventContext {
             context: &mut context.backend.context,
@@ -227,7 +239,7 @@ pub trait FsmAction<F: FsmBackend, E, State> {
         where I: Inspect,
             State: FsmState<F>,
             <F as FsmBackend>::States: AsMut<State>, Self: Sized,
-            T: FsmTimers
+            T: FsmTimers<F>
     {
         let ctx = inspect_event_ctx.for_transition::<Self>();
 
