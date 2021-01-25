@@ -33,30 +33,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
     let sub_machine_states: Vec<_> = fsm.fsm.states.iter()
         .filter(|(_, state)| {
             if let FsmStateKind::SubMachine(_) = state.kind { true } else { false }
-        }).collect();        
-    
-    let timer_ranges = {
-        let mut q = TokenStream::new();
-
-        q.append_all(quote! {
-            let self_timer_range = (ctx.timers_offset)..(ctx.timers_offset + #timers_count);
-        });
-        
-        let mut prev = syn::Ident::new(&"self_timer_range", Span::call_site());
-        
-        for (ty, state) in sub_machine_states {
-            let time_range_field = &state.state_storage_field;
-
-            q.append_all(quote! {
-                let #time_range_field = (#prev . end) .. (#prev . end) + (<#ty>::timer_count_self() + <#ty>::timer_count_submachines());
-            });
-
-            prev = time_range_field.clone();
-        }
-
-        q
-    };
-    
+        }).collect();    
     
     let states_store = {
 
@@ -654,7 +631,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         (_, finny::FsmEvent::Timer( timer_id )) if #timer_region_field.contains(timer_id) => {
                             {
                                 let ev = finny::FsmEvent::Timer(*timer_id);
-                                //let mut ctx = ctx.with_timers_offset(#timer_region_field.start);
                                 return finny::dispatch_to_submachine::<_, #sub, _, _, _, _>(&mut ctx, &ev, &mut inspect_event_ctx);
                             }
                         }
@@ -703,9 +679,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                 type Events = #event_enum_ty;
                 type Timers = #timers_enum_ty;
 
-                fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<Self, Q, I, T>, event: finny::FsmEvent<Self::Events>) -> finny::FsmDispatchResult
+                fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<Self, Q, I, T>, event: finny::FsmEvent<Self::Events, Self::Timers>) -> finny::FsmDispatchResult
                     where Q: finny::FsmEventQueue<Self>,
-                    I: finny::Inspect, T: finny::FsmTimers
+                    I: finny::Inspect, T: finny::FsmTimers<Self>
                 {
                     use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState, FsmTransitionFsmStart};
 
@@ -713,10 +689,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event);
 
-                    #timer_ranges
-
-                    inspect_event_ctx.info(&format!("self timers range: {:?}", &self_timer_range));
-                    
                     #regions
 
                     let result = if transition_misses == #region_count {
