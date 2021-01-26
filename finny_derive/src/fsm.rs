@@ -29,4 +29,8 @@ impl FsmTypes {
     pub fn get_fsm_events_ty(&self) -> syn::Type {
         ty_append(&self.fsm_no_generics, "Events")
     }
+
+    pub fn get_fsm_timers_ty(&self) -> syn::Type {
+        ty_append(&self.fsm_no_generics, "Timers")
+    }
 }

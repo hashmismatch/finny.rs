@@ -31,19 +31,27 @@ where F: FsmBackend,
 }
 
 /// Used to funnel the event down to the sub-machine.
-pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, TTimer, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>,
-    ev: &FsmEvent<TEvent, <TSubMachine as FsmBackend>::Timers>, inspect_event_ctx: &mut I)
+pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>,
+    //ev: &FsmEvent<<TFsm as FsmBackend>::Events, <TFsm as FsmBackend>::Timers>,
+    //ev: TEvent,
+    ev: FsmEvent<<TSubMachine as FsmBackend>::Events, <TSubMachine as FsmBackend>::Timers>,
+    inspect_event_ctx: &mut I)
     -> FsmResult<()>
     where
         TFsm: FsmBackend,
         <TFsm as FsmBackend>::States: AsMut<TSubMachine>,
-        TSubMachine: FsmBackend + DerefMut<Target = FsmBackendImpl<TSubMachine>> + FsmBackend<Events = TEvent>,
+        //TSubMachine: FsmBackend + DerefMut<Target = FsmBackendImpl<TSubMachine>> + FsmBackend<Events = TEvent>,
+        TSubMachine: FsmBackend + DerefMut<Target = FsmBackendImpl<TSubMachine>>,
         Q: FsmEventQueue<TFsm>,
         I: Inspect,
         <TFsm as FsmBackend>::Events: From<<TSubMachine as FsmBackend>::Events>,
         <TFsm as FsmBackend>::Timers: From<<TSubMachine as FsmBackend>::Timers>,
-        TEvent: Clone,
-        T: FsmTimers<TFsm>
+
+        T: FsmTimers<TFsm>,
+        //<TSubMachine as FsmBackend>::Events: From<TEvent>
+        
+        //<TSubMachine as FsmBackend>::Timers: From<<TFsm as FsmBackend>::Timers>,
+        //<TSubMachine as FsmBackend>::Timers: From<<TFsm as FsmBackend>::Events>
 {
     let sub_fsm: &mut TSubMachine = ctx.backend.states.as_mut();
 
@@ -68,7 +76,7 @@ pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, TEvent, TTimer, Q, 
         timers: &mut timers_adapter
     };
 
-    let ev = ev.clone();
+    // todo: convert the event to sub
 
     <TSubMachine>::dispatch_event(sub_dispatch_ctx, ev)
 }

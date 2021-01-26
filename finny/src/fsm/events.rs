@@ -37,6 +37,26 @@ impl<E, T> AsRef<str> for FsmEvent<E, T> where E: AsRef<str> {
     }
 }
 
+impl<E, T> FsmEvent<E, T> {
+    pub fn to_sub_fsm<FSub>(self) -> FsmEvent<<FSub as FsmBackend>::Events, <FSub as FsmBackend>::Timers>
+        where FSub: FsmBackend,
+        <FSub as FsmBackend>::Timers: From<T>,
+        <FSub as FsmBackend>::Timers: From<E>
+    {
+        match self {
+            FsmEvent::Start => FsmEvent::Start,
+            FsmEvent::Stop => FsmEvent::Stop,
+            FsmEvent::Timer(t) => {
+                FsmEvent::Timer(t.into())
+            }
+            FsmEvent::Event(ev) => {
+                FsmEvent::Timer(ev.into())
+            }
+        }
+    }
+}
+
+
 pub type FsmRegionId = usize;
 
 /// The context that is given to all of the guards and actions.

@@ -1,7 +1,6 @@
 use crate::{DispatchContext, FsmError, FsmEventQueue, Inspect, lib::*};
 use crate::{FsmBackend, FsmResult};
 
-#[derive(Debug, Clone)]
 pub struct TimerInstance<F>
     where F: FsmBackend
 {
