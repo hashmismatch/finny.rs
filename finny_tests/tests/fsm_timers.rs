@@ -31,9 +31,8 @@ pub struct EventEnter { shift: bool }
 #[finny_fsm]
 fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltFsm {
     fsm.events_debug();
-    fsm.initial_state::<StateA>();
-    //fsm.initial_states::<(StateA, BlinkerMachine)>();
-    //fsm.sub_machine::<BlinkerMachine>();
+    fsm.initial_states::<(StateA, BlinkerMachine)>();
+    fsm.sub_machine::<BlinkerMachine>();
 
     fsm.state::<StateA>();
 
@@ -78,7 +77,6 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
     fsm.build()
 }
 
-/*
 #[derive(Default, Debug)]
 pub struct LightOn;
 #[derive(Default, Debug)]
@@ -87,33 +85,40 @@ pub struct LightOff;
 pub struct BlinkingOn;
 #[derive(Default, Clone, Debug)]
 pub struct BlinkToggle;
+#[derive(Default)]
+pub struct BlinkerContext {
+    toggles: usize
+}
 
 #[finny_fsm]
-fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, ()>) -> BuiltFsm {
+fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, BlinkerContext>) -> BuiltFsm {
     fsm.events_debug();
     fsm.initial_states::<(LightOff, BlinkingOn)>();
 
     fsm.state::<LightOff>()
         .on_event::<BlinkToggle>()
-        .transition_to::<LightOn>();
+        .transition_to::<LightOn>()
+        .action(|_, ctx, _, _| {
+            ctx.toggles += 1;
+        });
 
     fsm.state::<LightOn>()
         .on_event::<BlinkToggle>()
-        .transition_to::<LightOff>();
+        .transition_to::<LightOff>()
+        .action(|_, ctx, _, _| {
+            ctx.toggles += 1;
+        });
 
     fsm.state::<BlinkingOn>()
         .on_entry_start_timer(|ctx, settings| {
             settings.timeout = Duration::from_millis(50);
             settings.renew = true;
         }, |ctx, state| {
-            // todo: this breaks it!
             Some( BlinkToggle.into() )
-            //None
         });
 
     fsm.build()
 }
-*/
 
 
 
@@ -147,6 +152,9 @@ fn test_timers_fsm() -> FsmResult<()> {
     let state_a: &StateA = fsm.get_state();
     assert_eq!(5, state_a.timers);
     assert_eq!(true, fsm.exit_a);
+
+    let sub_machine: &BlinkerMachine = fsm.get_state();
+    assert_eq!(7, sub_machine.toggles);
 
     Ok(())
 }

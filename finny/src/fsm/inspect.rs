@@ -1,5 +1,5 @@
 use crate::lib::*;
-use crate::{FsmBackend, FsmError, FsmEvent};
+use crate::{FsmBackend, FsmEvent};
 pub trait Inspect {
     
     fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>) -> Self;

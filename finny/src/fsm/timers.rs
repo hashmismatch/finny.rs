@@ -130,8 +130,6 @@ pub struct TimerSettings
     pub renew: bool
 }
 
-//pub type TimerId = usize;
-
 pub trait FsmTimers<F>
     where F: FsmBackend
 {
@@ -199,35 +197,3 @@ impl<'a, T, F, FSub> FsmTimers<FSub> for FsmTimersSub<'a, T, F, FSub>
         None
     }
 }
-
-
-
-
-/*
-
-pub struct FsmEventQueueSub<'a, Q, F, FSub>
-    where 
-        F: FsmBackend,
-        Q: FsmEventQueueSender<F>
-{
-    pub parent: &'a mut Q,
-    pub _parent_fsm: PhantomData<F>,
-    pub _sub_fsm: PhantomData<FSub>
-}
-
-impl<'a, Q, F, FSub> FsmEventQueue<FSub> for FsmEventQueueSub<'a, Q, F, FSub>
-    where 
-        F: FsmBackend,
-        Q: FsmEventQueueSender<F>,
-        FSub: FsmBackend,
-        <F as FsmBackend>::Events: From<<FSub as FsmBackend>::Events>
-{
-    fn dequeue(&mut self) -> Option<<FSub as FsmBackend>::Events> {
-        None
-    }
-
-    fn len(&self) -> usize {
-        0
-    }
-}
-*/

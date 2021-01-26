@@ -30,11 +30,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             }
         }).collect();
 
-    let sub_machine_states: Vec<_> = fsm.fsm.states.iter()
-        .filter(|(_, state)| {
-            if let FsmStateKind::SubMachine(_) = state.kind { true } else { false }
-        }).collect();    
-    
     let states_store = {
 
         let mut code_fields = TokenStream::new();
@@ -622,17 +617,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     let sub_ty = FsmTypes::new(sub, &fsm.base.fsm_generics);
                     let sub_variant = sub_ty.get_fsm_no_generics_ty();
 
-                    /*
                     timer_dispatch.append_all(quote! {
-                        (_, finny::FsmEvent::Timer( #sub_variant (timer_id))) {
+                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => {
                             {
-                                //let ev = finny::FsmEvent::Timer(*timer_id);
-                                //return finny::dispatch_to_submachine::<_, #sub, _, _, _, _, _>(&mut ctx, &ev, &mut inspect_event_ctx);
-                                todo!(" panic sub dispatch ");
+                                let ev = finny::FsmEvent::Timer(*timer_id);
+                                return finny::dispatch_to_submachine::<_, #sub, _, _, _>(&mut ctx, ev, &mut inspect_event_ctx);
                             }
-                        }
+                        },
                     });
-                    */
                 }
 
                 timer_dispatch
