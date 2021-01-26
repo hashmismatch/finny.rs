@@ -56,7 +56,7 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
 
     fsm.state::<StateA>()
         .on_entry_start_timer(|_ctx, timer| {
-            timer.timeout = Duration::from_millis(50);
+            timer.timeout = Duration::from_millis(100);
             timer.renew = true;
             timer.cancel_on_state_exit = true;
         }, |ctx, state| {
@@ -65,7 +65,7 @@ fn build_fsm(mut fsm: FsmBuilder<TimersMachine, TimersMachineContext>) -> BuiltF
 
     fsm.state::<StateA>()
         .on_entry_start_timer(|_ctx, timer| {
-            timer.timeout = Duration::from_millis(100);
+            timer.timeout = Duration::from_millis(200);
             timer.renew = false;
             timer.cancel_on_state_exit = true;
         }, |ctx, state| {
@@ -111,7 +111,7 @@ fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, BlinkerContext>) -> Bui
 
     fsm.state::<BlinkingOn>()
         .on_entry_start_timer(|ctx, settings| {
-            settings.timeout = Duration::from_millis(50);
+            settings.timeout = Duration::from_millis(100);
             settings.renew = true;
         }, |ctx, state| {
             Some( BlinkToggle.into() )
@@ -135,7 +135,7 @@ fn test_timers_fsm() -> FsmResult<()> {
     
     fsm.start()?;
     
-    sleep(Duration::from_millis(225));
+    sleep(Duration::from_millis(450));
 
     fsm.dispatch_timer_events()?;
 
@@ -143,7 +143,7 @@ fn test_timers_fsm() -> FsmResult<()> {
     assert_eq!(5, state_a.timers);
     fsm.dispatch(EventClick)?;
 
-    sleep(Duration::from_millis(100));
+    sleep(Duration::from_millis(200));
 
     fsm.dispatch_timer_events()?;    
 
@@ -154,7 +154,7 @@ fn test_timers_fsm() -> FsmResult<()> {
     assert_eq!(true, fsm.exit_a);
 
     let sub_machine: &BlinkerMachine = fsm.get_state();
-    assert_eq!(7, sub_machine.toggles);
+    assert_eq!(6, sub_machine.toggles);
 
     Ok(())
 }
