@@ -11,13 +11,13 @@ pub struct TimerInstance<F>
 pub trait FsmTimer<F, S>
     where F: FsmBackend, Self: Default
 {
-    fn setup(ctx: &<F as FsmBackend>::Context, settings: &mut TimerFsmSettings);
+    fn setup(ctx: &mut <F as FsmBackend>::Context, settings: &mut TimerFsmSettings);
     fn trigger(ctx: &<F as FsmBackend>::Context, state: &S) -> Option< <F as FsmBackend>::Events >;
 
     fn get_instance(&self) -> &Option<TimerInstance<F>>;
     fn get_instance_mut(&mut self) -> &mut Option<TimerInstance<F>>;
 
-    fn execute_on_enter<I: Inspect, T: FsmTimers<F>>(&mut self, id: F::Timers, ctx: &<F as FsmBackend>::Context, inspect: &mut I, timers: &mut T) {
+    fn execute_on_enter<I: Inspect, T: FsmTimers<F>>(&mut self, id: F::Timers, ctx: &mut <F as FsmBackend>::Context, inspect: &mut I, timers: &mut T) {
         let log = inspect.for_timer::<F>(id.clone());
         let mut settings = TimerFsmSettings::default();
         Self::setup(ctx, &mut settings);

@@ -35,7 +35,7 @@ impl<TFsm, TContext, TState> FsmStateBuilder<TFsm, TContext, TState>
 	/// that returns an event to be enqueued in the FSM.
 	pub fn on_entry_start_timer<FSetup, FTrigger>(&self, _setup: FSetup, _trigger: FTrigger) -> &Self
 		where 
-			FSetup: Fn(&TContext, &mut TimerFsmSettings),
+			FSetup: Fn(&mut TContext, &mut TimerFsmSettings),
 			FTrigger: Fn(&TContext, &TState) -> Option< <TFsm as FsmBackend>::Events >
 	{
 		self
