@@ -911,6 +911,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         #timers
     };
 
+    /*
     // this goes in front of our definition function
     q.append_all(quote! {
         #[allow(dead_code)]
@@ -918,6 +919,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
     q.append_all(attr);
     q.append_all(input);
+    */
 
     Ok(q.into())
 }

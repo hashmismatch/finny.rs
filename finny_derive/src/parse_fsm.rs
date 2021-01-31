@@ -290,8 +290,10 @@ impl FsmParser {
                 timers: vec![]
             });
 
-        for (i, method) in st.iter().enumerate() {
+            
+        let mut timer = None;
 
+        for (i, method) in st.iter().enumerate() {
             match method {
                 MethodOverviewRef { name: "on_entry", .. } => {
                     let closure = get_closure(&method.call)?;
@@ -327,14 +329,15 @@ impl FsmParser {
                     match call_args.as_slice() {
                         [syn::Expr::Closure(ref setup), syn::Expr::Closure(ref trigger)] => {
 
-                            let timer = FsmTimer {
+                            if timer.is_some() { panic!("double timer bug!"); }
+                            
+                            timer = Some(FsmTimer {
                                 setup: setup.clone(),
                                 trigger: trigger.clone(),
-                                id: self.timer_id
-                            };
-
-                            state.timers.push(timer);
-
+                                id: self.timer_id,
+                                type_hint: None
+                            });                           
+                            
                             self.timer_id += 1;
                             
                         },
@@ -342,11 +345,24 @@ impl FsmParser {
                             return Err(syn::Error::new(method.call.span(), "Unexpected arguments to the timer setup method."));
                         }
                     }
+                },
+
+                MethodOverviewRef { name: "with_timer_ty", generics: [timer_ty], .. } => {
+
+                    if let Some(ref mut timer) = timer {
+                        timer.type_hint = Some(timer_ty.clone());
+                    } else {
+                        return Err(syn::Error::new(method.call.span(), "Missing the timer to apply the type to."));
+                    }
 
                 },
 
                 _ => { return Err(syn::Error::new(method.call.span(), format!("Unsupported method '{}'!", method.name))); }
             }
+        }
+
+        if let Some(timer) = timer {
+            state.timers.push(timer);
         }
 
         Ok(())

@@ -249,12 +249,17 @@ pub struct FsmState {
 pub struct FsmTimer {
     pub id: usize,
     pub setup: syn::ExprClosure,
-    pub trigger: syn::ExprClosure
+    pub trigger: syn::ExprClosure,
+    pub type_hint: Option<syn::Type>
 }
 
 impl FsmTimer {
     pub fn get_ty(&self, fsm: &FsmFnBase) -> syn::Type {
-        ty_append(&fsm.fsm_ty, &format!("Timer{}", self.id))
+        if let Some(ref type_hint) = self.type_hint {
+            type_hint.clone()
+        } else {
+            ty_append(&fsm.fsm_ty, &format!("Timer{}", self.id))
+        }
     }
 
     pub fn get_field(&self, fsm: &FsmFnBase) -> syn::Ident {
