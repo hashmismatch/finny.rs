@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{TokenStreamExt, quote};
 use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs}};
@@ -127,6 +129,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
         let mut transition_states = TokenStream::new();
 
+
+        let mut transitions_seen = HashSet::new();
         for region in &fsm.fsm.regions {
             for transition in &region.transitions {
                 match transition.ty {
@@ -139,6 +143,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                                 let state_from_field = &state_from.state_storage_field;
                                 let state_to_field = &state_to.state_storage_field;
+
+                                let key = (state_from_ty.clone(), state_to_ty.clone());
+                                if transitions_seen.contains(&key) { continue; }
+                                transitions_seen.insert(key);
 
                                 transition_states.append_all(quote! {
                                     impl #fsm_generics_impl finny::FsmStateTransitionAsMut<#state_from_ty, #state_to_ty> for #states_store_ty #fsm_generics_type #fsm_generics_where {
@@ -677,7 +685,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
 
                     let mut transition_misses = 0;
 
-                    let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event);
+                    let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event, &ctx.backend);
 
                     #regions
 
@@ -687,7 +695,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                         Ok(())
                     };
 
-                    inspect_event_ctx.event_done();
+                    inspect_event_ctx.event_done(&ctx.backend);
 
                     result
                 }

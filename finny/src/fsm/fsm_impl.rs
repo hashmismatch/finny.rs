@@ -49,6 +49,13 @@ impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
     }
 }
 
+impl<F: FsmBackend> DerefMut for FsmBackendImpl<F> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.context
+    }
+}
+
+
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
 pub struct FsmFrontend<F, Q, I, T> 
@@ -79,12 +86,7 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
             }
         }
 
-        while let Some(ev) = self.queue.dequeue() {
-            let ev: <F as FsmBackend>::Events = ev.into();
-            Self::dispatch(self, ev)?;
-        }
-
-        Ok(())
+        self.dispatch_queue()
     }
 
     /// Dispatch this event and run it to completition.
@@ -95,12 +97,7 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
         let ev = FsmEvent::Event(ev);
         Self::dispatch_single_event(self, ev)?;
 
-        while let Some(ev) = self.queue.dequeue() {
-            let ev: <F as FsmBackend>::Events = ev.into();
-            Self::dispatch(self, ev)?;
-        }
-
-        Ok(())
+        self.dispatch_queue()
     }
 
     /// Dispatch only this event, do not run it to completition.
@@ -114,6 +111,17 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
 
         F::dispatch_event(dispatch_ctx, event)
     }
+
+    /// Dispatch the entire event queue and run it to completition.
+    pub fn dispatch_queue(&mut self) -> FsmResult<()> {
+        while let Some(ev) = self.queue.dequeue() {
+            let ev: <F as FsmBackend>::Events = ev.into();
+            // todo: log?
+            Self::dispatch(self, ev);
+        }
+
+        Ok(())
+    }
 }
 
 impl<F, Q, I, T> Deref for FsmFrontend<F, Q, I, T>
@@ -123,5 +131,13 @@ impl<F, Q, I, T> Deref for FsmFrontend<F, Q, I, T>
 
     fn deref(&self) -> &Self::Target {
         &self.backend
+    }
+}
+
+impl<F, Q, I, T> DerefMut for FsmFrontend<F, Q, I, T>
+    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.backend
     }
 }

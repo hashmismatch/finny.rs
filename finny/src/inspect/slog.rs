@@ -4,7 +4,7 @@ use crate::lib::*;
 use AsRef;
 
 pub struct InspectSlog {
-    logger: slog::Logger
+    pub logger: slog::Logger
 }
 
 impl InspectSlog {
@@ -17,12 +17,15 @@ impl InspectSlog {
 
 impl Inspect for InspectSlog
 {
-    fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>) -> Self {
+    fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>, fsm: &FsmBackendImpl<F>) -> Self {
         let event_display = match event {
             FsmEvent::Timer(t) => format!("Fsm::Timer({:?})", t),
             _ => event.as_ref().to_string()
         };
-        let kv = o!("event" => event_display);
+
+        let current_state = format!("{:?}", fsm.get_current_states());
+
+        let kv = o!("event" => event_display, "start_state" => current_state);
         info!(self.logger, "Dispatching"; &kv);
         InspectSlog {
             logger: self.logger.new(kv)
@@ -74,8 +77,9 @@ impl Inspect for InspectSlog
         info!(self.logger, "Executing {action}", action = action);
     }
 
-    fn event_done(self) {
-        info!(self.logger, "Dispatch done");
+    fn event_done<F: FsmBackend>(self, fsm: &FsmBackendImpl<F>) {
+        let states = format!("{:?}", fsm.get_current_states());
+        info!(self.logger, "Dispatch done"; "stop_state" => states);
     }
 
     fn on_error<E>(&self, msg: &str, error: &E) where E: Debug {
