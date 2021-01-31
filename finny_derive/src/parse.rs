@@ -286,7 +286,8 @@ pub enum FsmEventTransition {
 #[derive(Default, Debug, Clone)]
 pub struct EventGuardAction{
     pub guard: Option<syn::ExprClosure>,
-    pub action: Option<syn::ExprClosure>
+    pub action: Option<syn::ExprClosure>,
+    pub type_hint: Option<syn::Type>
 }
 
 impl FsmDeclarations {
