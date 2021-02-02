@@ -56,3 +56,7 @@ pub trait FsmBackend where Self: Sized {
     fn timer_count_self() -> usize;
     fn timer_count_submachines() -> usize;
 }
+
+pub trait FsmInfoJson {
+    fn get_json_info() -> &'static str;
+}

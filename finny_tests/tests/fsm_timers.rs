@@ -126,7 +126,7 @@ fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, BlinkerContext>) -> Bui
 fn test_timers_fsm() -> FsmResult<()> {
     let decorator = slog_term::TermDecorator::new().build();
     let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = std::sync::Mutex::new(drain).fuse();
+    let drain = slog_async::Async::new(drain).build().fuse();
     let logger = slog::Logger::root(drain, o!());
     
     let ctx = TimersMachineContext { exit_a: false };

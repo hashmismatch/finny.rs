@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{TokenStreamExt, quote};
-use crate::{fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs}};
+use crate::{codegen_info::generate_fsm_info, fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs}};
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
@@ -895,6 +895,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         code
     };
 
+    let fsm_info = generate_fsm_info(&fsm);
+
     let mut q = quote! {
         #states_store
 
@@ -909,6 +911,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
         #builder
 
         #timers
+
+        #fsm_info
     };
 
     /*

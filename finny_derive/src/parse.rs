@@ -15,6 +15,7 @@ pub struct FsmFnInput {
 pub struct FsmFnBase {
     pub context_ty: syn::Type,
     pub fsm_ty: syn::Type,
+    pub fsm_info_ty: syn::Type,
     pub builder_ident: proc_macro2::Ident,
     pub fsm_generics: syn::Generics
 }
@@ -109,7 +110,8 @@ impl FsmFnInput {
         let base = FsmFnBase {
             builder_ident,
             context_ty,
-            fsm_ty,
+            fsm_info_ty: crate::utils::ty_append(&fsm_ty, "Info"),
+            fsm_ty,            
             fsm_generics: input_fn.sig.generics.clone()
         };
 

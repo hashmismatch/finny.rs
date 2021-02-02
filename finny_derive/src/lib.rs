@@ -9,12 +9,15 @@ use parse::FsmFnInput;
 use proc_macro::TokenStream;
 
 mod codegen;
+mod codegen_info;
 mod parse;
 mod parse_blocks;
 mod parse_fsm;
 mod utils;
 mod validation;
 mod fsm;
+
+mod info;
 
 #[proc_macro_attribute]
 pub fn finny_fsm(attr: TokenStream, item: TokenStream) -> TokenStream {
