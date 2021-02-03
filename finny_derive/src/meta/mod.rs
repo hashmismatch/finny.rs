@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 
+pub mod plantuml;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FinnyFsm {
     pub fsm_id: String,
@@ -58,8 +60,8 @@ pub enum FinnyEvent {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum FinnyTransitionKind {
-    SelfTransition,
-    InternalTransition,
+    SelfTransition { state_id: String },
+    InternalTransition { state_id: String },
     NormalTransition(FinnyTransitionNormal)
 }
 

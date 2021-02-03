@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use proc_macro2::TokenStream;
 
 use crate::{
-    info::{
+    meta::{
         FinnyEvent, FinnyFsm, FinnyRegion, FinnyState, FinnyStateKind, FinnyTimer, FinnyTransition,
         FinnyTransitionKind, FinnyTransitionNormal,
     },
@@ -65,13 +65,13 @@ fn to_info(fsm: &FsmFnInput) -> FinnyFsm {
                                         ref internal,
                                     ) => (
                                         internal.event.clone(),
-                                        FinnyTransitionKind::InternalTransition,
+                                        FinnyTransitionKind::InternalTransition { state_id: to_info_state(&internal.state, fsm).get_state_id() },
                                     ),
                                     crate::parse::FsmTransitionType::SelfTransition(
                                         ref self_transition,
                                     ) => (
                                         self_transition.event.clone(),
-                                        FinnyTransitionKind::SelfTransition,
+                                        FinnyTransitionKind::SelfTransition { state_id: to_info_state(&self_transition.state, fsm).get_state_id() },
                                     ),
                                     crate::parse::FsmTransitionType::StateTransition(ref st) => (
                                         st.event.clone(),
@@ -113,10 +113,10 @@ fn to_info(fsm: &FsmFnInput) -> FinnyFsm {
     finny_fsm
 }
 
-pub fn generate_fsm_info(fsm: &FsmFnInput) -> TokenStream {
+pub fn generate_fsm_meta(fsm: &FsmFnInput) -> TokenStream {
     let info = to_info(fsm);
 
-    let json = serde_json::to_string_pretty(&info).expect("Failed to serialize the FSM info JSON!");
+    //let json = serde_json::to_string_pretty(&info).expect("Failed to serialize the FSM info JSON!");
 
     let fsm_ty = &fsm.base.fsm_ty;
     let fsm_info_ty = &fsm.base.fsm_info_ty;
@@ -124,34 +124,51 @@ pub fn generate_fsm_info(fsm: &FsmFnInput) -> TokenStream {
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) =
         fsm.base.fsm_generics.split_for_impl();
 
-    let test_fn_name =
-        crate::utils::to_field_name(&crate::utils::ty_append(&fsm_ty, "html_docs_build"));
+    let mut plant_uml_test_build = TokenStream::new();
+    
+    #[cfg(feature="generate_plantuml")]
+    {
+        let plant_uml = crate::meta::plantuml::to_plant_uml(&info);
 
-    let test_build = quote! {
-        #[test]
-        #[cfg(test)]
-        fn #test_fn_name () {
-            use std::io::prelude::*;
-            use std::fs;
-            use finny::FsmInfoJson;
+        let test_fn_name = crate::utils::to_field_name(&crate::utils::ty_append(&fsm_ty, "PlantUML"));
+        
+        plant_uml_test_build = quote! {
+            #[test]
+            #[cfg(test)]
+            fn #test_fn_name () {
+                use std::io::prelude::*;
+                use std::fs;
 
-            let json = <#fsm_info_ty>::get_json_info();
+                let contents = #plant_uml;
 
-            let mut f = fs::File::create(&format!("{}.json", #fsm_ty_name_str )).unwrap();
-            f.write_all(json.as_bytes()).unwrap();
-        }
-    };
+                let mut f = fs::File::create(&format!("{}.plantuml", #fsm_ty_name_str )).unwrap();
+                f.write_all(contents.as_bytes()).unwrap();
+            }
+        };
+    }
 
+
+
+    /*
     quote! {
 
         #[derive(Default)]
-        pub struct #fsm_info_ty;
+        pub struct #fsm_meta_ty;
 
-        impl finny::FsmInfoJson for #fsm_info_ty {
-            fn get_json_info() -> &'static str {
+        impl finny::FsmMetaJson for #fsm_info_ty {
+            fn get_json_meta() -> &'static str {
                 #json
+            }
+
+            fn get_plantuml_meta() -> &'static str {
+
             }
         }
 
+    }
+    */
+
+    quote! {
+        #plant_uml_test_build
     }
 }
