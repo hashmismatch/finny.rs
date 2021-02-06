@@ -6,7 +6,7 @@ use crate::{codegen_meta::generate_fsm_meta, fsm::FsmTypes, parse::{FsmState, Fs
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
-pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
+pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
     let fsm_types = FsmTypes::new(&fsm.base.fsm_ty, &fsm.base.fsm_generics);
     //let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
@@ -20,17 +20,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
     let region_count = fsm.fsm.regions.len();
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
-
-    let timers_count: usize = fsm.fsm.states.iter().map(|s| s.1.timers.len()).sum();
-    let sub_machines: Vec<_> = fsm.fsm.states.iter()
-        .filter_map(|(_, state)| {
-            match state.kind {
-                FsmStateKind::Normal => None,
-                FsmStateKind::SubMachine(_) => {
-                    Some(&state.ty)
-                }
-            }
-        }).collect();
 
     let states_store = {
 
@@ -657,16 +646,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
             });
         }
 
-        let fn_timer_count_submachines = {
-            let mut q = quote! { 0 };
-            if sub_machines.len() > 0 {
-                q.append_all(quote! { + });
-                q.append_separated(sub_machines.iter().map(|s| quote! { ( <#s>::timer_count_self() + <#s>::timer_count_submachines() ) }), quote! { + });
-            }
-
-            q
-        };
-
         quote! {
               
             impl #fsm_generics_impl finny::FsmBackend for #fsm_ty #fsm_generics_type
@@ -698,14 +677,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, attr: TokenStream, input: TokenStream
                     inspect_event_ctx.event_done(&ctx.backend);
 
                     result
-                }
-
-                fn timer_count_self() -> usize {
-                    #timers_count
-                }
-
-                fn timer_count_submachines() -> usize {
-                    #fn_timer_count_submachines
                 }
             }
         }
