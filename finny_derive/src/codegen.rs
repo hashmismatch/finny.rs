@@ -987,8 +987,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                 #fields
             }
 
-            impl<'timer_storage, TTimerStorage: 'timer_storage #fsm_generics_impl > finny::TimersStorage<'timer_storage, #fsm_ty #fsm_generics_type, TTimerStorage> for #timers_storage_ty
-                #fsm_generics_where
+            impl<'timer_storage, TTimerStorage: 'timer_storage > finny::TimersStorage<'timer_storage, #timers_enum_ty , TTimerStorage> for #timers_storage_ty
             {
                 fn get_timer_storage_mut(&mut self, id: & #timers_enum_ty ) -> &'timer_storage mut Option<TTimerStorage> {
                     todo!()

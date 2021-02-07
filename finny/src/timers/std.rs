@@ -19,7 +19,7 @@ pub enum StdTimer {
 
 impl<'a, F, S> TimersStd<F, S>
     where F: FsmBackend,
-    S: TimersStorage<'a, F, StdTimer>
+    S: TimersStorage<'a, <F as FsmBackend>::Timers, StdTimer>
 {
     pub fn new() -> Self {
         Self {
@@ -31,7 +31,7 @@ impl<'a, F, S> TimersStd<F, S>
 
 impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
     where F: FsmBackend,
-    S: TimersStorage<'a, F, StdTimer>
+    S: TimersStorage<'a, <F as FsmBackend>::Timers, StdTimer>
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
         // try to cancel any existing ones
@@ -64,7 +64,7 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
             return Some(id);
         }
 
-        /*
+        
         let mut timed_out_id = None;
         let now = Instant::now();
 
@@ -95,7 +95,7 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
             *timer = None;
             return Some(id);
         }
-        */
+        
 
         None
     }
