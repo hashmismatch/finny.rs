@@ -64,11 +64,13 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
             return Some(id);
         }
 
+        /*
         let mut timed_out_id = None;
         let now = Instant::now();
 
         //let iter = self.timers.iter();
 
+        
         for (timer_id, timer) in self.timers.iter_mut() {
             match timer {
                 Some(StdTimer::Timeout { started_at, duration }) if now.duration_since(*started_at) >= *duration => {
@@ -93,6 +95,7 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
             *timer = None;
             return Some(id);
         }
+        */
 
         None
     }

@@ -16,6 +16,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
     let states_enum_ty = ty_append(&fsm.base.fsm_ty, "CurrentState");
     let timers_enum_ty = fsm_types.get_fsm_timers_ty();
     let timers_enum_iter_ty = fsm_types.get_fsm_timers_iter_ty();
+    let timers_storage_ty = fsm_types.get_fsm_timers_storage_ty();
     let event_enum_ty = fsm_types.get_fsm_events_ty();
 
     let region_count = fsm.fsm.regions.len();
@@ -775,7 +776,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
 
         let mut enum_variants = vec![];
         let mut submachines = vec![];
-        let mut timers = vec![];
+        let mut our_timers = vec![];
 
         let states = fsm.fsm.states.iter().map(|s| s.1);
         for state in states {
@@ -803,7 +804,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                 let timer_ty = timer.get_ty(&fsm.base);
 
                 enum_variants.push(quote! { #timer_ty });
-                timers.push(timer_ty.clone());
+                our_timers.push(timer_ty.clone());
 
                 let setup = remap_closure_inputs(&timer.setup.inputs, &[quote! { ctx }, quote! { settings }])?;
                 let setup_body = &timer.setup.body;
@@ -868,19 +869,19 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
             }
         });
 
-  let submachine_iters: Vec<_> = submachines.iter().map(|s| {
+        let submachine_iters: Vec<_> = submachines.iter().map(|s| {
             let ty = s.get_fsm_timers_iter_ty();
             let field = to_field_name(&ty);
             (ty, field)
         }).collect();
 
-        let enum_iter_matches_variants = timers.iter().enumerate().map(|(i, variant)| quote! {
+        let enum_iter_matches_variants = our_timers.iter().enumerate().map(|(i, variant)| quote! {
             #i => { self.position += 1; Some(#timers_enum_ty :: #variant) }
         });
         let mut enum_iter_matches = TokenStream::new();
         enum_iter_matches.append_separated(enum_iter_matches_variants, quote! { , });
         enum_iter_matches.append_separated(submachine_iters.iter().enumerate().map(|(i, (ty, field))| {
-            let i = timers.len() + i;
+            let i = our_timers.len() + i;
             quote! {
                 #i if self.#field.is_some() => { 
                     if let Some(ref mut iter) = self.#field {
@@ -945,7 +946,56 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         });
 
         // timers storage
+        let our_timers_storage: Vec<_> = our_timers.iter().map(|t| {
+            let field = to_field_name(t);
+            (field, t.clone())
+        }).collect();
+        
+        let mut timers_storage_struct_fields = Vec::new();
+        timers_storage_struct_fields.extend(our_timers_storage.iter().map(|(field, ty)| {
+            quote! {
+                #field: Option < #ty >
+            }
+        }));
+        timers_storage_struct_fields.extend(submachines.iter().map(|s| {
+            let ty = s.get_fsm_timers_storage_ty();
+            let field = to_field_name(&ty);
+            quote! {
+                #field: #ty
+            }
+        }));
+        let mut fields = TokenStream::new();
+        fields.append_separated(timers_storage_struct_fields, quote! { , });
 
+
+        /*
+        code.append_all(quote! {
+
+            #[derive(Default)]
+            pub struct #timers_storage_ty #fsm_generics_type #fsm_generics_where {
+                _fsm: core::marker::PhantomData< #fsm_ty #fsm_generics_type >,
+                #fields
+            }
+
+        });
+        */
+
+        code.append_all(quote! {
+
+            #[derive(Default)]
+            pub struct #timers_storage_ty {
+                #fields
+            }
+
+            impl<'timer_storage, TTimerStorage: 'timer_storage #fsm_generics_impl > finny::TimersStorage<'timer_storage, #fsm_ty #fsm_generics_type, TTimerStorage> for #timers_storage_ty
+                #fsm_generics_where
+            {
+                fn get_timer_storage_mut(&mut self, id: & #timers_enum_ty ) -> &'timer_storage mut Option<TTimerStorage> {
+                    todo!()
+                }
+            }
+
+        });
 
 
 

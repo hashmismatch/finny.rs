@@ -1,21 +1,55 @@
-use crate::{DispatchContext, FsmError, FsmEvent, FsmEventQueue, Inspect, lib::*};
+use crate::{AllVariants, DispatchContext, FsmError, FsmEvent, FsmEventQueue, Inspect, lib::*};
 use crate::{FsmBackend, FsmResult};
 
 /// Associate some data with a specific timer ID.
 pub trait TimersStorage<'a, F, T> : Default
     where F: FsmBackend, T: 'a
 {
-    type IterMut: TimersStorageIter<'a, F, T>;
+    //type IterMut: TimersStorageIter<'a, F, T>;
 
-    fn get_timer_storage_mut(&mut self, id: &<F as FsmBackend>::Timers) -> &mut Option<T>;
-    fn iter_mut(&mut self) -> Self::IterMut;
+    fn get_timer_storage_mut(&mut self, id: &<F as FsmBackend>::Timers) -> &'a mut Option<T>;
+    
+    fn iter_mut(&'a mut self) -> TimersStorageIterMut<'a, Self, F, T> {
+        TimersStorageIterMut {
+            storage: self,
+            iter: <F as FsmBackend>::Timers::iter(),
+            _fsm: PhantomData::default(),
+            _ty: PhantomData::default()
+        }
+    }
 }
 
+pub struct TimersStorageIterMut<'a, TS, F, T>
+    where F: FsmBackend
+{
+    storage: &'a mut TS,
+    iter: <<F as FsmBackend>::Timers as AllVariants>::Iter,
+    _fsm: PhantomData<F>,
+    _ty: PhantomData<T>
+}
+
+impl<'a, TS, F, T: 'a> Iterator for TimersStorageIterMut<'a, TS, F, T>
+    where F: FsmBackend, TS: TimersStorage<'a, F, T>
+{
+    type Item = (<F as FsmBackend>::Timers, &'a mut Option<T>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(id) = self.iter.next() {
+            let val = self.storage.get_timer_storage_mut(&id);
+            return Some((id, val));
+        }
+
+        None
+    }
+}
+
+/*
 pub trait TimersStorageIter<'a, F, T> :Iterator<Item = (<F as FsmBackend>::Timers, &'a mut Option<T>)>
     where F: FsmBackend, T: 'a
 {
 
 }
+*/
 
 
 
