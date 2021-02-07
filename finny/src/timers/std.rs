@@ -1,48 +1,56 @@
-use std::{time::{Duration, Instant}};
-use crate::{FsmBackend, FsmTimers};
+//! A naive timers implementation based on standard libraries' `Instant` time provider.
 
-pub struct TimersStd<F>
+use std::{marker::PhantomData, time::{Duration, Instant}};
+use crate::{FsmBackend, FsmTimers, TimersStorage};
+
+pub struct TimersStd<F, S>
     where F: FsmBackend
 {
-    timers: Vec<(<F as FsmBackend>::Timers, StdTimer)>,
+    //timers: Vec<(<F as FsmBackend>::Timers, StdTimer)>,
+    timers: S,
     pending_intervals: Option<(<F as FsmBackend>::Timers, usize)>
 }
 
 #[derive(Debug)]
-enum StdTimer {
+pub enum StdTimer {
     Timeout { started_at: Instant, duration: Duration },
     Interval { started_at: Instant, interval: Duration }
 }
 
-impl<F> TimersStd<F>
-    where F: FsmBackend
+impl<'a, F, S> TimersStd<F, S>
+    where F: FsmBackend,
+    S: TimersStorage<'a, F, StdTimer>
 {
     pub fn new() -> Self {
         Self {
-            timers: vec![],
+            timers: S::default(),
             pending_intervals: None
         }
     }
 }
 
-impl<F> FsmTimers<F> for TimersStd<F>
-    where F: FsmBackend
+impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
+    where F: FsmBackend,
+    S: TimersStorage<'a, F, StdTimer>
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
         // try to cancel any existing ones
         self.cancel(id.clone())?;
 
+        let t = self.timers.get_timer_storage_mut(&id);
+
         if settings.renew {
-            self.timers.push((id, StdTimer::Interval { started_at: Instant::now(), interval: settings.timeout }));
+            *t = Some(StdTimer::Interval { started_at: Instant::now(), interval: settings.timeout });
         } else {
-            self.timers.push((id, StdTimer::Timeout { started_at: Instant::now(), duration: settings.timeout }));
+            *t = Some(StdTimer::Timeout { started_at: Instant::now(), duration: settings.timeout });
         }
 
         Ok(())
     }
 
     fn cancel(&mut self, id: <F as FsmBackend>::Timers) -> crate::FsmResult<()> {
-        self.timers.retain(|(timer_id, _)| *timer_id != id);
+        let t = self.timers.get_timer_storage_mut(&id);
+        *t = None;
         Ok(())
     }
 
@@ -56,15 +64,18 @@ impl<F> FsmTimers<F> for TimersStd<F>
             return Some(id);
         }
 
-        let mut timed_out_idx = None;
+        let mut timed_out_id = None;
         let now = Instant::now();
-        for (idx, (timer_id, timer)) in self.timers.iter_mut().enumerate() {
+
+        //let iter = self.timers.iter();
+
+        for (timer_id, timer) in self.timers.iter_mut() {
             match timer {
-                StdTimer::Timeout { started_at, duration } if now.duration_since(*started_at) >= *duration => {
-                    timed_out_idx = Some(idx);
+                Some(StdTimer::Timeout { started_at, duration }) if now.duration_since(*started_at) >= *duration => {
+                    timed_out_id = Some(timer_id);
                     break;
                 },
-                StdTimer::Interval { ref mut started_at, interval } if now.duration_since(*started_at) >= *interval => {
+                Some(StdTimer::Interval { ref mut started_at, interval }) if now.duration_since(*started_at) >= *interval => {
                     let t = now.duration_since(*started_at);
                     let times = ((t.as_secs_f32() / interval.as_secs_f32()).floor() as usize) - 1;
                     if times > 0 {
@@ -77,8 +88,9 @@ impl<F> FsmTimers<F> for TimersStd<F>
             }
         }
 
-        if let Some(idx) = timed_out_idx {
-            let (id, _) = self.timers.remove(idx);
+        if let Some(id) = timed_out_id {
+            let timer = self.timers.get_timer_storage_mut(&id);
+            *timer = None;
             return Some(id);
         }
 

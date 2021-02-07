@@ -48,8 +48,16 @@ pub trait FsmBackend where Self: Sized {
     /// the dispatch into sub-machines and into multiple regions.
     type Events: AsRef<str> + Clone;
     /// An enum with variants for all the possible timer instances, with support for submachines.
-    type Timers: Debug + Clone + PartialEq;
+    type Timers: Debug + Clone + PartialEq + AllVariants;
 
     fn dispatch_event<Q, I, T>(ctx: DispatchContext<Self, Q, I, T>, event: FsmEvent<Self::Events, Self::Timers>) -> FsmDispatchResult
         where Q: FsmEventQueue<Self>, I: Inspect, T: FsmTimers<Self>;
+}
+
+/// Enumerates all the possible variants of a simple enum.
+pub trait AllVariants where Self: Sized
+{
+    type Iter: Iterator<Item=Self>;
+
+    fn iter() -> Self::Iter;
 }

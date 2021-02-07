@@ -1,6 +1,6 @@
 //! A minimal, internal FSM for unit tests, manually written.
 
-use crate::{FsmBackend, FsmCurrentState, FsmStates};
+use crate::{AllVariants, FsmBackend, FsmCurrentState, FsmStates};
 use derive_more::From;
 
 #[derive(Default)]
@@ -38,6 +38,14 @@ impl AsRef<str> for Events {
 #[derive(Debug, Clone, PartialEq)]
 pub enum FsmBackendTimers {
 
+}
+
+impl AllVariants for FsmBackendTimers {
+    type Iter = std::iter::Once<FsmBackendTimers>;
+
+    fn iter() -> Self::Iter {
+        todo!()
+    }
 }
 
 

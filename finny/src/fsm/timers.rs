@@ -1,6 +1,25 @@
 use crate::{DispatchContext, FsmError, FsmEvent, FsmEventQueue, Inspect, lib::*};
 use crate::{FsmBackend, FsmResult};
 
+/// Associate some data with a specific timer ID.
+pub trait TimersStorage<'a, F, T> : Default
+    where F: FsmBackend, T: 'a
+{
+    type IterMut: TimersStorageIter<'a, F, T>;
+
+    fn get_timer_storage_mut(&mut self, id: &<F as FsmBackend>::Timers) -> &mut Option<T>;
+    fn iter_mut(&mut self) -> Self::IterMut;
+}
+
+pub trait TimersStorageIter<'a, F, T> :Iterator<Item = (<F as FsmBackend>::Timers, &'a mut Option<T>)>
+    where F: FsmBackend, T: 'a
+{
+
+}
+
+
+
+
 pub struct TimerInstance<F>
     where F: FsmBackend
 {
