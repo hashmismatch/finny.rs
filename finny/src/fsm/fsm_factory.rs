@@ -1,4 +1,4 @@
-use crate::{FsmBackend, FsmBackendImpl, FsmEventQueue, FsmFrontend, FsmResult, FsmTimers, FsmTimersNull, Inspect, InspectNull};
+use crate::{FsmBackend, FsmBackendImpl, FsmEventQueue, FsmFrontend, FsmResult, FsmTimers, FsmTimersNull, Inspect, InspectNull, timers::std::TimersStd};
 
 #[cfg(feature="std")]
 use crate::FsmEventQueueVec;
@@ -24,14 +24,14 @@ pub trait FsmFactory {
         Ok(frontend)
     }
 
-    /// Build a new frontend for the FSM with a `FsmEventQueueVec` queue and no logging.
+    /// Build a new frontend for the FSM with a `FsmEventQueueVec` queue, `TimersStd` for timers and no logging.
     #[cfg(feature="std")]
-    fn new(context: <Self::Fsm as FsmBackend>::Context) -> FsmResult<FsmFrontend<Self::Fsm, FsmEventQueueVec<Self::Fsm>, InspectNull, FsmTimersNull>> {
+    fn new(context: <Self::Fsm as FsmBackend>::Context) -> FsmResult<FsmFrontend<Self::Fsm, FsmEventQueueVec<Self::Fsm>, InspectNull, TimersStd<Self::Fsm>>> {
         let frontend = FsmFrontend {
             queue: FsmEventQueueVec::new(),
             backend: FsmBackendImpl::new(context)?,
             inspect: InspectNull::new(),
-            timers: FsmTimersNull::default()
+            timers: TimersStd::new(),
         };
 
         Ok(frontend)

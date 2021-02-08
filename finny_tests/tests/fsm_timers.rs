@@ -141,7 +141,7 @@ fn test_timers_fsm() -> FsmResult<()> {
     let timers_variants: Vec<_> = TimersMachineTimers::iter().collect();
     assert_eq!(&[TimersMachineTimers::Timer1, TimersMachineTimers::Timer2, TimersMachineTimers::BlinkerMachine(BlinkerMachineTimers::BlinkingTimer)], timers_variants.as_slice());
 
-    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), TimersStd::new(TimersMachineTimersStorage::default()))?;
+    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), TimersStd::new())?;
     
     fsm.start()?;
     
