@@ -1,12 +1,11 @@
 //! A naive timers implementation based on standard libraries' `Instant` time provider.
 
-use std::{marker::PhantomData, time::{Duration, Instant}};
+use std::{time::{Duration, Instant}};
 use crate::{FsmBackend, FsmTimers, TimersStorage, AllVariants};
 
 pub struct TimersStd<F, S>
     where F: FsmBackend
 {
-    //timers: Vec<(<F as FsmBackend>::Timers, StdTimer)>,
     timers: S,
     pending_intervals: Option<(<F as FsmBackend>::Timers, usize)>
 }
@@ -17,9 +16,9 @@ pub enum StdTimer {
     Interval { started_at: Instant, interval: Duration }
 }
 
-impl<'a, F, S> TimersStd<F, S>
+impl<F, S> TimersStd<F, S>
     where F: FsmBackend,
-    S: TimersStorage<'a, <F as FsmBackend>::Timers, StdTimer>
+    S: TimersStorage<<F as FsmBackend>::Timers, StdTimer>,
 {
     pub fn new(timers: S) -> Self {
         Self {
@@ -29,9 +28,9 @@ impl<'a, F, S> TimersStd<F, S>
     }
 }
 
-impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
+impl<F, S> FsmTimers<F> for TimersStd<F, S>
     where F: FsmBackend,
-    S: TimersStorage<'a, <F as FsmBackend>::Timers, StdTimer>
+    S: TimersStorage<<F as FsmBackend>::Timers, StdTimer>
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
         // try to cancel any existing ones
@@ -67,10 +66,6 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
         let mut timed_out_id = None;
         let now = Instant::now();
 
-        //let iter = self.timers.iter();
-
-        
-        //for (timer_id, timer) in self.timers.iter_mut() {
         for timer_id in <F as FsmBackend>::Timers::iter() {
             let timer = self.timers.get_timer_storage_mut(&timer_id);
             match timer {

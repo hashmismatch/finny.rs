@@ -2,10 +2,10 @@ use crate::{AllVariants, DispatchContext, FsmError, FsmEvent, FsmEventQueue, Ins
 use crate::{FsmBackend, FsmResult};
 
 /// Associate some data with a specific timer ID.
-pub trait TimersStorage<'a, FT, T> : Default
+pub trait TimersStorage<FT, T> : Default
     where FT: AllVariants
 {
-    fn get_timer_storage_mut(&mut self, id: &FT) -> &'a mut Option<T>;
+    fn get_timer_storage_mut(&mut self, id: &FT) -> &mut Option<T>;
 }
 
 
