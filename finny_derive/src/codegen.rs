@@ -954,43 +954,71 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         let mut timers_storage_struct_fields = Vec::new();
         timers_storage_struct_fields.extend(our_timers_storage.iter().map(|(field, ty)| {
             quote! {
-                #field: Option < #ty >
+                #field: Option < TTimerStorage >
             }
         }));
         timers_storage_struct_fields.extend(submachines.iter().map(|s| {
             let ty = s.get_fsm_timers_storage_ty();
             let field = to_field_name(&ty);
             quote! {
-                #field: #ty
+                #field: #ty < TTimerStorage >
             }
         }));
         let mut fields = TokenStream::new();
         fields.append_separated(timers_storage_struct_fields, quote! { , });
 
 
-        /*
+        
+        let mut timers_storage_matches = vec![];
+        timers_storage_matches.extend(our_timers_storage.iter().map(|(field, ty)| {
+            quote! {
+                #timers_enum_ty :: #ty => &mut self. #field
+            }
+        }));
+        timers_storage_matches.extend(submachines.iter().map(|s| {
+            let ty = s.get_fsm_timers_storage_ty();
+            //let t = s.get_fsm_timers_ty();
+            let t = s.get_fsm_ty();
+            let field = to_field_name(&ty);
+            quote! {
+                #timers_enum_ty :: #t (ref sub) => {
+                    self. #field .get_timer_storage_mut(sub)
+                }
+            }
+        }));
+
+        let matches = if timers_storage_matches.len() == 0 {
+            quote! {
+                panic!("Not supported in this FSM.");
+            }
+        } else {
+            let mut m = TokenStream::new();
+            m.append_separated(timers_storage_matches, quote! { , });
+
+            quote! {
+                match *id {
+                    #m
+                }
+            }
+        };
+
         code.append_all(quote! {
 
-            #[derive(Default)]
-            pub struct #timers_storage_ty #fsm_generics_type #fsm_generics_where {
-                _fsm: core::marker::PhantomData< #fsm_ty #fsm_generics_type >,
+            pub struct #timers_storage_ty<TTimerStorage> {
+                _storage: core::marker::PhantomData<TTimerStorage>,
                 #fields
             }
 
-        });
-        */
-
-        code.append_all(quote! {
-
-            #[derive(Default)]
-            pub struct #timers_storage_ty {
-                #fields
+            impl<TTimerStorage> core::default::Default for #timers_storage_ty<TTimerStorage> {
+                fn default() -> Self {
+                    todo!()
+                }
             }
 
-            impl<'timer_storage, TTimerStorage: 'timer_storage > finny::TimersStorage<'timer_storage, #timers_enum_ty , TTimerStorage> for #timers_storage_ty
+            impl<'timer_storage, TTimerStorage: 'timer_storage > finny::TimersStorage<'timer_storage, #timers_enum_ty , TTimerStorage> for #timers_storage_ty<TTimerStorage>
             {
                 fn get_timer_storage_mut(&mut self, id: & #timers_enum_ty ) -> &'timer_storage mut Option<TTimerStorage> {
-                    todo!()
+                    #matches
                 }
             }
 

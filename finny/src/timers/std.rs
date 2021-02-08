@@ -1,7 +1,7 @@
 //! A naive timers implementation based on standard libraries' `Instant` time provider.
 
 use std::{marker::PhantomData, time::{Duration, Instant}};
-use crate::{FsmBackend, FsmTimers, TimersStorage};
+use crate::{FsmBackend, FsmTimers, TimersStorage, AllVariants};
 
 pub struct TimersStd<F, S>
     where F: FsmBackend
@@ -21,9 +21,9 @@ impl<'a, F, S> TimersStd<F, S>
     where F: FsmBackend,
     S: TimersStorage<'a, <F as FsmBackend>::Timers, StdTimer>
 {
-    pub fn new() -> Self {
+    pub fn new(timers: S) -> Self {
         Self {
-            timers: S::default(),
+            timers,
             pending_intervals: None
         }
     }
@@ -64,14 +64,15 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
             return Some(id);
         }
 
-        
         let mut timed_out_id = None;
         let now = Instant::now();
 
         //let iter = self.timers.iter();
 
         
-        for (timer_id, timer) in self.timers.iter_mut() {
+        //for (timer_id, timer) in self.timers.iter_mut() {
+        for timer_id in <F as FsmBackend>::Timers::iter() {
+            let timer = self.timers.get_timer_storage_mut(&timer_id);
             match timer {
                 Some(StdTimer::Timeout { started_at, duration }) if now.duration_since(*started_at) >= *duration => {
                     timed_out_id = Some(timer_id);
@@ -96,7 +97,6 @@ impl<'a, F, S> FsmTimers<F> for TimersStd<F, S>
             return Some(id);
         }
         
-
         None
     }
 }
