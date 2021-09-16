@@ -41,13 +41,12 @@ pub enum FsmBackendTimers {
 }
 
 impl AllVariants for FsmBackendTimers {
-    type Iter = std::iter::Once<FsmBackendTimers>;
+    type Iter = core::iter::Once<FsmBackendTimers>;
 
     fn iter() -> Self::Iter {
         todo!()
     }
 }
-
 
 impl FsmBackend for TestFsm {
     type Context = ();

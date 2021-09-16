@@ -1,7 +1,7 @@
-use crate::{FsmBackend, FsmBackendImpl, FsmEventQueue, FsmFrontend, FsmResult, FsmTimers, FsmTimersNull, Inspect, InspectNull, timers::std::TimersStd};
+use crate::{FsmBackend, FsmBackendImpl, FsmEventQueue, FsmFrontend, FsmResult, FsmTimers, FsmTimersNull, Inspect, InspectNull};
 
 #[cfg(feature="std")]
-use crate::FsmEventQueueVec;
+use crate::{FsmEventQueueVec, timers::std::TimersStd};
 
 /// Builds a frontend for running your FSM.
 pub trait FsmFactory {
