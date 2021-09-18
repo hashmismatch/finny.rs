@@ -53,6 +53,74 @@ mod queue_vec {
 #[cfg(feature = "std")]
 pub use self::queue_vec::*;
 
+#[cfg(feature = "std")]
+mod queue_vec_shared {
+    use std::sync::{Arc, Mutex};
+
+    use crate::FsmError;
+
+    use super::*;
+
+    /// An unbound event queue that uses `VecDeque`.
+    pub struct FsmEventQueueVecShared<F: FsmBackend> {
+        inner: Inner<F>
+    }
+
+    impl<F> Clone for FsmEventQueueVecShared<F> where F: FsmBackend {
+        fn clone(&self) -> Self {
+            Self { inner: Inner { queue: self.inner.queue.clone() } }
+        }
+    }
+
+    struct Inner<F: FsmBackend> {
+        queue: Arc<Mutex<VecDeque<<F as FsmBackend>::Events>>>
+    }
+    
+    impl<F: FsmBackend> FsmEventQueueVecShared<F> {
+        pub fn new() -> Self {
+            let q = VecDeque::new();
+            let inner = Inner {
+                queue: Arc::new(Mutex::new(q))
+            };
+            FsmEventQueueVecShared {
+                inner
+            }
+        }
+    }
+
+    impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueVecShared<F> {
+        fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
+            if let Ok(mut q) = self.inner.queue.lock() {
+                q.pop_front()
+            } else {
+                None
+            }
+        }
+
+        fn len(&self) -> usize {
+            if let Ok(q) = self.inner.queue.lock() {
+                q.len()
+            } else {
+                0
+            }
+        }
+    }
+
+    impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueVecShared<F> {
+        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
+            if let Ok(mut q) = self.inner.queue.lock() {
+                q.push_back(event.into());
+                Ok(())
+            } else {
+                Err(FsmError::QueueOverCapacity)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+pub use self::queue_vec_shared::*;
+
 mod queue_array {
     use arraydeque::{Array, ArrayDeque};
 
@@ -169,6 +237,7 @@ impl<'a, Q, F, FSub> FsmEventQueueSender<FSub> for FsmEventQueueSub<'a, Q, F, FS
 }
 
 
+
 #[cfg(test)]
 use super::tests_fsm::TestFsm;
 
@@ -182,6 +251,12 @@ fn test_dequeue_vec() {
 #[test]
 fn test_array() {
     let queue = FsmEventQueueArray::<TestFsm, [_; 16]>::new();
+    test_queue(queue);
+}
+
+#[test]
+fn test_dequeue_vec_shared() {
+    let queue = FsmEventQueueVecShared::<TestFsm>::new();
     test_queue(queue);
 }
 
