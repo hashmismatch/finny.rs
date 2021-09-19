@@ -49,6 +49,7 @@ pub trait FsmStateFactory<TFsm> where Self: Sized, TFsm: FsmBackend {
     fn new_state(context: &<TFsm as FsmBackend>::Context) -> FsmResult<Self>;
 }
 
+/// The implementation of a simple state factory, where the state supports Default.
 impl<TState, TFsm> FsmStateFactory<TFsm> for TState where TState: Default, TFsm: FsmBackend {
     fn new_state(_context: &<TFsm as FsmBackend>::Context) -> FsmResult<Self> {
         Ok(Default::default())

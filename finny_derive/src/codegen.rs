@@ -30,9 +30,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         let mut state_variants = TokenStream::new();
         let mut state_accessors = TokenStream::new();
 
+
         for (i, (_, state)) in fsm.fsm.states.iter().enumerate() {
             let name = &state.state_storage_field;
-            let state_ty = FsmTypes::new(&state.ty,&fsm.base.fsm_generics);
+            let state_ty = FsmTypes::new(&state.ty, &fsm.base.fsm_generics);
             let ty = state_ty.get_fsm_ty();
             let ty_name = state_ty.get_fsm_no_generics_ty();
 
@@ -490,7 +491,16 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                 
                 let fsm_sub_entry = match &transition.ty {
                     FsmTransitionType::StateTransition(FsmStateTransition {state_to: FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => {
+
+                        let sub_ty = &s.ty;
+
                         quote! {
+
+                            // reset
+                            {
+                                use finny::FsmBackendResetSubmachine;
+                                <Self as FsmBackendResetSubmachine<_, #sub_ty >>::reset(ctx.backend);
+                            }
                             {
                                 <#transition_ty>::execute_on_sub_entry(&mut ctx, #region_id, &mut inspect_event_ctx);
                             }
@@ -1062,6 +1072,44 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         code
     };
 
+    // submachine restart
+    
+    let sub_restart = {
+
+        let subs: Vec<_> = fsm.fsm.states.iter().filter_map(|(ty, state)| match state.kind {
+            FsmStateKind::SubMachine(ref sub) => Some((ty, state, sub.clone())),
+            _ => None
+        }).collect();
+
+
+        if subs.len() == 0 {
+            TokenStream::new()
+        } else {
+
+            let mut q = TokenStream::new();
+
+            for (sub_ty, state, sub) in subs {
+
+                q.append_all(quote! {
+
+                    impl #fsm_generics_impl finny::FsmBackendResetSubmachine< #fsm_ty #fsm_generics_type , #sub_ty > for #fsm_ty #fsm_generics_type
+                        #fsm_generics_where
+                    {
+                        
+                        fn reset(backend: &mut finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >) {
+                            let sub_fsm: &mut #sub_ty = backend.states.as_mut();
+                            sub_fsm.backend.current_states = Default::default();
+                        }
+                    }
+
+                });
+
+            }
+
+            q
+        }
+    };
+
     let fsm_meta = generate_fsm_meta(&fsm);
 
     let mut q = quote! {
@@ -1078,6 +1126,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         #builder
 
         #timers
+
+        #sub_restart
 
         #fsm_meta
     };

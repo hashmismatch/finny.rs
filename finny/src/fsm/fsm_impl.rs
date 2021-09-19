@@ -55,6 +55,10 @@ impl<F: FsmBackend> DerefMut for FsmBackendImpl<F> {
     }
 }
 
+pub trait FsmBackendResetSubmachine<F: FsmBackend, FSub> {
+    fn reset(backend: &mut FsmBackendImpl<F>);
+}
+
 
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
