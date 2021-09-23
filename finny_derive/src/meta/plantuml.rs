@@ -19,9 +19,11 @@ pub fn to_plant_uml(fsm: &FinnyFsm) -> Result<(String, TokenStream), std::fmt::E
                 super::FinnyStateKind::State(state) => {
 
                     writeln!(&mut output, "state {} {{", state.state_id)?;
-                    
-
                     writeln!(&mut output, "}}")?;
+
+                    for timer in &state.timers {
+                        writeln!(&mut output, "state {} : Timer {}", state.state_id, timer.timer_id)?;
+                    }
                 },
                 super::FinnyStateKind::SubMachine(sub_id) => {
                     
@@ -49,9 +51,11 @@ pub fn to_plant_uml(fsm: &FinnyFsm) -> Result<(String, TokenStream), std::fmt::E
             match &transition.transition {
                 super::FinnyTransitionKind::SelfTransition { state_id } => {
                     writeln!(&mut output, "{state} --> {state} : {event} (Self)", state = state_id, event = event)?;
+                    writeln!(&mut output, "note on link: {}", transition.transition_id)?;
                 }
                 super::FinnyTransitionKind::InternalTransition { state_id } => {
                     writeln!(&mut output, "{state} --> {state} : {event} (Internal)", state = state_id, event = event)?;
+                    writeln!(&mut output, "note on link: {}", transition.transition_id)?;
                 }
                 super::FinnyTransitionKind::NormalTransition(t) => {
                     let state_from = match t.from_state.as_str() {
@@ -60,6 +64,7 @@ pub fn to_plant_uml(fsm: &FinnyFsm) -> Result<(String, TokenStream), std::fmt::E
                     };
 
                     writeln!(&mut output, "{state_from} --> {state_to} : {event}", state_from = state_from, state_to = t.to_state, event = event)?;
+                    writeln!(&mut output, "note on link: {}", transition.transition_id)?;
                 }
             }
         }
