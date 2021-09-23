@@ -2,21 +2,23 @@ use std::collections::HashMap;
 
 use proc_macro2::TokenStream;
 
-use crate::{
-    meta::{
+use crate::{meta::{
         FinnyEvent, FinnyFsm, FinnyRegion, FinnyState, FinnyStateKind, FinnyTimer, FinnyTransition,
         FinnyTransitionKind, FinnyTransitionNormal,
-    },
-    parse::{FsmFnInput, FsmTransitionState},
-    utils::tokens_to_string,
-};
+    }, parse::{FsmFnInput, FsmState, FsmStateKind, FsmTransitionState}, utils::{strip_generics, tokens_to_string}};
 use quote::quote;
+
+fn ty_to_string(ty: &syn::Type) -> String {
+    let ty = ty.clone();
+    let ty = strip_generics(ty);
+    tokens_to_string(&ty)
+}
 
 fn to_info_state(s: &FsmTransitionState, fsm: &FsmFnInput) -> FinnyStateKind {
     match s {
         FsmTransitionState::None => FinnyStateKind::Stopped,
-        FsmTransitionState::State(s) => FinnyStateKind::State(FinnyState {
-            state_id: tokens_to_string(&s.ty),
+        FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::Normal, .. }) => FinnyStateKind::State(FinnyState {
+            state_id: ty_to_string(&s.ty),
             timers: s
                 .timers
                 .iter()
@@ -25,6 +27,7 @@ fn to_info_state(s: &FsmTransitionState, fsm: &FsmFnInput) -> FinnyStateKind {
                 })
                 .collect(),
         }),
+        FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }) => FinnyStateKind::SubMachine(ty_to_string(&s.ty))
     }
 }
 
@@ -119,33 +122,68 @@ pub fn generate_fsm_meta(fsm: &FsmFnInput) -> TokenStream {
     //let json = serde_json::to_string_pretty(&info).expect("Failed to serialize the FSM info JSON!");
 
     let fsm_ty = &fsm.base.fsm_ty;
+    let fsm_ty_name = tokens_to_string(&strip_generics(fsm_ty.clone()));
     let fsm_info_ty = &fsm.base.fsm_info_ty;
-    let fsm_ty_name_str = crate::utils::to_snake_case(&tokens_to_string(&fsm_ty));
+    let fsm_ty_name_snake = crate::utils::to_snake_case(&tokens_to_string(&fsm_ty));
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) =
         fsm.base.fsm_generics.split_for_impl();
 
-    let mut plant_uml_test_build = TokenStream::new();
-    
-    #[cfg(feature="generate_plantuml")]
-    {
-        let plant_uml = crate::meta::plantuml::to_plant_uml(&info);
+    let plant_uml_test_build = {
+        #[cfg(not(feature="generate_plantuml"))]
+        { TokenStream::new() }
+        #[cfg(feature="generate_plantuml")]
+        {
+            let (plant_uml_str, additional) = crate::meta::plantuml::to_plant_uml(&info).expect("PlantUML syntax generation error!");
 
-        let test_fn_name = crate::utils::to_field_name(&crate::utils::ty_append(&fsm_ty, "PlantUML"));
-        
-        plant_uml_test_build = quote! {
-            #[test]
-            #[cfg(test)]
-            fn #test_fn_name () {
-                use std::io::prelude::*;
-                use std::fs;
+            let test_fn_name = crate::utils::to_field_name(&crate::utils::ty_append(&fsm_ty, "_plantuml"));
+            
+            quote! {
+                #[test]
+                #[cfg(test)]
+                fn #test_fn_name () {
+                    use std::io::prelude::*;
+                    use std::fs;
 
-                let contents = #plant_uml;
+                    let contents = < #fsm_info_ty > :: plantuml();
 
-                let mut f = fs::File::create(&format!("{}.plantuml", #fsm_ty_name_str )).unwrap();
-                f.write_all(contents.as_bytes()).unwrap();
+                    let mut f = fs::File::create(&format!("{}.plantuml", #fsm_ty_name_snake )).unwrap();
+                    f.write_all(contents.as_bytes()).unwrap();
+                }
+
+                #[derive(Default)]
+                pub struct #fsm_info_ty;
+
+                impl #fsm_info_ty {
+                    pub fn plantuml_inner() -> String {
+                        use std::fmt::Write;
+
+                        let mut output = ( #plant_uml_str ).to_string();
+
+                        #additional
+
+                        output
+                    }
+
+                    pub fn plantuml() -> String {
+                        use std::fmt::Write;
+
+                        let mut output = String::new();
+
+                        writeln!(&mut output, "@startuml {}", #fsm_ty_name );
+
+                        writeln!(&mut output, "{}", Self::plantuml_inner());
+
+                        writeln!(&mut output, "@enduml");
+
+                        output
+                    }
+                }
             }
-        };
-    }
+        }
+    };
+
+    
+    
 
 
 
