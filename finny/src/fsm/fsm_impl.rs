@@ -56,7 +56,7 @@ impl<F: FsmBackend> DerefMut for FsmBackendImpl<F> {
 }
 
 pub trait FsmBackendResetSubmachine<F: FsmBackend, FSub> {
-    fn reset(backend: &mut FsmBackendImpl<F>);
+    fn reset<I>(backend: &mut FsmBackendImpl<F>, inspect_event_ctx: &mut I) where I: Inspect;
 }
 
 

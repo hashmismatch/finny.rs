@@ -530,7 +530,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                             // reset
                             {
                                 use finny::FsmBackendResetSubmachine;
-                                <Self as FsmBackendResetSubmachine<_, #sub_ty >>::reset(ctx.backend);
+                                <Self as FsmBackendResetSubmachine<_, #sub_ty >>::reset(ctx.backend, &mut inspect_event_ctx);
                             }
                             {
                                 <#transition_ty>::execute_on_sub_entry(&mut ctx, #region_id, &mut inspect_event_ctx);
@@ -1132,9 +1132,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                         #fsm_generics_where
                     {
                         
-                        fn reset(backend: &mut finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >) {
+                        fn reset<I>(backend: &mut finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >, inspect_event_ctx: &mut I)
+                            where I: finny::Inspect
+                        {
                             let sub_fsm: &mut #sub_ty = backend.states.as_mut();
                             sub_fsm.backend.current_states = Default::default();
+                            inspect_event_ctx.info("Setting the state of the submachine to Start.");
                         }
                     }
 
