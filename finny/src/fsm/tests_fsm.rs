@@ -8,6 +8,7 @@ pub struct StateA;
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct EventA { pub n: usize }
 
+#[derive(Debug)]
 pub struct TestFsm;
 
 #[derive(Default)]

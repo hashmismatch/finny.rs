@@ -739,6 +739,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                     result
                 }
             }
+
+            impl #fsm_generics_impl core::fmt::Debug for #fsm_ty #fsm_generics_type
+                #fsm_generics_where
+            {
+                fn fmt(&self, fmt: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error > {
+                    Ok(())
+                }
+            }
         }
     };
     

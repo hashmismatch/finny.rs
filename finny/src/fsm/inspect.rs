@@ -1,5 +1,21 @@
-use crate::{FsmBackendImpl, lib::*};
+use crate::{FsmBackendImpl, FsmStates, lib::*};
 use crate::{FsmBackend, FsmEvent};
+
+#[derive(Debug)]
+pub enum InspectFsmEvent<F> where F: FsmBackend {
+    StateEnter(<<F as FsmBackend>::States as FsmStates<F>>::StateKind),
+    StateExit(<<F as FsmBackend>::States as FsmStates<F>>::StateKind)
+}
+
+impl<F> Clone for InspectFsmEvent<F> where F: FsmBackend {
+    fn clone(&self) -> Self {
+        match self {
+            Self::StateEnter(arg0) => Self::StateEnter(arg0.clone()),
+            Self::StateExit(arg0) => Self::StateExit(arg0.clone()),
+        }
+    }
+}
+
 pub trait Inspect {
     
     fn new_event<F: FsmBackend>(&self, event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>, fsm: &FsmBackendImpl<F>) -> Self;
@@ -16,6 +32,8 @@ pub trait Inspect {
 
     fn on_error<E>(&self, msg: &str, error: &E) where E: Debug;
     fn info(&self, msg: &str);
+
+    fn on_event<F: FsmBackend>(&self, event: InspectFsmEvent<F>);
 }
 
 #[derive(Default)]
@@ -71,6 +89,10 @@ impl Inspect for InspectNull {
     fn info(&self, msg: &str) {
         
     }
+
+    fn on_event<F: FsmBackend>(&self, event: InspectFsmEvent<F>) {
+        
+    }
 }
 
 pub struct InspectChain<A, B>
@@ -89,7 +111,26 @@ impl<A, B> InspectChain<A, B>
             b: inspect_b
         }
     }
+
+    pub fn add_inspect<C: Inspect>(self, inspect: C) -> InspectChain<InspectChain<A, B>, C> {
+        InspectChain {
+            a: self,
+            b: inspect
+        }
+    }
 }
+
+impl<A> InspectChain<A, InspectNull>
+    where A: Inspect
+{
+    pub fn new_chain(inspect: A) -> Self {
+        InspectChain {
+            a: inspect,
+            b: InspectNull::new()
+        }
+    }
+}
+
 
 impl<A, B> Inspect for InspectChain<A, B>
     where A: Inspect, B: Inspect
@@ -155,5 +196,10 @@ impl<A, B> Inspect for InspectChain<A, B>
     fn info(&self, msg: &str) {
         self.a.info(msg);
         self.b.info(msg);
+    }
+
+    fn on_event<F: FsmBackend>(&self, event: InspectFsmEvent<F>) {
+        self.a.on_event(event.clone());
+        self.b.on_event(event);
     }
 }

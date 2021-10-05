@@ -90,4 +90,8 @@ impl Inspect for InspectSlog
     fn info(&self, msg: &str) {
         info!(self.logger, "{}", msg);
     }
+
+    fn on_event<F: FsmBackend>(&self, event: crate::InspectFsmEvent<F>) {
+        info!(self.logger, "Inspection event {:?}", event);
+    }
 }

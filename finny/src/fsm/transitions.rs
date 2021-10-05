@@ -1,10 +1,10 @@
 //! All of these traits will be implemented by the procedural code generator.
 
-use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, lib::*};
+use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, InspectFsmEvent, lib::*};
 use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
 
 /// A state's entry and exit actions.
-pub trait FsmState<F: FsmBackend> {
+pub trait FsmState<F: FsmBackend> where Self: Sized {
     /// Action that is executed whenever this state is being entered.
     fn on_entry<'a, Q: FsmEventQueue<F>>(&mut self, context: &mut EventContext<'a, F, Q>);
     /// Action that is executed whenever this state is being exited.
@@ -18,6 +18,15 @@ pub trait FsmState<F: FsmBackend> {
             region,
             queue: context.queue
         };
+
+        // inspection
+        {
+            context.inspect.on_state_enter::<Self>();
+
+            let kind = <Self>::fsm_state();
+            let ev = InspectFsmEvent::<F>::StateEnter(kind);
+            context.inspect.on_event(ev);
+        }
 
         let state: &mut Self = context.backend.states.as_mut();
         state.on_entry(&mut event_context);
@@ -34,6 +43,15 @@ pub trait FsmState<F: FsmBackend> {
 
         let state: &mut Self = context.backend.states.as_mut();
         state.on_exit(&mut event_context);
+
+        // inspection
+        {
+            context.inspect.on_state_exit::<Self>();
+
+            let kind = <Self>::fsm_state();
+            let ev = InspectFsmEvent::<F>::StateExit(kind);
+            context.inspect.on_event(ev);
+        }        
     }
 
     fn fsm_state() -> <<F as FsmBackend>::States as FsmStates<F>>::StateKind;
