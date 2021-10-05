@@ -1,5 +1,5 @@
 use slog::{info, o, error};
-use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect};
+use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent};
 use crate::lib::*;
 use AsRef;
 
@@ -90,7 +90,10 @@ impl Inspect for InspectSlog
     fn info(&self, msg: &str) {
         info!(self.logger, "{}", msg);
     }
+}
 
+impl InspectEvent for InspectSlog
+{
     fn on_event<F: FsmBackend>(&self, event: crate::InspectFsmEvent<F>) {
         info!(self.logger, "Inspection event {:?}", event);
     }
