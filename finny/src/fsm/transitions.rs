@@ -1,7 +1,9 @@
 //! All of these traits will be implemented by the procedural code generator.
 
-use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, InspectFsmEvent, lib::*};
+use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, lib::*};
 use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
+
+use super::inspect::InspectFsmEvent;
 
 /// A state's entry and exit actions.
 pub trait FsmState<F: FsmBackend> where Self: Sized {

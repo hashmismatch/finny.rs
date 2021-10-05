@@ -1,4 +1,5 @@
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent};
+use core::any::Any;
 
 #[derive(Clone)]
 pub struct EventInspector<T>
@@ -68,7 +69,7 @@ impl<TI> Inspect for EventInspector<TI>
 impl<TI> InspectEvent for EventInspector<TI>
     where TI: InspectEvent + Clone
 {
-    fn on_event<F: FsmBackend>(&self, event: crate::InspectFsmEvent<F>) {
+    fn on_event<F: FsmBackend + Any>(&self, event: crate::InspectFsmEvent<F>) {
         self.event_handler.on_event(event)
     }
 }

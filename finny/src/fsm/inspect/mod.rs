@@ -1,6 +1,4 @@
-pub mod null;
-pub mod chain;
-pub mod events;
+use core::any::Any;
 
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, FsmStates};
 
@@ -38,5 +36,5 @@ pub trait Inspect: InspectEvent {
 }
 
 pub trait InspectEvent {
-    fn on_event<F: FsmBackend>(&self, event: InspectFsmEvent<F>);
+    fn on_event<F: FsmBackend + Any>(&self, event: InspectFsmEvent<F>);
 }

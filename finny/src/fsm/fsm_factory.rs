@@ -26,8 +26,8 @@ pub trait FsmFactory {
 
     /// Build a new frontend for the FSM with a `FsmEventQueueVec` queue, `TimersStd` for timers and no logging.
     #[cfg(feature="std")]
-    fn new(context: <Self::Fsm as FsmBackend>::Context) -> FsmResult<FsmFrontend<Self::Fsm, FsmEventQueueVec<Self::Fsm>, crate::null::InspectNull, TimersStd<Self::Fsm>>> {
-        use crate::null::InspectNull;
+    fn new(context: <Self::Fsm as FsmBackend>::Context) -> FsmResult<FsmFrontend<Self::Fsm, FsmEventQueueVec<Self::Fsm>, crate::inspect::null::InspectNull, TimersStd<Self::Fsm>>> {
+        use crate::inspect::null::InspectNull;
 
         let frontend = FsmFrontend {
             queue: FsmEventQueueVec::new(),
