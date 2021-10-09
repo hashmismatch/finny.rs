@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use finny::{finny_fsm, FsmFactory, FsmEventQueueArray, InspectNull, FsmTimersNull};
+use finny::{finny_fsm, FsmFactory, FsmEventQueueArray, inspect::null::InspectNull, FsmTimersNull};
 use finny::decl::{FsmBuilder, BuiltFsm};
 use heapless::consts::*;
 
