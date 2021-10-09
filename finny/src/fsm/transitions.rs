@@ -26,8 +26,8 @@ pub trait FsmState<F: FsmBackend> where Self: Sized {
             context.inspect.on_state_enter::<Self>();
 
             let kind = <Self>::fsm_state();
-            let ev = InspectFsmEvent::<F>::StateEnter(kind);
-            context.inspect.on_event(ev);
+            let ev = InspectFsmEvent::StateEnter(kind);
+            context.inspect.on_event(&ev);
         }
 
         let state: &mut Self = context.backend.states.as_mut();
@@ -51,8 +51,8 @@ pub trait FsmState<F: FsmBackend> where Self: Sized {
             context.inspect.on_state_exit::<Self>();
 
             let kind = <Self>::fsm_state();
-            let ev = InspectFsmEvent::<F>::StateExit(kind);
-            context.inspect.on_event(ev);
+            let ev = InspectFsmEvent::StateExit(kind);
+            context.inspect.on_event(&ev);
         }        
     }
 

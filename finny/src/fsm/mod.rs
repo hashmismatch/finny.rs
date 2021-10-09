@@ -39,7 +39,7 @@ pub type FsmDispatchResult = FsmResult<()>;
 
 /// Finite State Machine backend. Handles the dispatching, the types are
 /// defined by the code generator.
-pub trait FsmBackend where Self: Sized + Debug + 'static {
+pub trait FsmBackend where Self: Sized + Debug {
     /// The machine's context that is shared between its constructors and actions.
     type Context;
     /// The type that holds the states of the machine.

@@ -1,5 +1,6 @@
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent, InspectFsmEvent};
-
+use core::fmt::Debug;
+use core::any::Any;
 
 #[derive(Default)]
 pub struct InspectNull;
@@ -57,7 +58,7 @@ impl Inspect for InspectNull {
 }
 
 impl InspectEvent for InspectNull {
-    fn on_event<F: FsmBackend>(&self, event: InspectFsmEvent<F>) {
+    fn on_event<S: Any + Debug + Clone>(&self, event: &InspectFsmEvent<S>) {
         
     }
 }

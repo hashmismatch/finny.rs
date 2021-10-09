@@ -1,20 +1,12 @@
+use core::fmt::Debug;
 use core::any::Any;
 
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, FsmStates};
 
-#[derive(Debug)]
-pub enum InspectFsmEvent<F> where F: FsmBackend {
-    StateEnter(<<F as FsmBackend>::States as FsmStates<F>>::StateKind),
-    StateExit(<<F as FsmBackend>::States as FsmStates<F>>::StateKind)
-}
-
-impl<F> Clone for InspectFsmEvent<F> where F: FsmBackend {
-    fn clone(&self) -> Self {
-        match self {
-            Self::StateEnter(arg0) => Self::StateEnter(arg0.clone()),
-            Self::StateExit(arg0) => Self::StateExit(arg0.clone()),
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum InspectFsmEvent<S> where S: Debug + Clone {
+    StateEnter(S),
+    StateExit(S)
 }
 
 pub trait Inspect: InspectEvent {
@@ -36,5 +28,5 @@ pub trait Inspect: InspectEvent {
 }
 
 pub trait InspectEvent {
-    fn on_event<F: FsmBackend + Any>(&self, event: InspectFsmEvent<F>);
+    fn on_event<S: Any + Debug + Clone>(&self, event: &InspectFsmEvent<S>);
 }

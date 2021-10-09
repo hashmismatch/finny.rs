@@ -5,9 +5,9 @@ use crate::FsmResult;
 /// The implementation should hold all of the FSM's states as fields.
 pub trait FsmStates<TFsm>: FsmStateFactory<TFsm> where TFsm: FsmBackend {
     /// The enum type for all states that's used as the "current state" field in the FSM's backend.
-    type StateKind: Clone + Copy + Debug + PartialEq;
+    type StateKind: Clone + Copy + Debug + PartialEq + 'static;
     /// An array of current states for the machine, one for each region.
-    type CurrentState: Clone + Copy + Debug + Default + AsRef<[FsmCurrentState<Self::StateKind>]> + AsMut<[FsmCurrentState<Self::StateKind>]>;
+    type CurrentState: Clone + Copy + Debug + Default + AsRef<[FsmCurrentState<Self::StateKind>]> + AsMut<[FsmCurrentState<Self::StateKind>]> + 'static;
 }
 
 /// The current state of the FSM.

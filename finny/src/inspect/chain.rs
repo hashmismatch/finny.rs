@@ -1,5 +1,6 @@
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent, InspectFsmEvent};
 use core::any::Any;
+use core::fmt::Debug;
 use super::{null::InspectNull};
 
 
@@ -110,8 +111,8 @@ impl<A, B> Inspect for InspectChain<A, B>
 impl<A, B> InspectEvent for InspectChain<A, B>
     where A: Inspect, B: Inspect 
 {
-    fn on_event<F: FsmBackend + Any>(&self, event: InspectFsmEvent<F>) {
-        self.a.on_event(event.clone());
+    fn on_event<S: Any + Debug + Clone>(&self, event: &InspectFsmEvent<S>) {
+        self.a.on_event(event);
         self.b.on_event(event);
     }
 }

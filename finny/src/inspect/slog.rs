@@ -2,6 +2,8 @@ use slog::{info, o, error};
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent, InspectFsmEvent};
 use crate::lib::*;
 use AsRef;
+use core::fmt::Debug;
+use core::any::Any;
 
 pub struct InspectSlog {
     pub logger: slog::Logger
@@ -94,7 +96,7 @@ impl Inspect for InspectSlog
 
 impl InspectEvent for InspectSlog
 {
-    fn on_event<F: FsmBackend>(&self, event: InspectFsmEvent<F>) {
+    fn on_event<S: Any + Debug + Clone>(&self, event: &InspectFsmEvent<S>) {
         info!(self.logger, "Inspection event {:?}", event);
     }
 }
