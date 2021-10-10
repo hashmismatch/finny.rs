@@ -25,18 +25,18 @@ pub struct FinnyRegion {
 pub enum FinnyStateKind {
     Stopped,
     State(FinnyState),
-    //SubMachine(String)
+    SubMachine(String)
 }
 
 impl FinnyStateKind {
     pub fn get_state_id(&self) -> String {
         match self {
             FinnyStateKind::Stopped => "Stopped".into(),
-            FinnyStateKind::State(s) => s.state_id.clone()
+            FinnyStateKind::State(s) => s.state_id.clone(),
+            FinnyStateKind::SubMachine(id) => id.clone()
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FinnyState {

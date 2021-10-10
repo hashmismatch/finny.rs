@@ -8,9 +8,9 @@ mod queue;
 mod states;
 mod transitions;
 mod tests_fsm;
-mod inspect;
 mod dispatch;
 mod timers;
+mod inspect;
 
 pub use self::events::*;
 pub use self::fsm_factory::*;
@@ -39,7 +39,7 @@ pub type FsmDispatchResult = FsmResult<()>;
 
 /// Finite State Machine backend. Handles the dispatching, the types are
 /// defined by the code generator.
-pub trait FsmBackend where Self: Sized {
+pub trait FsmBackend where Self: Sized + Debug {
     /// The machine's context that is shared between its constructors and actions.
     type Context;
     /// The type that holds the states of the machine.

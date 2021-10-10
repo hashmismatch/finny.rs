@@ -5,9 +5,9 @@ use crate::FsmResult;
 /// The implementation should hold all of the FSM's states as fields.
 pub trait FsmStates<TFsm>: FsmStateFactory<TFsm> where TFsm: FsmBackend {
     /// The enum type for all states that's used as the "current state" field in the FSM's backend.
-    type StateKind: Clone + Copy + Debug + PartialEq;
+    type StateKind: Clone + Copy + Debug + PartialEq + 'static;
     /// An array of current states for the machine, one for each region.
-    type CurrentState: Clone + Copy + Debug + Default + AsRef<[FsmCurrentState<Self::StateKind>]> + AsMut<[FsmCurrentState<Self::StateKind>]>;
+    type CurrentState: Clone + Copy + Debug + Default + AsRef<[FsmCurrentState<Self::StateKind>]> + AsMut<[FsmCurrentState<Self::StateKind>]> + 'static;
 }
 
 /// The current state of the FSM.
@@ -49,6 +49,7 @@ pub trait FsmStateFactory<TFsm> where Self: Sized, TFsm: FsmBackend {
     fn new_state(context: &<TFsm as FsmBackend>::Context) -> FsmResult<Self>;
 }
 
+/// The implementation of a simple state factory, where the state supports Default.
 impl<TState, TFsm> FsmStateFactory<TFsm> for TState where TState: Default, TFsm: FsmBackend {
     fn new_state(_context: &<TFsm as FsmBackend>::Context) -> FsmResult<Self> {
         Ok(Default::default())
