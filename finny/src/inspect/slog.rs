@@ -1,9 +1,13 @@
+extern crate alloc;
+
 use slog::{info, o, error};
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent, InspectFsmEvent};
 use crate::lib::*;
 use AsRef;
 use core::fmt::Debug;
 use core::any::Any;
+use alloc::string::ToString;
+use alloc::format;
 
 pub struct InspectSlog {
     pub logger: slog::Logger

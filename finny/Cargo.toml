@@ -14,12 +14,12 @@ readme = "../README.md"
 derive_more = "0.99.11"
 finny_derive = { path = "../finny_derive", version = "0.2.0" }
 arraydeque = { version = "0.4", default-features = false }
-slog = { version = "2.7.0", optional = true }
-
+slog = { version = "2.7.0", optional = true, default-features = false }
+heapless = { version = "0.7" }
 
 [features]
 default = ["std", "inspect_slog", "timers_std"]
-std = ["arraydeque/std", "timers_std"]
+std = ["arraydeque/std", "timers_std", "slog/std"]
 inspect_slog = ["slog"]
 timers_std = []
 generate_plantuml = ["finny_derive/generate_plantuml"]

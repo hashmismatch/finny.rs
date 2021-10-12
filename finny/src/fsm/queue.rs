@@ -171,6 +171,79 @@ mod queue_array {
 
 pub use self::queue_array::*;
 
+
+pub mod heapless_shared {
+    //! A heapless queue with Clone and Arc support.
+    
+    use core::sync::atomic::{AtomicUsize, Ordering};
+
+    use crate::FsmError;
+
+    use super::*;
+
+    extern crate alloc;
+    use alloc::sync::Arc;
+    use heapless::mpmc::Q64;
+
+/// An unbound event queue that uses `VecDeque`.
+    pub struct FsmEventQueueHeaplessShared<F: FsmBackend> {
+        inner: Arc<Inner<F>>
+    }
+
+    impl<F> Clone for FsmEventQueueHeaplessShared<F> where F: FsmBackend {
+        fn clone(&self) -> Self {
+            Self { inner: self.inner.clone() }
+        }
+    }
+
+    struct Inner<F: FsmBackend> {
+        queue: Q64<<F as FsmBackend>::Events>,
+        len: AtomicUsize
+    }
+    
+    impl<F: FsmBackend> FsmEventQueueHeaplessShared<F> {
+        pub fn new() -> Self {
+            let q = Q64::new();
+            let inner = Inner {
+                queue: q,
+                len: AtomicUsize::new(0)
+            };
+            FsmEventQueueHeaplessShared {
+                inner: Arc::new(inner)
+            }
+        }
+    }
+
+    impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueHeaplessShared<F> {
+        fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
+            match self.inner.queue.dequeue() {
+                Some(e) => {
+                    self.inner.len.fetch_sub(1, Ordering::SeqCst);
+                    Some(e)
+                },
+                None => None
+            }
+        }
+
+        fn len(&self) -> usize {
+            self.inner.len.load(Ordering::SeqCst)
+        }
+    }
+
+    impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueHeaplessShared<F> {
+        fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
+            match self.inner.queue.enqueue(event.into()) {
+                Ok(_) => {
+                    self.inner.len.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                },
+                Err(_) => Err(FsmError::QueueOverCapacity) 
+            }
+        }
+    }
+
+}
+
 pub struct FsmEventQueueNull<F> {
     _ty: PhantomData<F>
 }
@@ -257,6 +330,13 @@ fn test_array() {
 #[test]
 fn test_dequeue_vec_shared() {
     let queue = FsmEventQueueVecShared::<TestFsm>::new();
+    test_queue(queue);
+}
+
+#[test]
+fn test_heapless_shared() {
+    use self::heapless_shared::FsmEventQueueHeaplessShared;
+    let queue = FsmEventQueueHeaplessShared::<TestFsm>::new();
     test_queue(queue);
 }
 
