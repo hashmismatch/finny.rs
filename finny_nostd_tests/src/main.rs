@@ -1,6 +1,11 @@
 #![no_std]
 #![no_main]
 
+#[alloc_error_handler]
+fn default_handler(layout: core::alloc::Layout) -> ! {
+    panic!("memory allocation of {} bytes failed", layout.size())
+}
+
 extern crate jemallocator;
 
 #[global_allocator]
