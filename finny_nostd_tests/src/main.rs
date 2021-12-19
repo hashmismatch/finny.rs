@@ -1,6 +1,11 @@
 #![no_std]
 #![no_main]
 
+extern crate jemallocator;
+
+#[global_allocator]
+static ALLOC: jemallocator::Jemalloc = jemallocator::Jemalloc;
+
 use finny::{finny_fsm, FsmFactory, FsmEventQueueArray, inspect::null::InspectNull, FsmTimersNull};
 use finny::decl::{FsmBuilder, BuiltFsm};
 use heapless::consts::*;
