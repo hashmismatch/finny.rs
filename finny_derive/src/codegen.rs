@@ -544,10 +544,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                     let mut timers_enter = TokenStream::new();
 
                     let state = match &transition.ty {
-                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
                             Some(st)
                         },
-                        FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                        FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
                             Some(st)
                         },
                         _ => None
@@ -574,10 +574,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                     let mut timers_exit = TokenStream::new();
 
                     let state = match &transition.ty {
-                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
                             Some(st)
                         },
-                        FsmTransitionType::StateTransition(FsmStateTransition { state_from: FsmTransitionState::State(st @ FsmState { kind: FsmStateKind::Normal, .. }), .. }) => {
+                        FsmTransitionType::StateTransition(FsmStateTransition { state_from: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
                             Some(st)
                         },
                         _ => None
