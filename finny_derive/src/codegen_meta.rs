@@ -155,7 +155,7 @@ pub fn generate_fsm_meta(fsm: &FsmFnInput) -> TokenStream {
 
                 impl #fsm_info_ty {
                     pub fn plantuml_inner() -> String {
-                        use alloc::fmt::Write;
+                        use std::fmt::Write;
 
                         let mut output = ( #plant_uml_str ).to_string();
 
@@ -165,7 +165,7 @@ pub fn generate_fsm_meta(fsm: &FsmFnInput) -> TokenStream {
                     }
 
                     pub fn plantuml() -> String {
-                        use alloc::fmt::Write;
+                        use std::fmt::Write;
 
                         let mut output = String::new();
 
