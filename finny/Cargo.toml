@@ -19,7 +19,7 @@ heapless = { version = "0.7" }
 
 [features]
 default = ["std", "inspect_slog", "timers_std"]
-std = ["arraydeque/std", "timers_std", "slog/std"]
+std = ["arraydeque/std", "timers_std", "slog/std", "finny_derive/std"]
 inspect_slog = ["slog"]
 timers_std = []
 generate_plantuml = ["finny_derive/generate_plantuml"]

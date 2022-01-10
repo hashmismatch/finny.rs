@@ -12,7 +12,8 @@ keywords = ["fsm", "state"]
 proc-macro = true
 
 [features]
-default = []
+default = ["std"]
+std = []
 generate_plantuml = []
 
 [dependencies]
