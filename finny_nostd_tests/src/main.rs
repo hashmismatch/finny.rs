@@ -1,12 +1,11 @@
-#![no_std]
-#![no_main]
+// disabling until no_std + alloc becomes stable
+// #![no_std]
 
 use finny::{finny_fsm, FsmFactory, FsmEventQueueArray, inspect::null::InspectNull, FsmTimersNull};
 use finny::decl::{FsmBuilder, BuiltFsm};
 use heapless::consts::*;
 
-#[no_mangle]
-pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
+pub fn main() {
     // Since we are passing a C string the final null character is mandatory
     const HELLO: &'static str = "Hello, world!\n\0";
     unsafe {
@@ -21,15 +20,7 @@ pub extern "C" fn main(_argc: isize, _argv: *const *const u8) -> isize {
         let mut fsm = StateMachine::new_with(ctx, queue, inspect, timers).unwrap();
         fsm.start().unwrap();
     }
-
-    0
 }
-
-#[panic_handler]
-fn my_panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
-
 
 ///////////////////////////////////////////////////
 
