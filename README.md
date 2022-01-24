@@ -1,20 +1,32 @@
-# Finny - Finite State Machines for Rust
+## Finny - Hierarchical Finite State Machines for Rust
 
+[![Crates.io][crates-badge]][crates-url]
+[![Documentation](https://docs.rs/finny/badge.svg)](https://docs.rs/finny)
 ![Build](https://github.com/hashmismatch/finny.rs/workflows/Build/badge.svg)
 
-## Features
+### Features
 * Declarative, builder API with a procedural function macro that generate the dispatcher
 * Compile-time transition graph validation
 * No run-time allocations required, `no_std` support
 * Support for generics within the shared context
 * Transition guards and actions
-* FSM regions, also known as orthogonal states
+* State regions, also known as orthogonal states
 * Event queueing and run-to-completition execution
+* Submachines, also known as Hierarchical State Machines
+* Timers on states
 
-## Example
+### Example
+
+#### Cargo.toml
+
+```toml
+[dependencies]
+finny = "0.2"
+```
+
+#### Code
 
 ```rust
-extern crate finny;
 use finny::{finny_fsm, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}};
 
 // The context is shared between all guards, actions and transitions. Generics are supported here!
@@ -40,7 +52,7 @@ fn my_fsm(mut fsm: FsmBuilder<MyFsm, MyContext>) -> BuiltFsm {
         })
        .on_event::<MyEvent>()
        .transition_to::<MyStateB>()
-       .guard(|_ev, ctx| { ctx.context.val > 0 })
+       .guard(|_ev, ctx, _states| { ctx.context.val > 0 })
        .action(|_ev, ctx, state_a, state_b| { ctx.context.val += 1; });
     fsm.state::<MyStateB>();
     fsm.initial_state::<MyStateA>();
@@ -60,5 +72,7 @@ fn main() -> FsmResult<()> {
     Ok(())
 }
 ```
+[crates-badge]: https://img.shields.io/crates/v/finny.svg
+[crates-url]: https://crates.io/crates/finny
 
 License: MIT OR Apache-2.0

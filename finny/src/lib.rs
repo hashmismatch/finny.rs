@@ -1,7 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-//! # Finny - Finite State Machines for Rust
+//! # Finny - Hierarchical Finite State Machines for Rust
 //!
+//! [![Crates.io][crates-badge]][crates-url]
+//! [![Documentation](https://docs.rs/finny/badge.svg)](https://docs.rs/finny)
 //! ![Build](https://github.com/hashmismatch/finny.rs/workflows/Build/badge.svg)
 //!
 //! ## Features
@@ -10,14 +12,23 @@
 //! * No run-time allocations required, `no_std` support
 //! * Support for generics within the shared context
 //! * Transition guards and actions
-//! * FSM regions, also known as orthogonal states
+//! * State regions, also known as orthogonal states
 //! * Event queueing and run-to-completition execution
-//! * Submachines, also known as Hieararchical State Machines
+//! * Submachines, also known as Hierarchical State Machines
+//! * Timers on states
 //!
 //! ## Example
 //!
+//! ### Cargo.toml
+//!
+//! ```toml
+//! [dependencies]
+//! finny = "0.2"
+//! ```
+//! 
+//! ### Code
+//! 
 //! ```rust
-//! extern crate finny;
 //! use finny::{finny_fsm, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}};
 //! 
 //! // The context is shared between all guards, actions and transitions. Generics are supported here!
@@ -63,6 +74,8 @@
 //!     Ok(())
 //! }
 //! ```
+//! [crates-badge]: https://img.shields.io/crates/v/finny.svg
+//! [crates-url]: https://crates.io/crates/finny
 
 pub mod decl;
 mod fsm;
