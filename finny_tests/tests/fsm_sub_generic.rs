@@ -2,8 +2,7 @@ extern crate finny;
 
 use std::ops::{Add, AddAssign};
 
-use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog};
-use slog::{Drain, o};
+use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::tracing::InspectTracing};
 
 #[derive(Debug)]
 pub struct MainContext<X>
@@ -100,17 +99,13 @@ fn build_sub_fsm<Y>(mut fsm: FsmBuilder<SubStateMachine<Y>, SubContext<Y>>) -> B
 
 #[test]
 fn test_sub_generics() -> FsmResult<()> {
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = std::sync::Mutex::new(drain).fuse();
-
-    let logger = slog::Logger::root(drain, o!());
+    let _ = tracing_subscriber::fmt().try_init();
     
     let main_ctx = MainContext {
         field: 0usize,
         some_string: "Hello".into()
     };
-    let mut fsm = StateMachine::<usize, isize>::new_with(main_ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), FsmTimersNull)?;
+    let mut fsm = StateMachine::<usize, isize>::new_with(main_ctx, FsmEventQueueVec::new(), InspectTracing::new(), FsmTimersNull)?;
     
     fsm.start()?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);

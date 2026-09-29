@@ -1,7 +1,6 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog};
-use slog::{Drain, Logger, info, o};
+use finny::{FsmCurrentState, FsmError, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::tracing::InspectTracing};
 
 #[derive(Debug)]
 pub struct StateMachineContext {
@@ -68,15 +67,11 @@ fn build_fsm(mut fsm: FsmBuilder<StateMachine, StateMachineContext>) -> BuiltFsm
 
 #[test]
 fn test_fsm() -> FsmResult<()> {
-    let plain = slog_term::PlainSyncDecorator::new(std::io::stdout());
-    let logger = Logger::root(
-        slog_term::FullFormat::new(plain)
-        .build().fuse(), o!()
-    );
+    let _ = tracing_subscriber::fmt().try_init();
 
     let ctx = StateMachineContext { count: 0, total_time: 0 };
     
-    let mut fsm = StateMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), FsmTimersNull)?;
+    let mut fsm = StateMachine::new_with(ctx, FsmEventQueueVec::new(), InspectTracing::new(), FsmTimersNull)?;
     
     let current_state = fsm.get_current_states()[0];
     let state: &StateA = fsm.get_state();

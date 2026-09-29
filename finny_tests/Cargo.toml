@@ -7,6 +7,5 @@ edition.workspace = true
 
 [dependencies]
 finny.workspace = true
-slog = { workspace = true, features = ["std"] }
-slog-term.workspace = true
-slog-async.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

@@ -14,12 +14,12 @@ readme = "../README.md"
 derive_more.workspace = true
 finny_derive.workspace = true
 arraydeque.workspace = true
-slog = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
 heapless.workspace = true
 
 [features]
-default = ["std", "inspect_slog", "timers_std"]
-std = ["arraydeque/std", "timers_std", "slog/std", "finny_derive/std"]
-inspect_slog = ["slog"]
+default = ["std", "inspect_tracing", "timers_std"]
+std = ["arraydeque/std", "timers_std", "tracing?/std", "finny_derive/std"]
+inspect_tracing = ["dep:tracing"]
 timers_std = []
 generate_plantuml = ["finny_derive/generate_plantuml"]

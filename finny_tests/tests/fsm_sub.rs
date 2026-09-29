@@ -1,7 +1,6 @@
 extern crate finny;
 
-use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog};
-use slog::{Drain, o};
+use finny::{FsmCurrentState, FsmError, FsmEventQueueVec, FsmFactory, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::tracing::InspectTracing};
 
 #[derive(Default)]
 pub struct MainContext {
@@ -126,13 +125,9 @@ fn build_second_sub_fsm(mut fsm: FsmBuilder<SecondSubStateMachine, SecondSubCont
 
 #[test]
 fn test_sub() -> FsmResult<()> {
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = std::sync::Mutex::new(drain).fuse();
-
-    let logger = slog::Logger::root(drain, o!());
+    let _ = tracing_subscriber::fmt().try_init();
     
-    let mut fsm = StateMachine::new_with(MainContext::default(), FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), FsmTimersNull)?;
+    let mut fsm = StateMachine::new_with(MainContext::default(), FsmEventQueueVec::new(), InspectTracing::new(), FsmTimersNull)?;
     
     fsm.start()?;
     assert_eq!(FsmCurrentState::State(StateMachineCurrentState::StateA), fsm.get_current_states()[0]);
