@@ -24,10 +24,10 @@ pub use self::timers::*;
 
 use crate::lib::*;
 
-pub type FsmResult<T> = Result<T, FsmError>;
+pub type FsmResult<T = ()> = Result<T, FsmError>;
 
 /// The lib-level error type.
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum FsmError {
     NoTransition,
     QueueOverCapacity,
