@@ -66,7 +66,7 @@ impl<F> FsmTimers<F> for TimersStd<F>
                     timed_out_idx = Some(idx);
                     break;
                 },
-                StdTimer::Interval { ref mut started_at, interval } if now.duration_since(*started_at) >= *interval => {
+                StdTimer::Interval { started_at, interval } if now.duration_since(*started_at) >= *interval => {
                     let t = now.duration_since(*started_at);
                     let times = ((t.as_secs_f32() / interval.as_secs_f32()).floor() as usize) - 1;
                     if times > 0 {

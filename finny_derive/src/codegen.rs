@@ -196,7 +196,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         let submachines: Vec<_> = fsm.fsm.states.iter().filter_map(|(_, state)| {
             match &state.kind {
                 FsmStateKind::Normal => None,
-                FsmStateKind::SubMachine(ref sub) => {
+                FsmStateKind::SubMachine(sub) => {
                     Some((sub, state))
                 }
             }
@@ -494,9 +494,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
                     match event {
                         crate::parse::FsmTransitionEvent::Start => quote! { ev @ finny::FsmEvent::Start },
                         crate::parse::FsmTransitionEvent::Stop => quote ! { ev @ finny::FsmEvent::Stop },
-                        crate::parse::FsmTransitionEvent::Event(ref ev) => {
+                        crate::parse::FsmTransitionEvent::Event(ev) => {
                             let kind = &ev.ty;
-                            quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ref ev)) }
+                            quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ev)) }
                         }
                     }
                 };

@@ -340,7 +340,7 @@ impl FsmParser {
 
                     let call_args: Vec<_> = method.call.args.iter().collect();
                     match call_args.as_slice() {
-                        [syn::Expr::Closure(ref setup), syn::Expr::Closure(ref trigger)] => {
+                        [syn::Expr::Closure(setup), syn::Expr::Closure(trigger)] => {
 
                             if timer.is_some() { panic!("double timer bug!"); }
                             

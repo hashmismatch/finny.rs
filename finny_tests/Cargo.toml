@@ -1,12 +1,12 @@
 [package]
 name = "finny_tests"
 version = "0.1.0"
-authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+authors.workspace = true
 publish = false
-edition = "2018"
+edition.workspace = true
 
 [dependencies]
-finny = { path = "../finny/" }
-slog = "2.7.0"
-slog-term = "2.6.0"
-slog-async = "2.6.0"
+finny.workspace = true
+slog = { workspace = true, features = ["std"] }
+slog-term.workspace = true
+slog-async.workspace = true
