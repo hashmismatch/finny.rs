@@ -26,11 +26,23 @@ pub fn finny_fsm(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let parsed = match FsmFnInput::parse(attr2.clone(), item2.clone()) {
         Ok(p) => p,
-        Err(e) => return e.to_compile_error().into()
+        Err(e) => return error_with_input(e, item2).into()
     };
 
     match generate_fsm_code(&parsed, attr2.clone(), item2.clone()) {
         Ok(t) => t.into(),
-        Err(e) => e.to_compile_error().into()
+        Err(e) => error_with_input(e, item2).into()
+    }
+}
+
+/// Keep the original definition function next to the error, so that IDEs can still offer
+/// completions for the builder API while the definition is incomplete.
+fn error_with_input(e: syn::Error, item: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    let err = e.to_compile_error();
+    quote::quote! {
+        #err
+
+        #[allow(dead_code, unused)]
+        #item
     }
 }

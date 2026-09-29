@@ -6,7 +6,7 @@ use crate::{codegen_meta::generate_fsm_meta, fsm::FsmTypes, parse::{FsmState, Fs
 
 use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
-pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStream) -> syn::Result<TokenStream> {
+pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
     let fsm_types = FsmTypes::new(&fsm.base.fsm_ty, &fsm.base.fsm_generics);
     //let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
@@ -1179,15 +1179,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, _input: TokenStre
         #fsm_meta
     };
 
-    /*
-    // this goes in front of our definition function
+    // Re-emit the builder definition function as-is. It is never called, but keeping its
+    // original tokens (and spans) in the output lets IDEs such as rust-analyzer resolve the
+    // builder API calls for completions, hovers and go-to-definition.
     q.append_all(quote! {
-        #[allow(dead_code)]
+        #[allow(dead_code, unused)]
+        #input
     });
-
-    q.append_all(attr);
-    q.append_all(input);
-    */
 
     Ok(q.into())
 }
