@@ -1,6 +1,6 @@
 //! All of these traits will be implemented by the procedural code generator.
 
-use crate::{FsmBackendImpl, FsmDispatch, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, lib::*};
+use crate::{FsmTimers, lib::*};
 use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
 
 use super::inspect::InspectFsmEvent;
@@ -12,7 +12,8 @@ pub trait FsmState<F: FsmBackend> where Self: Sized {
     /// Action that is executed whenever this state is being exited.
     fn on_exit<'a, Q: FsmEventQueue<F>>(&mut self, context: &mut EventContext<'a, F, Q>);
 
-    fn execute_on_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, region: FsmRegionId) 
+    /// Enters the state, reporting it to the inspector of the transition.
+    fn execute_on_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, region: FsmRegionId, inspect: &I)
         where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsMut<Self>, T: FsmTimers<F>
     {
         let mut event_context = EventContext {
@@ -23,18 +24,19 @@ pub trait FsmState<F: FsmBackend> where Self: Sized {
 
         // inspection
         {
-            context.inspect.on_state_enter::<Self>();
+            inspect.on_state_enter::<Self>();
 
             let kind = <Self>::fsm_state();
             let ev = InspectFsmEvent::StateEnter(kind);
-            context.inspect.on_event(&ev);
+            inspect.on_event(&ev);
         }
 
         let state: &mut Self = context.backend.states.as_mut();
         state.on_entry(&mut event_context);
     }
 
-    fn execute_on_exit<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, region: FsmRegionId) 
+    /// Exits the state, reporting it to the inspector of the transition.
+    fn execute_on_exit<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, region: FsmRegionId, inspect: &I)
         where Q: FsmEventQueue<F>, I: Inspect, <F as FsmBackend>::States: AsMut<Self>, T: FsmTimers<F>
     {
         let mut event_context = EventContext {
@@ -48,11 +50,11 @@ pub trait FsmState<F: FsmBackend> where Self: Sized {
 
         // inspection
         {
-            context.inspect.on_state_exit::<Self>();
+            inspect.on_state_exit::<Self>();
 
             let kind = <Self>::fsm_state();
             let ev = InspectFsmEvent::StateExit(kind);
-            context.inspect.on_event(&ev);
+            inspect.on_event(&ev);
         }        
     }
 
@@ -96,10 +98,9 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
             Self: Sized,
             T: FsmTimers<F>
     {
-        let ctx = inspect_event_ctx.for_transition::<Self>();
-        ctx.on_state_enter::<TInitialState>();
-        
-        <TInitialState>::execute_on_entry(context, region);
+        let inspect_ctx = inspect_event_ctx.for_transition::<Self>();
+
+        <TInitialState>::execute_on_entry(context, region, &inspect_ctx);
         
         let cs = context.backend.current_states.as_mut();
         cs[region] = FsmCurrentState::State(<TInitialState>::fsm_state());
@@ -124,7 +125,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
     {
         let inspect_ctx = inspect_event_ctx.for_transition::<Self>();
 
-        <TStateFrom>::execute_on_exit(context, region);
+        <TStateFrom>::execute_on_exit(context, region, &inspect_ctx);
         
         // transition action
         {
@@ -140,7 +141,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
         }
         
 
-        <TStateTo>::execute_on_entry(context, region);
+        <TStateTo>::execute_on_entry(context, region, &inspect_ctx);
 
         let cs = context.backend.current_states.as_mut();
         cs[region] = FsmCurrentState::State(<TStateTo>::fsm_state());
@@ -175,16 +176,17 @@ pub trait FsmAction<F: FsmBackend, E, State> {
             <F as FsmBackend>::States: AsMut<State>, Self: Sized,
             T: FsmTimers<F>
     {
-        let ctx = inspect_event_ctx.for_transition::<Self>();
+        let inspect_ctx = inspect_event_ctx.for_transition::<Self>();
 
         if Self::should_trigger_state_actions() {
-            <State>::execute_on_exit(context, region);
+            <State>::execute_on_exit(context, region, &inspect_ctx);
         }
 
+        inspect_ctx.on_action::<Self>();
         Self::execute_action(context, event, region);
 
         if Self::should_trigger_state_actions() {
-            <State>::execute_on_entry(context, region);
+            <State>::execute_on_entry(context, region, &inspect_ctx);
         }
     }
 }

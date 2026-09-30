@@ -59,3 +59,36 @@ impl Inspect for TransitionNames {
 impl InspectEvent for TransitionNames {
     fn on_event<S: Any + Debug + Clone>(&self, _event: &InspectFsmEvent<S>) { }
 }
+
+/// An inspector that counts the dispatched events and the entered states.
+#[derive(Clone, Default)]
+pub struct EventCounts {
+    pub new_events: Rc<RefCell<usize>>,
+    pub events_done: Rc<RefCell<usize>>,
+    pub state_enters: Rc<RefCell<usize>>
+}
+
+impl Inspect for EventCounts {
+    fn new_event<F: FsmBackend>(&self, _event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>, _fsm: &FsmBackendImpl<F>) -> Self {
+        *self.new_events.borrow_mut() += 1;
+        self.clone()
+    }
+    fn event_done<F: FsmBackend>(self, _fsm: &FsmBackendImpl<F>) {
+        *self.events_done.borrow_mut() += 1;
+    }
+    fn for_transition<T>(&self) -> Self { self.clone() }
+    fn for_sub_machine<FSub: FsmBackend>(&self) -> Self { self.clone() }
+    fn for_timer<F>(&self, _timer_id: <F as FsmBackend>::Timers) -> Self where F: FsmBackend { self.clone() }
+    fn on_guard<T>(&self, _guard_result: bool) { }
+    fn on_state_enter<S>(&self) {
+        *self.state_enters.borrow_mut() += 1;
+    }
+    fn on_state_exit<S>(&self) { }
+    fn on_action<S>(&self) { }
+    fn on_error<E>(&self, _msg: &str, _error: &E) where E: Debug { }
+    fn info(&self, _msg: &str) { }
+}
+
+impl InspectEvent for EventCounts {
+    fn on_event<S: Any + Debug + Clone>(&self, _event: &InspectFsmEvent<S>) { }
+}

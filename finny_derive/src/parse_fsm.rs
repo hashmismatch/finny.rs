@@ -250,6 +250,9 @@ impl FsmParser {
             let mut unguarded: Vec<&Type> = vec![];
             for t in &ev.transitions {
                 let (state, action) = match t {
+                    FsmEventTransition::State(from, to, action) if from == to => {
+                        return Err(syn::Error::new(action.span, "A transition into the same state. Use `self_transition()`, which exits and re-enters the state, or `internal_transition()`, which doesn't."));
+                    },
                     FsmEventTransition::State(from, _, action) => (from, action),
                     FsmEventTransition::InternalTransition(state, action) | FsmEventTransition::SelfTransition(state, action) => (state, action)
                 };

@@ -46,8 +46,20 @@ pub fn create_regions(decl: FsmDeclarations, options: FsmCodegenOptions) -> syn:
         }
     }
 
+    for (i, initial_state) in decl.initial_states.iter().enumerate() {
+        if decl.initial_states[..i].contains(initial_state) {
+            return Err(syn::Error::new(initial_state.span(), &format!("The state '{}' is the initial state of more than one region.",
+                tokens_to_string(initial_state))));
+        }
+    }
+
     for (region_id, initial_state) in decl.initial_states.iter().enumerate() {
         let start_node = get_or_add_node(&mut nodes, &mut graph, initial_state);
+        if let Some(other_region) = graph[start_node].region {
+            return Err(syn::Error::new(initial_state.span(), &format!("The initial state '{}' of the region {} is reachable from the initial state of the region {}. The states of different regions can't have transitions between them.",
+                tokens_to_string(initial_state), region_id, other_region)));
+        }
+
         let mut dfs = Dfs::new(&graph, start_node);
         while let Some(idx) = dfs.next(&graph) {
             if idx != start_node && graph[idx].region.is_some() {

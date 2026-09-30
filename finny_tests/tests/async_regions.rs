@@ -230,3 +230,78 @@ async fn test_concurrent_regions() -> FsmResult<()> {
 
     Ok(())
 }
+
+
+#[derive(Default)]
+pub struct Replaceable {
+    value: usize
+}
+#[derive(Default)]
+pub struct Idle;
+#[derive(Default)]
+pub struct Replacing;
+#[derive(Default)]
+pub struct Replaced;
+#[derive(Clone, Debug)]
+pub struct Replace;
+
+/// The second region replaces the whole shared context.
+#[finny_fsm]
+fn build_replace(mut fsm: FsmAsyncBuilder<ReplaceMachine, Replaceable>) -> BuiltFsm {
+    fsm.concurrent_regions();
+    fsm.initial_states::<(Idle, Replacing)>();
+
+    fsm.state::<Idle>();
+
+    fsm.state::<Replacing>()
+        .on_event::<Replace>()
+        .transition_to::<Replaced>()
+        .action(async |_, ctx, _, _| {
+            *ctx.context = std::sync::Arc::new(Replaceable { value: ctx.value + 42 });
+        });
+    fsm.state::<Replaced>();
+
+    fsm.build()
+}
+
+#[tokio::test]
+async fn test_concurrent_regions_keep_a_replaced_context() -> FsmResult<()> {
+    let mut fsm = ReplaceMachine::new(Replaceable { value: 1 })?;
+    fsm.start().await?;
+    fsm.dispatch(Replace).await?;
+    assert_eq!(43, fsm.get_context().value);
+    Ok(())
+}
+
+
+#[derive(Default)]
+pub struct Timed;
+
+/// A timer in a concurrent region, without a timers service.
+#[finny_fsm]
+fn build_timed(mut fsm: FsmAsyncBuilder<TimedMachine, ()>) -> BuiltFsm {
+    fsm.concurrent_regions();
+    fsm.initial_states::<(Timed, Idle)>();
+
+    fsm.state::<Timed>()
+        .on_entry_start_timer(|_, timer| {
+            timer.timeout = Duration::from_millis(10);
+        }, |_, _| None)
+        .with_timer_ty::<TimedTimer>();
+    fsm.state::<Idle>();
+
+    fsm.build()
+}
+
+#[tokio::test]
+async fn test_concurrent_regions_failed_timer_isnt_started() -> FsmResult<()> {
+    use finny::FsmTimer;
+
+    let mut fsm = TimedMachine::new_with((), FsmEventQueueVec::new(), finny::inspect::null::InspectNull::new(), FsmTimersNull)?;
+    fsm.start().await?;
+
+    // the timers service doesn't support timers
+    let timer: &TimedTimer = fsm.get_state();
+    assert!(timer.get_instance().is_none());
+    Ok(())
+}

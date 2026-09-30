@@ -55,9 +55,7 @@ pub use self::queue_vec::*;
 
 #[cfg(feature = "std")]
 mod queue_vec_shared {
-    use std::sync::{Arc, Mutex};
-
-    use crate::FsmError;
+    use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
     use super::*;
 
@@ -88,33 +86,45 @@ mod queue_vec_shared {
         }
     }
 
+    impl<F: FsmBackend> Inner<F> {
+        /// The queue stays consistent even if another thread panicked while holding the lock: it
+        /// is only ever changed by a single push or pop.
+        fn lock(&self) -> MutexGuard<'_, VecDeque<<F as FsmBackend>::Events>> {
+            self.queue.lock().unwrap_or_else(PoisonError::into_inner)
+        }
+    }
+
     impl<F: FsmBackend> FsmEventQueue<F> for FsmEventQueueVecShared<F> {
         fn dequeue(&mut self) -> Option<<F as FsmBackend>::Events> {
-            if let Ok(mut q) = self.inner.queue.lock() {
-                q.pop_front()
-            } else {
-                None
-            }
+            self.inner.lock().pop_front()
         }
 
         fn len(&self) -> usize {
-            if let Ok(q) = self.inner.queue.lock() {
-                q.len()
-            } else {
-                0
-            }
+            self.inner.lock().len()
         }
     }
 
     impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueVecShared<F> {
         fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
-            if let Ok(mut q) = self.inner.queue.lock() {
-                q.push_back(event.into());
-                Ok(())
-            } else {
-                Err(FsmError::QueueOverCapacity)
-            }
+            self.inner.lock().push_back(event.into());
+            Ok(())
         }
+    }
+
+    #[test]
+    fn test_vec_shared_survives_a_poisoned_lock() {
+        use crate::fsm::tests_fsm::{EventA, TestFsm};
+
+        let mut queue = FsmEventQueueVecShared::<TestFsm>::new();
+        let other = queue.clone();
+        let _ = std::thread::spawn(move || {
+            let _guard = other.inner.queue.lock().unwrap();
+            panic!("poisoning the lock");
+        }).join();
+
+        queue.enqueue(EventA { n: 1 }).unwrap();
+        assert_eq!(1, queue.len());
+        assert!(queue.dequeue().is_some());
     }
 }
 
@@ -232,14 +242,42 @@ pub mod heapless_shared {
 
     impl<F: FsmBackend> FsmEventQueueSender<F> for FsmEventQueueHeaplessShared<F> {
         fn enqueue<E: Into<<F as FsmBackend>::Events>>(&mut self, event: E) -> FsmResult<()> {
+            // Count the event before it can be dequeued by another thread, so the length can't underflow.
+            self.inner.len.fetch_add(1, Ordering::SeqCst);
             match self.inner.queue.enqueue(event.into()) {
-                Ok(_) => {
-                    self.inner.len.fetch_add(1, Ordering::SeqCst);
-                    Ok(())
-                },
-                Err(_) => Err(FsmError::QueueOverCapacity) 
+                Ok(_) => Ok(()),
+                Err(_) => {
+                    self.inner.len.fetch_sub(1, Ordering::SeqCst);
+                    Err(FsmError::QueueOverCapacity)
+                }
             }
         }
+    }
+
+    #[test]
+    fn test_heapless_shared_len_doesnt_underflow() {
+        use crate::fsm::tests_fsm::{EventA, TestFsm};
+
+        const EVENTS: usize = 100_000;
+        let queue = FsmEventQueueHeaplessShared::<TestFsm>::new();
+        let mut producer = queue.clone();
+        let producer = std::thread::spawn(move || {
+            for n in 0..EVENTS {
+                while producer.enqueue(EventA { n }).is_err() { }
+            }
+        });
+
+        let mut consumer = queue;
+        let mut received = 0;
+        while received < EVENTS {
+            if consumer.dequeue().is_some() {
+                received += 1;
+            }
+            // the capacity, plus an event that is being enqueued
+            assert!(consumer.len() <= 65, "{}", consumer.len());
+        }
+        producer.join().unwrap();
+        assert_eq!(0, consumer.len());
     }
 
 }
