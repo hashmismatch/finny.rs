@@ -153,7 +153,9 @@ fn test_serialize_the_backend() -> FsmResult<()> {
                 "current_states": ["Working"]
             },
             "led_off": null,
-            "led_on": null
+            "led_on": null,
+            // the settings of the timer, while it runs
+            "blink": null
         },
         "current_states": ["Worker", "LedOff"]
     }), value);

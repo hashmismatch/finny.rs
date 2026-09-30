@@ -122,6 +122,11 @@ impl<TFsm, TContext> FsmAsyncBuilder<TFsm, TContext>
 	/// Serialize the FSM's context, states and events with `serde`, for example for the
 	/// inspection frontends. Requires `serde::Serialize` on all of them, and on the sub-machines
 	/// that also have to opt in. Needs the `serde` feature.
+	///
+	/// When they also implement `serde::Deserialize`, the machine can be saved and restored: the
+	/// serialized `FsmBackendImpl` is deserialized and turned into a frontend with `restore`, which
+	/// continues from the saved states, without starting the machine again. The running timers are
+	/// re-created with their full timeouts.
 	pub fn serde(&mut self) {
 
 	}

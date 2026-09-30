@@ -60,6 +60,85 @@ impl<F: FsmBackend> serde::Serialize for FsmBackendImpl<F>
     }
 }
 
+/// Deserialized from the `{ context, states, current_states }` of the serialization. The current
+/// states have to match the machine's regions. Restore the frontend from the deserialized backend
+/// with `FsmFactory::restore`.
+#[cfg(feature = "serde")]
+impl<'de, F: FsmBackend> serde::Deserialize<'de> for FsmBackendImpl<F>
+    where <F as FsmBackend>::Context: serde::Deserialize<'de>,
+    <F as FsmBackend>::States: serde::Deserialize<'de>,
+    <<F as FsmBackend>::States as FsmStates<F>>::StateKind: serde::Deserialize<'de>
+{
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let repr = backend_serde::BackendRepr::<F, _, _>::deserialize(deserializer)?;
+
+        Ok(FsmBackendImpl {
+            context: repr.context,
+            states: repr.states,
+            current_states: repr.current_states.0
+        })
+    }
+}
+
+#[cfg(feature = "serde")]
+mod backend_serde {
+    use crate::{FsmBackend, FsmCurrentState, FsmStates, lib::*};
+    use serde::de::{Deserialize, Deserializer, Error, SeqAccess, Visitor};
+
+    type StateKind<F> = <<F as FsmBackend>::States as FsmStates<F>>::StateKind;
+    type CurrentState<F> = <<F as FsmBackend>::States as FsmStates<F>>::CurrentState;
+
+    #[derive(serde::Deserialize)]
+    #[serde(rename = "FsmBackendImpl")]
+    #[serde(bound(deserialize = "C: Deserialize<'de>, S: Deserialize<'de>, StateKind<F>: Deserialize<'de>"))]
+    pub struct BackendRepr<F: FsmBackend, C, S> {
+        pub context: C,
+        pub states: S,
+        pub current_states: CurrentStates<F>
+    }
+
+    /// The current state of each region, in the fixed-size array of the machine.
+    pub struct CurrentStates<F: FsmBackend>(pub CurrentState<F>);
+
+    impl<'de, F: FsmBackend> Deserialize<'de> for CurrentStates<F> where StateKind<F>: Deserialize<'de> {
+        fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+            deserializer.deserialize_seq(CurrentStatesVisitor::<F>(PhantomData))
+        }
+    }
+
+    struct CurrentStatesVisitor<F>(PhantomData<F>);
+
+    impl<'de, F: FsmBackend> Visitor<'de> for CurrentStatesVisitor<F> where StateKind<F>: Deserialize<'de> {
+        type Value = CurrentStates<F>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("the current state of each region of the FSM")
+        }
+
+        fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+            let mut current_states = CurrentState::<F>::default();
+            let regions = current_states.as_ref().len();
+
+            for (region, slot) in current_states.as_mut().iter_mut().enumerate() {
+                let state: FsmCurrentState<StateKind<F>> = seq.next_element()?
+                    .ok_or_else(|| A::Error::invalid_length(region, &self))?;
+                if let FsmCurrentState::State(ref s) = state {
+                    if !F::is_valid_current_state(region, s) {
+                        return Err(A::Error::custom(format_args!("the state {:?} isn't in the region {} of the FSM", s, region)));
+                    }
+                }
+                *slot = state;
+            }
+
+            if seq.next_element::<serde::de::IgnoredAny>()?.is_some() {
+                return Err(A::Error::invalid_length(regions + 1, &self));
+            }
+
+            Ok(CurrentStates(current_states))
+        }
+    }
+}
+
 impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
     type Target = <F as FsmBackend>::Context;
 
