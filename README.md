@@ -22,7 +22,7 @@
 
 ```toml
 [dependencies]
-finny = "0.2"
+finny = "0.3"
 ```
 
 #### Code
@@ -82,7 +82,7 @@ spawned tasks.
 
 ```toml
 [dependencies]
-finny = { version = "0.2", features = ["async"] }
+finny = { version = "0.3", features = ["async"] }
 ```
 
 ```rust

@@ -24,7 +24,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! finny = "0.2"
+//! finny = "0.3"
 //! ```
 //! 
 //! ### Code

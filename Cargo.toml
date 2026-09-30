@@ -17,8 +17,8 @@ repository = "https://github.com/hashmismatch/finny.rs"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-finny = { path = "finny", version = "0.2.0" }
-finny_derive = { path = "finny_derive", version = "0.2.0" }
+finny = { path = "finny", version = "0.3.0" }
+finny_derive = { path = "finny_derive", version = "0.3.0" }
 
 # proc macro ecosystem
 proc-macro2 = "1.0.107"
