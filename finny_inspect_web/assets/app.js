@@ -1,8 +1,8 @@
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { html, eventLabel, formatTime, storage } from './util.js';
+import { html, eventLabel, formatTime, storage, useTimersNow } from './util.js';
 import { Diagram } from './graph.js';
-import { StatePanel, EventPanel, TracePanel, HistoryPanel } from './panels.js';
+import { StatePanel, EventPanel, TracePanel, HistoryPanel, TimersPanel } from './panels.js';
 import {
   instances, selectedId, selectedInstance, meta, snapshots, current, currentIndex, connection, follow,
   selectedNode, selectedTransition, tab, setTab, selectInstance, selectSeq, step, connect
@@ -73,7 +73,10 @@ function DiagramView() {
       }
     });
     diagram.current = d;
-    d.ready.then(() => d.show(current.peek()));
+    d.ready.then(() => {
+      d.show(current.peek());
+      d.showTimers(current.peek(), Date.now());
+    });
     const resize = new ResizeObserver(() => d.cy.resize());
     resize.observe(container.current);
     return () => {
@@ -85,6 +88,8 @@ function DiagramView() {
 
   const snapshot = current.value;
   useEffect(() => { diagram.current?.show(snapshot); }, [snapshot, info]);
+  const timersNow = useTimersNow(snapshot, follow.value);
+  useEffect(() => { diagram.current?.showTimers(snapshot, timersNow); }, [snapshot, timersNow, info]);
 
   const nodeId = selectedNode.value?.nodeId;
   const transition = selectedTransition.value?.typeName;
@@ -133,6 +138,7 @@ function DiagramView() {
           <span><i class="lg-active"></i>current</span>
           <span><i class="lg-taken"></i>taken</span>
           <span><i class="lg-rejected"></i>guard rejected</span>
+          <span><i class="lg-timer"></i>timer running</span>
         </div>`}
       <${Toast} message=${message} />
     </section>`;
@@ -142,8 +148,16 @@ const TABS = [
   ['state', 'State', StatePanel],
   ['event', 'Event', EventPanel],
   ['trace', 'Trace', TracePanel],
+  ['timers', 'Timers', TimersPanel],
   ['history', 'History', HistoryPanel]
 ];
+
+/** The number after the tab's label. */
+function tabCount(id) {
+  if (id === 'history') return snapshots.value.length;
+  if (id === 'timers') return current.value?.timers?.filter((t) => t.status === 'running').length ?? 0;
+  return 0;
+}
 
 function SidePanel() {
   const active = tab.value;
@@ -162,7 +176,7 @@ function SidePanel() {
         ${TABS.map(([id, label], i) => html`
           <button id=${`tab-${id}`} role="tab" aria-selected=${active === id} tabindex=${active === id ? 0 : -1}
             aria-controls="side-panel" onClick=${() => setTab(id)} onKeyDown=${(e) => onKey(e, i)}>
-            ${label}${id === 'history' && snapshots.value.length ? html` <span class="count">${snapshots.value.length}</span>` : ''}
+            ${label}${tabCount(id) ? html` <span class="count">${tabCount(id)}</span>` : ''}
           </button>`)}
       </div>
       <div class="side-body" id="side-panel" role="tabpanel"><${Panel} /></div>

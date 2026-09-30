@@ -1,12 +1,28 @@
 use core::fmt::Debug;
 use core::any::Any;
 
-use crate::{FsmBackend, FsmBackendImpl, FsmEvent, FsmStates};
+use crate::{FsmBackend, FsmBackendImpl, FsmEvent, FsmStates, TimerFsmSettings};
 
 #[derive(Debug, Clone)]
 pub enum InspectFsmEvent<S> where S: Debug + Clone {
     StateEnter(S),
     StateExit(S)
+}
+
+/// A change in the lifecycle of a state's timer, see [`Inspect::on_timer`].
+#[derive(Debug, Clone, Copy)]
+pub enum InspectTimerEvent {
+    /// The timer was created in the timers service: its state was entered, or the machine was
+    /// `restored` with `FsmFactory::restore`.
+    Started { settings: TimerFsmSettings, restored: bool },
+    /// The timer wasn't started, its setup disabled it.
+    Disabled,
+    /// The timers service failed to create the timer.
+    Failed,
+    /// The timer was cancelled, as its state was exited.
+    Cancelled,
+    /// The timer triggered, its event, if any, was enqueued.
+    Triggered
 }
 
 pub trait Inspect: InspectEvent {
@@ -27,6 +43,11 @@ pub trait Inspect: InspectEvent {
     fn on_dispatch_result(&self, _result: &crate::FsmDispatchResult) { }
 
     fn on_error<E>(&self, msg: &str, error: &E) where E: core::fmt::Debug;
+
+    /// The lifecycle of a state's timer of the machine `F`. Called on the inspector returned by
+    /// `for_timer`, or on the machine's own inspector when the timers of a restored machine are
+    /// re-created.
+    fn on_timer<F: FsmBackend>(&self, _timer: &<F as FsmBackend>::Timers, _event: &InspectTimerEvent) { }
     fn info(&self, msg: &str);
 
     /// An event from the queue, dispatched as part of running the machine to completion, failed.

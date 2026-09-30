@@ -15,6 +15,10 @@ run:
     highlighted
   * the event's payload and the dispatch result
   * the trace of the dispatch: guards, exits, actions, entries, sub-machines and timers
+  * the timers of the machine and its sub-machines: running, fired, cancelled or failed, with a
+    countdown to the next trigger, the timeout, whether it renews and how often it triggered.
+    The states' boxes in the statechart show the same countdown, and outline the states with a
+    running timer.
   * a searchable history, which a click on a transition filters
 
 The backend is built with axum. The frontend has no build step: it's plain ES modules with

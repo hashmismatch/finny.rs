@@ -2,7 +2,7 @@
 
 use std::{any::Any, cell::RefCell, fmt::Debug, rc::Rc};
 
-use finny::{FsmBackend, FsmBackendImpl, FsmError, FsmEvent, Inspect, InspectEvent, InspectFsmEvent};
+use finny::{FsmBackend, FsmBackendImpl, FsmError, FsmEvent, Inspect, InspectEvent, InspectFsmEvent, InspectTimerEvent};
 
 /// An inspector that records the errors of the queued events.
 #[derive(Clone, Default)]
@@ -60,12 +60,14 @@ impl InspectEvent for TransitionNames {
     fn on_event<S: Any + Debug + Clone>(&self, _event: &InspectFsmEvent<S>) { }
 }
 
-/// An inspector that counts the dispatched events and the entered states.
+/// An inspector that counts the dispatched events and the entered states, and records the
+/// timers' lifecycle as `Timer Event`.
 #[derive(Clone, Default)]
 pub struct EventCounts {
     pub new_events: Rc<RefCell<usize>>,
     pub events_done: Rc<RefCell<usize>>,
-    pub state_enters: Rc<RefCell<usize>>
+    pub state_enters: Rc<RefCell<usize>>,
+    pub timers: Rc<RefCell<Vec<String>>>
 }
 
 impl Inspect for EventCounts {
@@ -87,6 +89,17 @@ impl Inspect for EventCounts {
     fn on_action<S>(&self) { }
     fn on_error<E>(&self, _msg: &str, _error: &E) where E: Debug { }
     fn info(&self, _msg: &str) { }
+    fn on_timer<F: FsmBackend>(&self, timer: &<F as FsmBackend>::Timers, event: &InspectTimerEvent) {
+        let event = match event {
+            InspectTimerEvent::Started { restored: false, .. } => "Started",
+            InspectTimerEvent::Started { restored: true, .. } => "Restored",
+            InspectTimerEvent::Disabled => "Disabled",
+            InspectTimerEvent::Failed => "Failed",
+            InspectTimerEvent::Cancelled => "Cancelled",
+            InspectTimerEvent::Triggered => "Triggered"
+        };
+        self.timers.borrow_mut().push(format!("{:?} {}", timer, event));
+    }
 }
 
 impl InspectEvent for EventCounts {

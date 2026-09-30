@@ -2,7 +2,7 @@
 
 use std::{any::{Any, type_name}, fmt::Debug, sync::{Arc, Mutex}, time::Instant};
 
-use finny::{FsmBackend, FsmBackendImpl, FsmCurrentState, FsmDispatchResult, FsmError, FsmEvent, FsmStates, Inspect, InspectEvent, InspectFsmEvent};
+use finny::{FsmBackend, FsmBackendImpl, FsmCurrentState, FsmDispatchResult, FsmError, FsmEvent, FsmStates, Inspect, InspectEvent, InspectFsmEvent, InspectTimerEvent};
 use serde_json::Value;
 
 use crate::{registry::{FsmInstance, lock, now_ms}, snapshot::{EventRecord, Snapshot, TraceEntry, TraceKind}};
@@ -11,16 +11,19 @@ use crate::{registry::{FsmInstance, lock, now_ms}, snapshot::{EventRecord, Snaps
 /// Records a snapshot after each event that the FSM handled.
 pub struct InspectWeb {
     instance: Arc<FsmInstance>,
+    /// The type names of the sub-machines, from the root machine. Also tracked outside of the
+    /// events, for the timers of a restored machine.
+    path: Arc<[String]>,
     /// `None` for the FSM's own inspector, set within the handling of an event.
-    ctx: Option<EventCtx>
+    ctx: Option<EventCtx>,
+    /// The FSM's own inspector, dropping it detaches the instance.
+    owner: bool
 }
 
 #[derive(Clone)]
 struct EventCtx {
     trace: Arc<Mutex<Trace>>,
     depth: u32,
-    /// The type names of the sub-machines, from the root machine.
-    path: Arc<[String]>,
     /// Created for the root machine's event, finishing it records the snapshot.
     root_event: bool
 }
@@ -35,7 +38,7 @@ struct Trace {
 
 impl InspectWeb {
     pub(crate) fn new_root(instance: Arc<FsmInstance>) -> Self {
-        InspectWeb { instance, ctx: None }
+        InspectWeb { instance, path: Arc::from([]), ctx: None, owner: true }
     }
 
     /// The id of the FSM instance in the frontend.
@@ -53,20 +56,20 @@ impl InspectWeb {
     fn nested(&self, kind: TraceKind, sub_machine: Option<&str>) -> Self {
         let ctx = self.ctx.as_ref().map(|ctx| {
             lock(&ctx.trace).entries.push(TraceEntry { depth: ctx.depth, kind });
-            let path = match sub_machine {
-                Some(sub) => ctx.path.iter().cloned().chain(std::iter::once(sub.to_string())).collect(),
-                None => ctx.path.clone()
-            };
-            EventCtx { trace: ctx.trace.clone(), depth: ctx.depth + 1, path, root_event: false }
+            EventCtx { trace: ctx.trace.clone(), depth: ctx.depth + 1, root_event: false }
         });
+        let path = match sub_machine {
+            Some(sub) => self.path.iter().cloned().chain(std::iter::once(sub.to_string())).collect(),
+            None => self.path.clone()
+        };
 
-        InspectWeb { instance: self.instance.clone(), ctx }
+        InspectWeb { instance: self.instance.clone(), path, ctx, owner: false }
     }
 }
 
 impl Drop for InspectWeb {
     fn drop(&mut self) {
-        if self.ctx.is_none() {
+        if self.owner {
             self.instance.detach();
         }
     }
@@ -120,7 +123,9 @@ impl Inspect for InspectWeb {
                 };
                 InspectWeb {
                     instance: self.instance.clone(),
-                    ctx: Some(EventCtx { trace: Arc::new(Mutex::new(trace)), depth: 0, path: Arc::from([]), root_event: true })
+                    path: self.path.clone(),
+                    ctx: Some(EventCtx { trace: Arc::new(Mutex::new(trace)), depth: 0, root_event: true }),
+                    owner: false
                 }
             },
             // dispatched into a sub-machine, or enqueued by a timer
@@ -131,7 +136,7 @@ impl Inspect for InspectWeb {
     fn event_done<F: FsmBackend>(self, fsm: &FsmBackendImpl<F>) {
         let Some(ref ctx) = self.ctx else { return };
 
-        self.instance.set_active(&ctx.path, current_states(fsm));
+        self.instance.set_active(&self.path, current_states(fsm));
         if !ctx.root_event {
             return;
         }
@@ -160,6 +165,7 @@ impl Inspect for InspectWeb {
             error: trace.error,
             trace: trace.entries,
             active: Vec::new(),
+            timers: Vec::new(),
             values,
             values_error
         });
@@ -206,6 +212,10 @@ impl Inspect for InspectWeb {
 
     fn info(&self, msg: &str) {
         self.push(TraceKind::Info { message: msg.into() });
+    }
+
+    fn on_timer<F: FsmBackend>(&self, timer: &<F as FsmBackend>::Timers, event: &InspectTimerEvent) {
+        self.instance.on_timer(&self.path, format!("{:?}", timer), event);
     }
 
     // Already recorded, the snapshot of the failed event has the error.

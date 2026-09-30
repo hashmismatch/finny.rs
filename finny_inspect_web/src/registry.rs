@@ -6,7 +6,9 @@ use finny::meta::{FsmMeta, plantuml::to_plantuml};
 use serde::Serialize;
 use tokio::sync::broadcast;
 
-use crate::{InspectWeb, InspectorConfig, snapshot::{ActiveStates, Snapshot}};
+use finny::InspectTimerEvent;
+
+use crate::{InspectWeb, InspectorConfig, snapshot::{ActiveStates, Snapshot, TimerState, TimerStatus}};
 
 /// Collects the snapshots of the attached FSMs and serves them to the web frontend.
 ///
@@ -73,6 +75,7 @@ impl Inspector {
                     ring: VecDeque::new(),
                     next_seq: 1,
                     active: Vec::new(),
+                    timers: Vec::new(),
                     attached: true
                 }),
                 tx,
@@ -170,7 +173,17 @@ pub(crate) struct InstanceState {
     /// The last known current states of the machine and of its sub-machines. A sub-machine's
     /// states only change while it handles an event, which reports them.
     active: Vec<ActiveStates>,
+    /// The last known state of the timers, the ones that were never started are missing.
+    timers: Vec<TimerStatus>,
     attached: bool
+}
+
+impl InstanceState {
+    fn add_timer(&mut self, timer: TimerStatus) {
+        self.timers.push(timer);
+        // the parents first, stable for the timers of the same machine
+        self.timers.sort_by(|a, b| a.path.len().cmp(&b.path.len()).then_with(|| a.path.cmp(&b.path)));
+    }
 }
 
 impl FsmInstance {
@@ -204,6 +217,62 @@ impl FsmInstance {
         }
     }
 
+    pub(crate) fn on_timer(&self, path: &[String], timer: String, event: &InspectTimerEvent) {
+        let now = now_ms();
+        let mut state = self.lock_state();
+        let existing = state.timers.iter().position(|t| t.path == path && t.timer == timer);
+
+        if let InspectTimerEvent::Started { settings, restored } = event {
+            let status = TimerStatus {
+                path: path.to_vec(),
+                timer,
+                status: TimerState::Running,
+                timeout_ms: settings.timeout.as_secs_f64() * 1000.0,
+                renew: settings.renew,
+                cancel_on_state_exit: settings.cancel_on_state_exit,
+                started_ms: now,
+                last_triggered_ms: None,
+                triggers: 0,
+                restored: *restored
+            };
+            match existing {
+                Some(i) => state.timers[i] = status,
+                None => state.add_timer(status)
+            }
+            return;
+        }
+
+        let Some(t) = existing.map(|i| &mut state.timers[i]) else {
+            // never started, only its failure to start is worth showing
+            let status = match event {
+                InspectTimerEvent::Failed => TimerState::Failed,
+                InspectTimerEvent::Disabled => TimerState::Disabled,
+                _ => return
+            };
+            state.add_timer(TimerStatus {
+                path: path.to_vec(), timer, status, timeout_ms: 0.0, renew: false, cancel_on_state_exit: true,
+                started_ms: now, last_triggered_ms: None, triggers: 0, restored: false
+            });
+            return;
+        };
+
+        match event {
+            InspectTimerEvent::Started { .. } => unreachable!(),
+            InspectTimerEvent::Triggered => {
+                t.triggers += 1;
+                t.last_triggered_ms = Some(now);
+                if !t.renew {
+                    t.status = TimerState::Expired;
+                }
+            },
+            // a timer that already expired had nothing to cancel
+            InspectTimerEvent::Cancelled if t.status == TimerState::Expired => (),
+            InspectTimerEvent::Cancelled => t.status = TimerState::Cancelled,
+            InspectTimerEvent::Failed => t.status = TimerState::Failed,
+            InspectTimerEvent::Disabled => t.status = TimerState::Disabled
+        }
+    }
+
     /// Records the snapshot, `seq` is assigned here. The current states of the sub-machines are
     /// added.
     pub(crate) fn publish(&self, mut snapshot: Snapshot) {
@@ -211,6 +280,7 @@ impl FsmInstance {
         snapshot.seq = state.next_seq;
         state.next_seq += 1;
         snapshot.active = state.active.clone();
+        snapshot.timers = state.timers.clone();
 
         let json = match serde_json::to_string(&snapshot) {
             Ok(json) => json,
