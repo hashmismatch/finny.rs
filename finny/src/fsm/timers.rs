@@ -102,6 +102,7 @@ pub trait FsmTimer<F, S>
 }
 
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TimerFsmSettings {
     pub enabled: bool,
     pub timeout: Duration,

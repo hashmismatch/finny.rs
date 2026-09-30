@@ -147,6 +147,22 @@ Two optional features support it:
   as PlantUML with `finny::meta::plantuml::to_plantuml`.
 * `serde` serializes the context, states and events of the FSMs that opt in with `fsm.serde()`.
 
+### Saving and restoring
+
+With the `serde` feature, FSMs that opt in with `fsm.serde()` and whose context, states and events
+also implement `serde::Deserialize` can be saved and restored, including their sub-machines, the
+current state of each region and the running timers:
+
+```rust
+let json = serde_json::to_string(&fsm.backend)?;
+let backend: FsmBackendImpl<MyFsm> = serde_json::from_str(&json)?;
+// continues from the saved states, without starting the machine again
+let mut fsm = MyFsm::restore(backend)?;
+```
+
+`restore_with` takes the queue, inspector and timers, like `new_with`. The running timers are
+re-created with their full timeouts. The queue isn't saved, it is empty between the dispatches.
+
 [crates-badge]: https://img.shields.io/crates/v/finny.svg
 [crates-url]: https://crates.io/crates/finny
 

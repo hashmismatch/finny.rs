@@ -85,6 +85,14 @@
 //! regions of an async FSM can optionally execute their actions concurrently. See the
 //! documentation of `FsmAsyncBuilder` for an example.
 //!
+//! ## Saving and restoring
+//!
+//! With the `serde` feature, FSMs that opt in with `fsm.serde()` and whose context, states and
+//! events also implement `serde::Deserialize` can be saved by serializing their `FsmBackendImpl`,
+//! and restored by deserializing it and building a frontend with `FsmFactory::restore` (or
+//! `restore_with`). The restored machine continues from its saved states, including its
+//! sub-machines, and its running timers are re-created with their full timeouts.
+//!
 //! [crates-badge]: https://img.shields.io/crates/v/finny.svg
 //! [crates-url]: https://crates.io/crates/finny
 

@@ -29,6 +29,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
     let concurrent_regions = is_async && fsm.fsm.codegen_options.concurrent_regions && region_count > 1;
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
+    let de_generics = {
+        let mut g = fsm.base.fsm_generics.clone();
+        g.params.insert(0, syn::parse_quote!('de));
+        g
+    };
+    let (de_generics_impl, _, _) = de_generics.split_for_impl();
 
     // `fsm.serde()`: the generated types are serialized along with the user's types.
     let serde = fsm.fsm.codegen_options.serde;
@@ -41,6 +47,18 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
         TokenStream::new()
     };
     let serde_skip = if serde { quote! { #[serde(skip)] } } else { TokenStream::new() };
+    // The deserialization is bounded on the user's types, so the machine can be restored only
+    // when they implement `Deserialize` as well.
+    let serde_bounded_derive = |tys: &[TokenStream]| -> TokenStream {
+        if !serde { return TokenStream::new(); }
+        let bounds = |tr: &str| tys.iter().map(|t| format!("{}: {}", t, tr)).collect::<Vec<_>>().join(", ");
+        let ser = bounds("finny::bundled::serde::Serialize");
+        let de = bounds("finny::bundled::serde::Deserialize<'de>");
+        quote! {
+            #[derive(finny::bundled::serde::Deserialize)]
+            #[serde(bound(serialize = #ser, deserialize = #de))]
+        }
+    };
 
     let states_store = {
 
@@ -48,6 +66,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
         let mut new_state_fields = TokenStream::new();
         let mut state_variants = TokenStream::new();
         let mut state_accessors = TokenStream::new();
+        let mut state_field_tys = vec![];
 
 
         for (i, (_, state)) in fsm.fsm.states.iter().enumerate() {
@@ -60,7 +79,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 let timer_ty = timer.get_ty(&fsm.base);
                 let timer_field = timer.get_field(&fsm.base);
 
-                code_fields.append_all(quote! { #serde_skip #timer_field: #timer_ty #fsm_generics_type, });
+                code_fields.append_all(quote! { #timer_field: #timer_ty #fsm_generics_type, });
                 new_state_fields.append_all(quote! { #timer_field: #timer_ty::default(), });
 
                 state_accessors.append_all(quote! {
@@ -79,6 +98,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
 
             code_fields.append_all(quote! { #name: #ty, });
+            state_field_tys.push(quote! { #ty });
             state_variants.append_all(quote!{ #ty_name, });
 
             let new_state_field = match state.kind {
@@ -277,9 +297,17 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             TokenStream::new()
         };
 
+        let states_serde_derive = serde_bounded_derive(&state_field_tys);
+        let states_enum_serde_derive = if serde {
+            quote! { #[derive(finny::bundled::serde::Deserialize)] }
+        } else {
+            TokenStream::new()
+        };
+
         quote! {
             /// States storage struct for the state machine.
             #serde_derive
+            #states_serde_derive
             pub struct #states_store_ty #fsm_generics_type #fsm_generics_where {
                 #code_fields
                 #serde_skip
@@ -298,6 +326,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             
             #[derive(Copy, Clone, Debug, PartialEq)]
             #serde_derive
+            #states_enum_serde_derive
             pub enum #states_enum_ty {
                 #state_variants
             }
@@ -329,12 +358,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
         let mut variants = TokenStream::new();
         let mut as_ref_str = TokenStream::new();
+        let mut variant_tys = vec![];
         let mut i = 0;
 
         for (ty, _ev) in  fsm.fsm.events.iter() {
             let ty_str = crate::utils::tokens_to_string(ty);
 
-            variants.append_all(quote! { #ty ( #ty ),  });            
+            variants.append_all(quote! { #ty ( #ty ),  });
+            variant_tys.push(quote! { #ty });
             as_ref_str.append_all(quote! { #event_enum_ty:: #ty(_) => #ty_str, });
             i += 1;
         }
@@ -349,6 +380,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             variants.append_all(quote! {
                 #sub_fsm_ty ( #sub_fsm_event_ty ),
             });
+            variant_tys.push(quote! { #sub_fsm_event_ty });
             as_ref_str.append_all(quote! {
                 #event_enum_ty :: #sub_fsm_ty(_) => #sub_fsm_event_ty_str ,
             });
@@ -377,11 +409,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
         };
         
+        let events_serde_derive = serde_bounded_derive(&variant_tys);
+
         let evs = quote! {
             #[derive(finny::bundled::derive_more::From)]
             #[derive(Clone)]
             #derives
             #serde_derive
+            #events_serde_derive
             pub enum #event_enum_ty {
                 #variants
             }
@@ -1179,7 +1214,63 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
         };
 
         let serialize_fns = if serde {
+            let mut valid_states = vec![];
+            let mut restore_timers = TokenStream::new();
+            for region in &fsm.fsm.regions {
+                let region_id = region.region_id;
+                for state in &region.states {
+                    let state_ty = FsmTypes::new(&state.ty, &fsm.base.fsm_generics);
+                    let variant = state_ty.get_fsm_no_generics_ty();
+                    valid_states.push(quote! { (#region_id, #states_enum_ty :: #variant) });
+
+                    for timer in &state.timers {
+                        let timer_field = timer.get_field(&fsm.base);
+                        restore_timers.append_all(quote! {
+                            if let Some((id, settings)) = backend.states. #timer_field .instance.as_ref().map(|i| (i.id.clone(), i.settings)) {
+                                let log = inspect.for_timer::<Self>(id.clone());
+                                match timers.create(id, &settings.to_timer_settings()) {
+                                    Ok(()) => log.info("Restored the timer."),
+                                    Err(ref e) => {
+                                        log.on_error("Failed to restore the timer", e);
+                                        backend.states. #timer_field .instance = None;
+                                    }
+                                }
+                            }
+                        });
+                    }
+
+                    if let FsmStateKind::SubMachine(_) = state.kind {
+                        let sub_ty = state_ty.get_fsm_ty();
+                        let field = &state.state_storage_field;
+                        restore_timers.append_all(quote! {
+                            {
+                                let mut sub_timers = finny::FsmTimersSub {
+                                    parent: &mut *timers,
+                                    _parent_fsm: core::marker::PhantomData::<Self>,
+                                    _sub_fsm: core::marker::PhantomData::< #sub_ty >
+                                };
+                                let sub_inspect = inspect.for_sub_machine::< #sub_ty >();
+                                < #sub_ty as finny::FsmBackend >::restore_timers(&mut *backend.states. #field, &sub_inspect, &mut sub_timers);
+                            }
+                        });
+                    }
+                }
+            }
+
             quote! {
+                fn is_valid_current_state(region: finny::FsmRegionId, state: &#states_enum_ty) -> bool {
+                    match (region, *state) {
+                        #( #valid_states )|* => true,
+                        _ => false
+                    }
+                }
+
+                #[allow(unused_variables)]
+                fn restore_timers<I: finny::Inspect, T: finny::FsmTimers<Self>>(backend: &mut finny::FsmBackendImpl<Self>, inspect: &I, timers: &mut T) {
+                    use finny::Inspect;
+                    #restore_timers
+                }
+
                 fn serialize_backend(backend: &finny::FsmBackendImpl<Self>) -> Option<&dyn finny::bundled::erased_serde::Serialize> {
                     Some(backend)
                 }
@@ -1279,10 +1370,24 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >: finny::bundled::serde::Serialize
             });
             let (_, _, where_clause) = generics.split_for_impl();
+
+            let mut de_generics = de_generics.clone();
+            de_generics.make_where_clause().predicates.push(syn::parse_quote! {
+                finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >: finny::bundled::serde::Deserialize<'de>
+            });
+            let (_, _, de_where_clause) = de_generics.split_for_impl();
+
             quote! {
                 impl #fsm_generics_impl finny::bundled::serde::Serialize for #fsm_ty #fsm_generics_type #where_clause {
                     fn serialize<S: finny::bundled::serde::Serializer>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error> {
                         finny::bundled::serde::Serialize::serialize(&self.backend, serializer)
+                    }
+                }
+
+                impl #de_generics_impl finny::bundled::serde::Deserialize<'de> for #fsm_ty #fsm_generics_type #de_where_clause {
+                    fn deserialize<D: finny::bundled::serde::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, D::Error> {
+                        let backend = <finny::FsmBackendImpl< #fsm_ty #fsm_generics_type > as finny::bundled::serde::Deserialize>::deserialize(deserializer)?;
+                        Ok(Self { backend })
                     }
                 }
             }
@@ -1368,6 +1473,28 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 let trigger_body = &timer.trigger.body;
 
                 let timer_doc = format!("A timer in the state [{}] of FSM [{}].", tokens_to_string(state_ty), tokens_to_string(fsm_ty));
+
+                // A running timer is serialized as its settings, it is re-created on restore.
+                let timer_serde = if serde {
+                    quote! {
+                        impl #fsm_generics_impl finny::bundled::serde::Serialize for #timer_ty #fsm_generics_type #fsm_generics_where {
+                            fn serialize<S: finny::bundled::serde::Serializer>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error> {
+                                finny::bundled::serde::Serialize::serialize(&self.instance.as_ref().map(|i| &i.settings), serializer)
+                            }
+                        }
+
+                        impl #de_generics_impl finny::bundled::serde::Deserialize<'de> for #timer_ty #fsm_generics_type #fsm_generics_where {
+                            fn deserialize<D: finny::bundled::serde::Deserializer<'de>>(deserializer: D) -> core::result::Result<Self, D::Error> {
+                                let settings: Option<finny::TimerFsmSettings> = finny::bundled::serde::Deserialize::deserialize(deserializer)?;
+                                Ok(Self {
+                                    instance: settings.map(|settings| finny::TimerInstance { id: #timers_enum_ty :: #timer_ty, settings })
+                                })
+                            }
+                        }
+                    }
+                } else {
+                    TokenStream::new()
+                };
                 
                 code.append_all(quote! {
 
@@ -1384,6 +1511,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                             }
                         }
                     }
+
+                    #timer_serde
 
                     impl #fsm_generics_impl finny::FsmTimer< #fsm_ty #fsm_generics_type , #state_ty > for #timer_ty #fsm_generics_type #fsm_generics_where {
                         fn setup(ctx: &mut #ctx_ty, settings: &mut finny::TimerFsmSettings) {

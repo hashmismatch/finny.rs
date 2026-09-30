@@ -68,6 +68,21 @@ pub trait FsmBackend where Self: Sized + Debug {
     fn serialize_event(_event: &Self::Events) -> Option<&dyn erased_serde::Serialize> {
         None
     }
+
+    /// Can this state be the current state of the region? Checked while deserializing the
+    /// machine's current states.
+    #[cfg(feature = "serde")]
+    fn is_valid_current_state(_region: FsmRegionId, _state: &<Self::States as FsmStates<Self>>::StateKind) -> bool {
+        true
+    }
+
+    /// Re-creates the timers of a deserialized machine, including the ones of its sub-machines,
+    /// with their original settings. The timers that fail to be created are reported to the
+    /// inspector and dropped.
+    #[cfg(feature = "serde")]
+    fn restore_timers<I: Inspect, T: FsmTimers<Self>>(_backend: &mut FsmBackendImpl<Self>, _inspect: &I, _timers: &mut T) {
+
+    }
 }
 
 /// Synchronous event dispatching, implemented by the code generator.

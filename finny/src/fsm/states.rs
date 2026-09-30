@@ -48,6 +48,16 @@ impl<S> serde::Serialize for FsmCurrentState<S> where S: Clone + Copy + serde::S
     }
 }
 
+#[cfg(feature = "serde")]
+impl<'de, S> serde::Deserialize<'de> for FsmCurrentState<S> where S: Clone + Copy + serde::Deserialize<'de> {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        Ok(match <Option<S> as serde::Deserialize>::deserialize(deserializer)? {
+            None => FsmCurrentState::Stopped,
+            Some(s) => FsmCurrentState::State(s)
+        })
+    }
+}
+
 impl<S> Default for FsmCurrentState<S> where S: Clone + Copy {
     fn default() -> Self {
         Self::Stopped

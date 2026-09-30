@@ -38,4 +38,29 @@ pub trait FsmFactory {
 
         Ok(frontend)
     }
+
+    /// Build a frontend for a deserialized machine, with all the environmental services provided
+    /// by the caller. The machine continues from its restored states, it doesn't have to be
+    /// started. Its running timers are re-created with their full timeouts.
+    #[cfg(feature = "serde")]
+    fn restore_with<Q, I, T>(backend: FsmBackendImpl<Self::Fsm>, queue: Q, inspect: I, timers: T) -> FsmResult<FsmFrontend<Self::Fsm, Q, I, T>>
+        where Q: FsmEventQueue<Self::Fsm>, I: Inspect, T: FsmTimers<Self::Fsm>
+    {
+        let mut frontend = FsmFrontend {
+            queue,
+            inspect,
+            backend,
+            timers
+        };
+        <Self::Fsm as FsmBackend>::restore_timers(&mut frontend.backend, &frontend.inspect, &mut frontend.timers);
+
+        Ok(frontend)
+    }
+
+    /// Build a frontend for a deserialized machine with a `FsmEventQueueVec` queue, `TimersStd`
+    /// for timers and no logging. See [`restore_with`](Self::restore_with).
+    #[cfg(all(feature = "std", feature = "serde"))]
+    fn restore(backend: FsmBackendImpl<Self::Fsm>) -> FsmResult<FsmFrontend<Self::Fsm, FsmEventQueueVec<Self::Fsm>, crate::inspect::null::InspectNull, TimersStd<Self::Fsm>>> {
+        Self::restore_with(backend, FsmEventQueueVec::new(), crate::inspect::null::InspectNull::new(), TimersStd::new())
+    }
 }
