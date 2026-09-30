@@ -1,5 +1,5 @@
 use crate::{DispatchContext, FsmTimers, Inspect, lib::*};
-use crate::{FsmBackend, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
+use crate::{FsmBackend, FsmDispatch, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
 
@@ -55,10 +55,6 @@ impl<F: FsmBackend> DerefMut for FsmBackendImpl<F> {
     }
 }
 
-pub trait FsmBackendResetSubmachine<F: FsmBackend, FSub> {
-    fn reset<I>(backend: &mut FsmBackendImpl<F>, inspect_event_ctx: &mut I) where I: Inspect;
-}
-
 
 /// The frontend of a state machine which also includes environmental services like queues
 /// and inspection. The usual way to use the FSM.
@@ -72,11 +68,20 @@ pub struct FsmFrontend<F, Q, I, T>
 }
 
 impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
+    where F: FsmDispatch, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
 {
-    /// Start the FSM, initiates the transition to the initial state.
+    /// Start the FSM, initiates the transition to the initial state and runs the events
+    /// enqueued by it to completition.
     pub fn start(&mut self) -> FsmResult<()> {
-        Self::dispatch_single_event(self, FsmEvent::Start)
+        self.dispatch_single_event(FsmEvent::Start)?;
+        self.dispatch_queue()
+    }
+
+    /// Stop the FSM: exits the active states of all the regions, including their timers and
+    /// sub-machines. The FSM can be started again.
+    pub fn stop(&mut self) -> FsmResult<()> {
+        self.dispatch_single_event(FsmEvent::Stop)?;
+        self.dispatch_queue()
     }
 
     /// Dispatch any pending timer events into the queue, then run all the
@@ -116,12 +121,15 @@ impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
         F::dispatch_event(dispatch_ctx, event)
     }
 
-    /// Dispatch the entire event queue and run it to completition.
+    /// Dispatch the entire event queue and run it to completition. The events that fail,
+    /// usually because the current state doesn't handle them, are reported to the inspector
+    /// with `Inspect::on_queued_event_error`.
     pub fn dispatch_queue(&mut self) -> FsmResult<()> {
+        // A loop, the events enqueued by the dispatched events are appended to the same queue.
         while let Some(ev) = self.queue.dequeue() {
-            let ev: <F as FsmBackend>::Events = ev.into();
-            // todo: log?
-            Self::dispatch(self, ev);
+            if let Err(e) = self.dispatch_single_event(FsmEvent::Event(ev.clone())) {
+                self.inspect.on_queued_event_error::<F>(&ev, &e);
+            }
         }
 
         Ok(())

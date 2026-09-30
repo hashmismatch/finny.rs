@@ -1,5 +1,9 @@
 //! An example Finny use case that showcases the generated documentation.
 
+#[cfg(doctest)]
+mod compile_fail;
+pub mod test_utils;
+
 use finny::{decl::{BuiltFsm, FsmBuilder}, finny_fsm};
 
 extern crate finny;

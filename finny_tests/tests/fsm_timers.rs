@@ -2,8 +2,7 @@ extern crate finny;
 
 use std::{thread::{sleep, sleep_ms}, time::Duration};
 
-use finny::{FsmCurrentState, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::slog::InspectSlog, timers::std::{TimersStd}, AllVariants};
-use slog::{Drain, Logger, info, o};
+use finny::{FsmCurrentState, FsmEvent, FsmEventQueueVec, FsmFactory, FsmResult, decl::{BuiltFsm, FsmBuilder}, finny_fsm, inspect::tracing::InspectTracing, timers::std::{TimersStd}, AllVariants};
 
 #[derive(Debug)]
 pub struct TimersMachineContext {
@@ -96,7 +95,7 @@ pub struct BlinkerContext {
 fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, BlinkerContext>) -> BuiltFsm {
     fsm.events_debug();
     fsm.initial_states::<(LightOff, BlinkingOn)>();
-
+    
     fsm.state::<LightOff>()
         .on_event::<BlinkToggle>()
         .transition_to::<LightOn>()
@@ -127,10 +126,7 @@ fn build_blinker_fsm(mut fsm: FsmBuilder<BlinkerMachine, BlinkerContext>) -> Bui
 
 #[test]
 fn test_timers_fsm() -> FsmResult<()> {
-    let decorator = slog_term::TermDecorator::new().build();
-    let drain = slog_term::CompactFormat::new(decorator).build().fuse();
-    let drain = slog_async::Async::new(drain).build().fuse();
-    let logger = slog::Logger::root(drain, o!());
+    let _ = tracing_subscriber::fmt().try_init();
     
     let ctx = TimersMachineContext { exit_a: false };
     
@@ -141,7 +137,7 @@ fn test_timers_fsm() -> FsmResult<()> {
     let timers_variants: Vec<_> = TimersMachineTimers::iter().collect();
     assert_eq!(&[TimersMachineTimers::Timer1, TimersMachineTimers::Timer2, TimersMachineTimers::BlinkerMachine(BlinkerMachineTimers::BlinkingTimer)], timers_variants.as_slice());
 
-    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectSlog::new(Some(logger)), TimersStd::new())?;
+    let mut fsm = TimersMachine::new_with(ctx, FsmEventQueueVec::new(), InspectTracing::new(), TimersStd::new())?;
     
     fsm.start()?;
     

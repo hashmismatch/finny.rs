@@ -16,6 +16,7 @@
 //! * Event queueing and run-to-completition execution
 //! * Submachines, also known as Hierarchical State Machines
 //! * Timers on states
+//! * Async FSMs with async actions, driven by the tokio runtime (the `async` feature)
 //!
 //! ## Example
 //!
@@ -23,7 +24,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! finny = "0.2"
+//! finny = "0.3"
 //! ```
 //! 
 //! ### Code
@@ -74,6 +75,16 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Async FSMs
+//!
+//! With the `async` feature, FSMs declared with `decl::FsmAsyncBuilder` have async state and
+//! transition actions (`async |..| { .. }` closures), while their guards stay synchronous. They are
+//! driven by the tokio runtime: through `FsmAsyncFrontend`, either by awaiting `dispatch`, or with
+//! an event loop, `run`, that dispatches events from a channel and the triggered timers. The
+//! regions of an async FSM can optionally execute their actions concurrently. See the
+//! documentation of `FsmAsyncBuilder` for an example.
+//!
 //! [crates-badge]: https://img.shields.io/crates/v/finny.svg
 //! [crates-url]: https://crates.io/crates/finny
 
@@ -98,6 +109,13 @@ pub mod bundled {
     pub mod derive_more {
         pub use crate::derive_more::From;
     }
+
+    /// The tokio runtime, used by the async FSMs.
+    #[cfg(feature = "async")]
+    pub use ::tokio;
+
+    #[cfg(feature = "async")]
+    pub use std::sync::Arc;
 }
 
 mod lib {

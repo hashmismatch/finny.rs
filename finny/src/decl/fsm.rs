@@ -36,27 +36,14 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 
 	/// Adds some information about a state.
 	pub fn state<TState>(&mut self) -> FsmStateBuilder<TFsm, TContext, TState> {
-		FsmStateBuilder {
-			_state: PhantomData::default(),
-			_fsm: PhantomData::default(),
-			_context: PhantomData::default()
-		}
+		FsmStateBuilder::new()
 	}
 
 	/// Adds a sub machine
 	pub fn sub_machine<TSubFsm>(&mut self) -> FsmSubMachineBuilder<TFsm, TContext, TSubFsm>
 		where TSubFsm: FsmBackend
 	{
-		FsmSubMachineBuilder {
-			_fsm: PhantomData::default(),
-			_ctx: PhantomData::default(),
-			_sub: PhantomData::default(),
-			_state_builder: FsmStateBuilder {
-				_context: PhantomData::default(),
-				_fsm: PhantomData::default(),
-				_state: PhantomData::default()
-			}
-		}
+		FsmSubMachineBuilder::new()
 	}
 
 	/// Builds the final machine. Has to be returned from the definition function.

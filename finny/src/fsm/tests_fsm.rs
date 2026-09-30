@@ -1,6 +1,6 @@
 //! A minimal, internal FSM for unit tests, manually written.
 
-use crate::{AllVariants, FsmBackend, FsmCurrentState, FsmStates};
+use crate::{AllVariants, FsmBackend, FsmCurrentState, FsmDispatch, FsmStates};
 use derive_more::From;
 
 #[derive(Default)]
@@ -54,7 +54,9 @@ impl FsmBackend for TestFsm {
     type States = States;
     type Events = Events;
     type Timers = FsmBackendTimers;
+}
 
+impl FsmDispatch for TestFsm {
     fn dispatch_event<Q, I, T>(_ctx: crate::DispatchContext<Self, Q, I, T>, _event: crate::FsmEvent<Self::Events, Self::Timers>) -> crate::FsmDispatchResult
         where Q: crate::FsmEventQueue<Self>,
             I: crate::Inspect, T: crate::FsmTimers<Self>

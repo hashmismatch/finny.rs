@@ -24,7 +24,13 @@ pub trait Inspect: InspectEvent {
     fn on_action<S>(&self);
 
     fn on_error<E>(&self, msg: &str, error: &E) where E: core::fmt::Debug;
-    fn info(&self, msg: &str);    
+    fn info(&self, msg: &str);
+
+    /// An event from the queue, dispatched as part of running the machine to completion, failed.
+    /// Most commonly with `FsmError::NoTransition`, when the current state doesn't handle it.
+    fn on_queued_event_error<F: FsmBackend>(&self, event: &<F as FsmBackend>::Events, error: &crate::FsmError) {
+        self.on_error(event.as_ref(), error);
+    }
 }
 
 pub trait InspectEvent {

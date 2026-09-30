@@ -98,7 +98,7 @@ pub fn to_snake_case(mut str: &str) -> String {
 
 impl FsmTransitionState {
     pub fn get_fsm_state(&self) -> syn::Result<&FsmState> {
-        if let FsmTransitionState::State(ref st) = self {
+        if let FsmTransitionState::State(st) = self {
             Ok(st)
         } else {
             Err(syn::Error::new(Span::call_site(), "Missing the required FSM state!"))
@@ -110,6 +110,7 @@ pub fn ty_append(ty: &syn::Type, suffix: &str) -> syn::Type {
     let s = tokens_to_string(&ty);
     let n = format!("{}{}", s, suffix);
     syn::Type::Path(syn::TypePath {
+        attrs: Vec::new(),
         qself: None,
         path: syn::Ident::new(&n, ty.span()).into()
     })
@@ -117,7 +118,7 @@ pub fn ty_append(ty: &syn::Type, suffix: &str) -> syn::Type {
 
 pub fn assert_no_generics(ty: &syn::Type) -> syn::Result<()> {
     match ty {
-        syn::Type::Path(ref tp) => {
+        syn::Type::Path(tp) => {
             for seg in &tp.path.segments {
                 match seg.arguments {
                     syn::PathArguments::None => {},

@@ -25,7 +25,7 @@ pub trait FsmTimer<F, S>
     fn get_instance(&self) -> &Option<TimerInstance<F>>;
     fn get_instance_mut(&mut self) -> &mut Option<TimerInstance<F>>;
 
-    fn execute_on_enter<I: Inspect, T: FsmTimers<F>>(&mut self, id: F::Timers, ctx: &mut <F as FsmBackend>::Context, inspect: &mut I, timers: &mut T) {
+    fn execute_on_enter<I: Inspect, T: FsmTimers<F>>(&mut self, id: F::Timers, ctx: &mut <F as FsmBackend>::Context, inspect: &I, timers: &mut T) {
         let log = inspect.for_timer::<F>(id.clone());
         let mut settings = TimerFsmSettings::default();
         Self::setup(ctx, &mut settings);
@@ -45,7 +45,7 @@ pub trait FsmTimer<F, S>
         }
     }
 
-    fn execute_on_exit<I: Inspect, T: FsmTimers<F>>(&mut self, id: F::Timers, inspect: &mut I, timers: &mut T) {
+    fn execute_on_exit<I: Inspect, T: FsmTimers<F>>(&mut self, id: F::Timers, inspect: &I, timers: &mut T) {
         let log = inspect.for_timer::<F>(id.clone());
         match self.get_instance_mut() {
             Some(instance) => {
@@ -65,7 +65,7 @@ pub trait FsmTimer<F, S>
         }
     }
 
-    fn execute_trigger<'a, 'b, 'c, 'd, Q, I, T>(id: F::Timers, context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, inspect: &mut I)
+    fn execute_trigger<'a, 'b, 'c, 'd, Q, I, T>(id: F::Timers, context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, inspect: &I)
         where 
             Q: FsmEventQueue<F>,
             I: Inspect,
@@ -137,6 +137,17 @@ pub struct TimerSettings
     pub enabled: bool,
     pub timeout: Duration,
     pub renew: bool
+}
+
+impl TimerSettings {
+    /// A renewing timer needs a non-zero timeout, otherwise it would trigger continuously.
+    pub fn validate(&self) -> FsmResult<()> {
+        if self.renew && self.timeout.is_zero() {
+            Err(FsmError::InvalidTimerSettings)
+        } else {
+            Ok(())
+        }
+    }
 }
 
 pub trait FsmTimers<F>

@@ -1,27 +1,60 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
 
-use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmSubMachineOptions, FsmTimer, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
+use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransition, FsmFnBase, FsmMode, FsmState, FsmStateAction, FsmStateKind, FsmStateTransition, FsmSubMachineOptions, FsmTimer, FsmTransition, FsmTransitionEvent, FsmTransitionState, FsmTransitionType, ValidatedFsm}, parse_blocks::{FsmBlock, get_generics}, utils::{assert_no_generics, to_field_name, get_closure}, validation::create_regions};
 
 #[derive(Copy, Clone, Debug)]
 pub struct FsmCodegenOptions {
-    pub event_debug: bool
+    pub event_debug: bool,
+    /// Run the actions of the regions concurrently, async FSMs only.
+    pub concurrent_regions: bool
 }
 
 impl FsmCodegenOptions {
     pub fn new() -> Self {
         Self {
-            event_debug: false
+            event_debug: false,
+            concurrent_regions: false
         }
+    }
+}
+
+/// The kind of a closure passed to the builder, to validate whether it has to be async.
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum ClosureKind {
+    /// State entry/exit actions and transition actions, async in async FSMs.
+    Action,
+    /// Always synchronous: guards, timer setups and sub-machine context constructors.
+    Sync(&'static str)
+}
+
+fn check_closure(mode: FsmMode, kind: ClosureKind, closure: &syn::ExprClosure) -> syn::Result<()> {
+    let is_async = closure.asyncness.is_some();
+    match (mode, kind, is_async) {
+        (FsmMode::Async, ClosureKind::Action, false) => {
+            let msg = if let syn::Expr::Async(_) = *closure.body {
+                "Use an async closure, `async |..| { .. }`, instead of a closure that returns an async block. The async block can't borrow the closure's arguments."
+            } else {
+                "The actions of an FSM built with `FsmAsyncBuilder` have to be async closures: `async |..| { .. }`."
+            };
+            Err(syn::Error::new(closure.span(), msg))
+        },
+        (FsmMode::Sync, ClosureKind::Action, true) => {
+            Err(syn::Error::new(closure.span(), "Async actions require an FSM built with `FsmAsyncBuilder`."))
+        },
+        (_, ClosureKind::Sync(what), true) => {
+            Err(syn::Error::new(closure.span(), format!("{} are always synchronous, remove the `async`.", what)))
+        },
+        _ => Ok(())
     }
 }
 
 pub struct FsmParser {
     initial_states: Vec<syn::Type>,
-    states: HashMap<Type, FsmState>,
-    events: HashMap<Type, FsmEvent>,
+    states: IndexMap<Type, FsmState>,
+    events: IndexMap<Type, FsmEvent>,
     options: FsmCodegenOptions,
     base: FsmFnBase,
     timer_id: usize
@@ -31,8 +64,8 @@ impl FsmParser {
     pub fn new(base: FsmFnBase) -> Self {
         FsmParser {
             initial_states: vec![],
-            states: HashMap::new(),
-            events: HashMap::new(),
+            states: IndexMap::new(),
+            events: IndexMap::new(),
             options: FsmCodegenOptions::new(),
             base,
             timer_id: 1
@@ -57,6 +90,12 @@ impl FsmParser {
                         },
                         [MethodOverviewRef { name: "events_debug", generics: [], .. }] => {
                             self.options.event_debug = true;
+                        },
+                        [m @ MethodOverviewRef { name: "concurrent_regions", generics: [], .. }] => {
+                            if self.base.mode != FsmMode::Async {
+                                return Err(syn::Error::new(m.call.span(), "Concurrent regions are only supported by FSMs built with `FsmAsyncBuilder`."));
+                            }
+                            self.options.concurrent_regions = true;
                         },
                         [MethodOverviewRef { name: "initial_state", generics: [ty], .. }] => {
                             assert_no_generics(ty)?;
@@ -101,6 +140,7 @@ impl FsmParser {
                             match st {
                                 [with_context @ MethodOverviewRef { name: "with_context", .. }, st @ .. ] => {
                                     let closure = get_closure(&with_context.call)?;
+                                    check_closure(self.base.mode, ClosureKind::Sync("Sub-machine context constructors"), closure)?;
                                     if sub_options.context_constructor.is_some() {
                                         return Err(syn::Error::new(closure.span(), "Duplicate constructor for the context!"));
                                     }
@@ -138,13 +178,14 @@ impl FsmParser {
         Ok(())
     }
 
-    fn parse_event_guard_action(event_method_calls: &[MethodOverviewRef]) -> syn::Result<EventGuardAction> {
-        let mut guard_action = EventGuardAction { guard: None, action: None, type_hint: None };
+    fn parse_event_guard_action(mode: FsmMode, span: Span, event_method_calls: &[MethodOverviewRef]) -> syn::Result<EventGuardAction> {
+        let mut guard_action = EventGuardAction { guard: None, action: None, type_hint: None, span };
         
         for method in event_method_calls {
             match method {
                 MethodOverviewRef { name: "guard", .. } => {
                     let closure = get_closure(method.call)?;
+                    check_closure(mode, ClosureKind::Sync("Guards"), closure)?;
 
                     if guard_action.guard.is_some() {
                         return Err(syn::Error::new(closure.span(), "Duplicate 'guard'!"));
@@ -154,6 +195,7 @@ impl FsmParser {
                 },
                 MethodOverviewRef { name: "action", .. } => {
                     let closure = get_closure(method.call)?;
+                    check_closure(mode, ClosureKind::Action, closure)?;
 
                     if guard_action.action.is_some() {
                         return Err(syn::Error::new(closure.span(), "Duplicate 'action'!"));
@@ -177,16 +219,16 @@ impl FsmParser {
         Ok(guard_action)
     }
 
-    fn parse_state_on_event(state: &FsmState, event: &mut FsmEvent, method_calls: &[MethodOverviewRef]) -> syn::Result<()> {
+    fn parse_state_on_event(mode: FsmMode, state: &FsmState, event: &mut FsmEvent, method_calls: &[MethodOverviewRef]) -> syn::Result<()> {
         match method_calls {
-            [MethodOverviewRef { name: "transition_to", generics: [ty_to], .. }, ev @ .. ] => {
-                event.transitions.push(FsmEventTransition::State(state.ty.clone(), ty_to.clone(), Self::parse_event_guard_action(ev)?));                
+            [m @ MethodOverviewRef { name: "transition_to", generics: [ty_to], .. }, ev @ .. ] => {
+                event.transitions.push(FsmEventTransition::State(state.ty.clone(), ty_to.clone(), Self::parse_event_guard_action(mode, m.call.method.span(), ev)?));
             },
-            [MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
-                event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(ev)?));
+            [m @ MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
+                event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(mode, m.call.method.span(), ev)?));
             },
-            [MethodOverviewRef { name: "self_transition", generics: [], ..}, ev @ ..] => {
-                event.transitions.push(FsmEventTransition::SelfTransition(state.ty.clone(), Self::parse_event_guard_action(ev)?));
+            [m @ MethodOverviewRef { name: "self_transition", generics: [], ..}, ev @ ..] => {
+                event.transitions.push(FsmEventTransition::SelfTransition(state.ty.clone(), Self::parse_event_guard_action(mode, m.call.method.span(), ev)?));
             },
             [] => (),
             _ => { return Err(syn::Error::new(method_calls.first().map(|m| m.call.span()).unwrap_or(Span::call_site()), "Unsupported methods.")); }
@@ -200,6 +242,25 @@ impl FsmParser {
 
         if self.initial_states.len() == 0 {
             return Err(syn::Error::new(input_fn.span(), "Missing the initial state declaration! Use the method 'initial_state' or 'initial_states'."));
+        }
+
+        // The transitions of a state for the same event are tried in the order of their declaration.
+        // Everything after a transition without a guard is unreachable.
+        for (_, ev) in self.events.iter() {
+            let mut unguarded: Vec<&Type> = vec![];
+            for t in &ev.transitions {
+                let (state, action) = match t {
+                    FsmEventTransition::State(from, _, action) => (from, action),
+                    FsmEventTransition::InternalTransition(state, action) | FsmEventTransition::SelfTransition(state, action) => (state, action)
+                };
+
+                if unguarded.contains(&state) {
+                    return Err(syn::Error::new(action.span, "This transition can never be taken: an earlier transition of this state for the same event has no guard. The transitions are tried in the order of their declaration, add a guard to the earlier transition or remove this one."));
+                }
+                if action.guard.is_none() {
+                    unguarded.push(state);
+                }
+            }
         }
         
         // build and validate the transitions table
@@ -217,7 +278,7 @@ impl FsmParser {
 
             // start transition
             for initial_state in &self.initial_states {
-                let fsm_initial_state = self.states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
+                let fsm_initial_state = self.states.get(initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
 
                 transitions.push(FsmTransition {
                     transition_ty: generate_transition_ty(&self.base, &mut i, &None),
@@ -291,6 +352,7 @@ impl FsmParser {
 
     fn state_builder_parser(&mut self, ty_state: &syn::Type, st: &[MethodOverviewRef], is_sub_fsm: bool) -> syn::Result<()> {
         if !is_sub_fsm { assert_no_generics(ty_state)?; }
+        let mode = self.base.mode;
         let field_name = to_field_name(&ty_state);
         let state = self.states
             .entry(ty_state.clone())
@@ -310,6 +372,7 @@ impl FsmParser {
             match method {
                 MethodOverviewRef { name: "on_entry", .. } => {
                     let closure = get_closure(&method.call)?;
+                    check_closure(mode, ClosureKind::Action, closure)?;
 
                     if state.on_entry_closure.is_some() {
                         return Err(syn::Error::new(closure.span(), "Duplicate 'on_entry'!"));
@@ -318,6 +381,7 @@ impl FsmParser {
                 },
                 MethodOverviewRef { name: "on_exit", .. } => {
                     let closure = get_closure(&method.call)?;
+                    check_closure(mode, ClosureKind::Action, closure)?;
 
                     if state.on_exit_closure.is_some() {
                         return Err(syn::Error::new(closure.span(), "Duplicate 'on_exit'!"));
@@ -332,7 +396,7 @@ impl FsmParser {
                         .or_insert(FsmEvent { ty: ty_event.clone(), transitions: vec![] });
 
                     let other_method_calls = &st[(i+1)..];
-                    Self::parse_state_on_event(state, event, other_method_calls)?;
+                    Self::parse_state_on_event(mode, state, event, other_method_calls)?;
 
                     break;
                 },
@@ -340,7 +404,9 @@ impl FsmParser {
 
                     let call_args: Vec<_> = method.call.args.iter().collect();
                     match call_args.as_slice() {
-                        [syn::Expr::Closure(ref setup), syn::Expr::Closure(ref trigger)] => {
+                        [syn::Expr::Closure(setup), syn::Expr::Closure(trigger)] => {
+                            check_closure(mode, ClosureKind::Sync("Timer setups"), setup)?;
+                            check_closure(mode, ClosureKind::Sync("Timer triggers"), trigger)?;
 
                             if timer.is_some() { panic!("double timer bug!"); }
                             

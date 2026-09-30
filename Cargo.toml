@@ -1,4 +1,5 @@
 [workspace]
+resolver = "3"
 members = [
     "finny/",
     "finny_derive/",
@@ -8,3 +9,29 @@ members = [
 exclude = [
     "finny_nostd_tests/"
 ]
+
+[workspace.package]
+authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
+edition = "2024"
+repository = "https://github.com/hashmismatch/finny.rs"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+finny = { path = "finny", version = "0.3.0" }
+finny_derive = { path = "finny_derive", version = "0.3.0" }
+
+# proc macro ecosystem
+proc-macro2 = "1.0.107"
+quote = "1.0.47"
+syn = { version = "3.0.6", features = ["full", "extra-traits", "visit"] }
+
+derive_more = "0.99.11"
+arraydeque = { version = "0.4", default-features = false }
+heapless = "0.7"
+petgraph = "0.5.1"
+indexmap = "2.14"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = { version = "0.1.44", default-features = false }
+tracing-subscriber = "0.3.23"
+tokio = { version = "1.53", default-features = false }

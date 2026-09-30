@@ -14,7 +14,7 @@ pub fn extract_method_generic_ty_all(i: &syn::ExprMethodCall) -> Vec<syn::Type> 
     if let Some(ref turbofish) = i.turbofish {
         let mut ret = vec![];
         for arg in &turbofish.args {
-            if let syn::GenericMethodArgument::Type(ref ty) = *arg {
+            if let syn::GenericArgument::Type(ref ty) = *arg {
                 ret.push(ty.clone())
             }
         }

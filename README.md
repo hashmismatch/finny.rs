@@ -14,6 +14,7 @@
 * Event queueing and run-to-completition execution
 * Submachines, also known as Hierarchical State Machines
 * Timers on states
+* Async FSMs with async actions, driven by the tokio runtime (the `async` feature)
 
 ### Example
 
@@ -21,7 +22,7 @@
 
 ```toml
 [dependencies]
-finny = "0.2"
+finny = "0.3"
 ```
 
 #### Code
@@ -72,6 +73,66 @@ fn main() -> FsmResult<()> {
     Ok(())
 }
 ```
+### Semantics
+
+* **Run to completion.** `start`, `dispatch` and `stop` dispatch their event and then every event
+  that the actions enqueued, in order. A queued event that fails, most commonly because the
+  current state has no transition for it, is reported to the inspector with
+  `Inspect::on_queued_event_error`.
+* **Transition priority.** A state can have several transitions for the same event. They are
+  tried in the order of their declaration, the first one whose guard passes is taken. A
+  transition after one without a guard could never be taken, so it's rejected at compile time.
+* **Sub-machines.** Leaving a sub-machine's state, including a self transition, first stops the
+  sub-machine: its active states are exited and their timers cancelled. Entering the state starts
+  it again from its initial state.
+* **Stopping.** `stop` exits the active states of all the regions, including their timers and
+  sub-machines. The machine can be started again.
+
+### Async FSMs
+
+With the `async` feature, FSMs declared with `FsmAsyncBuilder` have async state and transition
+actions, written as async closures. Guards and timer setups stay synchronous. The context is
+shared through an `Arc`, so the actions use interior mutability to modify it and can hand it to
+spawned tasks.
+
+```toml
+[dependencies]
+finny = { version = "0.3", features = ["async"] }
+```
+
+```rust
+#[finny_fsm]
+fn my_fsm(mut fsm: FsmAsyncBuilder<MyFsm, MyContext>) -> BuiltFsm {
+    // Optional: execute the actions of multiple regions concurrently.
+    fsm.concurrent_regions();
+
+    fsm.state::<MyStateA>()
+       .on_entry(async |_state, ctx| {
+           ctx.service.connect().await;
+       })
+       .on_event::<MyEvent>()
+       .transition_to::<MyStateB>()
+       .guard(|_ev, ctx, _states| ctx.enabled.load(Ordering::SeqCst))
+       .action(async |ev, ctx, _state_a, _state_b| {
+           ctx.service.send(ev).await;
+       });
+    fsm.state::<MyStateB>();
+    fsm.initial_state::<MyStateA>();
+    fsm.build()
+}
+
+#[tokio::main]
+async fn main() -> FsmResult<()> {
+    let mut fsm = MyFsm::new(MyContext::default())?;
+    fsm.start().await?;
+    fsm.dispatch(MyEvent).await?;
+
+    // Or run the event loop: events from other tasks and the timers.
+    let (tx, mut rx) = tokio::sync::mpsc::channel(16);
+    fsm.run(&mut rx).await
+}
+```
+
 [crates-badge]: https://img.shields.io/crates/v/finny.svg
 [crates-url]: https://crates.io/crates/finny
 

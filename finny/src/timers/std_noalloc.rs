@@ -34,6 +34,8 @@ impl<F, S> FsmTimers<F> for TimersStdNoAlloc<F, S>
     S: TimersStorage<<F as FsmBackend>::Timers, StdTimer>
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
+        settings.validate()?;
+
         // try to cancel any existing ones
         self.cancel(id.clone())?;
 
@@ -51,6 +53,10 @@ impl<F, S> FsmTimers<F> for TimersStdNoAlloc<F, S>
     fn cancel(&mut self, id: <F as FsmBackend>::Timers) -> crate::FsmResult<()> {
         let t = self.timers.get_timer_storage_mut(&id);
         *t = None;
+        // and the ticks it missed
+        if self.pending_intervals.as_ref().map(|(pending_id, _)| *pending_id == id).unwrap_or(false) {
+            self.pending_intervals = None;
+        }
         Ok(())
     }
 
@@ -74,9 +80,9 @@ impl<F, S> FsmTimers<F> for TimersStdNoAlloc<F, S>
                     timed_out_id = Some(timer_id);
                     break;
                 },
-                Some(StdTimer::Interval { ref mut started_at, interval }) if now.duration_since(*started_at) >= *interval => {
+                Some(StdTimer::Interval { started_at, interval }) if now.duration_since(*started_at) >= *interval => {
                     let t = now.duration_since(*started_at);
-                    let times = ((t.as_secs_f32() / interval.as_secs_f32()).floor() as usize) - 1;
+                    let times = usize::try_from(t.as_nanos() / interval.as_nanos()).unwrap_or(usize::MAX) - 1;
                     if times > 0 {
                         self.pending_intervals = Some((timer_id.clone(), times));
                     }

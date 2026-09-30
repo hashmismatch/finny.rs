@@ -1,11 +1,11 @@
 [package]
 name = "finny_derive"
-version = "0.2.0"
-authors = ["Rudi Benkovic <rudi.benkovic@gmail.com>"]
-edition = "2018"
-repository = "https://github.com/hashmismatch/finny.rs"
+version = "0.3.0"
+authors.workspace = true
+edition.workspace = true
+repository.workspace = true
 description = "Procedural macros crate for the main finite state machine crate, finny."
-license = "MIT OR Apache-2.0"
+license.workspace = true
 keywords = ["fsm", "state"]
 
 [lib]
@@ -17,9 +17,10 @@ std = []
 generate_plantuml = []
 
 [dependencies]
-quote = "1.0"
-syn =  { version = "1.0", features = ["full", "extra-traits", "visit"] }
-proc-macro2 = "1.0"
-petgraph = "0.5.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+quote.workspace = true
+syn.workspace = true
+proc-macro2.workspace = true
+petgraph.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true

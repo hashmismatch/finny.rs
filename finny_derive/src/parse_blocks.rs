@@ -1,4 +1,4 @@
-use syn::{Expr, ExprMethodCall, MethodTurbofish, spanned::Spanned};
+use syn::{AngleBracketedGenericArguments, Expr, ExprMethodCall, spanned::Spanned};
 
 use crate::parse::FsmFnBase;
 
@@ -17,11 +17,7 @@ pub fn decode_blocks(base: &FsmFnBase, item_fn: &syn::ItemFn) -> syn::Result<Vec
 
     for statement in &item_fn.block.stmts {
         match statement {
-            syn::Stmt::Expr(expr) => {
-                let call = decode_method_call(base, expr)?;
-                ret.push(FsmBlock::MethodCall(call));
-            }
-            syn::Stmt::Semi(expr, _col) => {
+            syn::Stmt::Expr(expr, _semi) => {
                 let call = decode_method_call(base, expr)?;
                 ret.push(FsmBlock::MethodCall(call));
             }
@@ -98,13 +94,13 @@ pub fn flatten_method_calls(mc: &ExprMethodCall) -> syn::Result<Vec<ExprMethodCa
     Ok(ret)
 }
 
-pub fn get_generics(turbofish: &Option<MethodTurbofish>) -> syn::Result<Vec<syn::Type>> {
+pub fn get_generics(turbofish: &Option<AngleBracketedGenericArguments>) -> syn::Result<Vec<syn::Type>> {
     let mut ret = vec![];
 
     if let Some(turbofish) = turbofish {
         for arg in &turbofish.args {
             match arg {
-                syn::GenericMethodArgument::Type(ty) => { ret.push(ty.clone()); },
+                syn::GenericArgument::Type(ty) => { ret.push(ty.clone()); },
                 _ => { return Err(syn::Error::new(arg.span(), "Unsupported.")); }
             }
         }

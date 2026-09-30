@@ -1,4 +1,6 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+
+use indexmap::IndexSet;
 
 use petgraph::{Graph, graph::NodeIndex, visit::Dfs};
 use proc_macro2::Span;
@@ -67,7 +69,7 @@ pub fn create_regions(decl: FsmDeclarations, options: FsmCodegenOptions) -> syn:
     let mut regions = vec![];
     for (region_id, initial_state) in decl.initial_states.iter().enumerate() {
         let (transitions, states) = {
-            let region_states: HashSet<_> = graph.raw_nodes().iter()
+            let region_states: IndexSet<_> = graph.raw_nodes().iter()
                 .filter(|n| n.weight.region == Some(region_id))
                 .map(|n| n.weight.state.clone())
                 .collect();
@@ -79,7 +81,7 @@ pub fn create_regions(decl: FsmDeclarations, options: FsmCodegenOptions) -> syn:
                     return Err(syn::Error::new(Span::call_site(), "No states for this transition found, codegen bug!"));
                 }
 
-                let c = states.iter().filter(|s| region_states.contains(s)).count();
+                let c = states.iter().filter(|s| region_states.contains(*s)).count();
                 
                 if c == states.len() {
                     transitions.push(transition.clone());

@@ -41,19 +41,26 @@ impl<F, S, Q> TimersCore<F, S, Q>
             let mut timer = self.timers.get_timer_storage_mut(&id);
 
             // todo: account for the difference between time remaining and elapsed time, currently we just reset it
+            // A timer whose event doesn't fit into the pending buffer stays due, it is retried on the next tick.
             match timer {
                 Some(CoreTimer::Timeout { time_remaining}) => {
                     if *time_remaining <= elapsed_since_last_tick {
-                        self.pending_events.push_front(id);
-                        *timer = None
+                        if self.pending_events.push_front(id).is_ok() {
+                            *timer = None;
+                        } else {
+                            *time_remaining = Duration::ZERO;
+                        }
                     } else {
                         *time_remaining -= elapsed_since_last_tick;
                     }
                 },
                 Some(CoreTimer::Interval { time_remaining, interval }) => {
                     if *time_remaining <= elapsed_since_last_tick {
-                        self.pending_events.push_front(id);
-                        *time_remaining = *interval;
+                        if self.pending_events.push_front(id).is_ok() {
+                            *time_remaining = *interval;
+                        } else {
+                            *time_remaining = Duration::ZERO;
+                        }
                     } else {
                         *time_remaining -= elapsed_since_last_tick;
                     }
@@ -70,7 +77,8 @@ impl<F, S, Q> FsmTimers<F> for TimersCore<F, S, Q>
     S: TimersStorage<<F as FsmBackend>::Timers, CoreTimer>
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
-        self.cancel(id.clone());
+        settings.validate()?;
+        self.cancel(id.clone())?;
 
         if settings.enabled {
             let mut timer = self.timers.get_timer_storage_mut(&id);
@@ -87,6 +95,8 @@ impl<F, S, Q> FsmTimers<F> for TimersCore<F, S, Q>
     fn cancel(&mut self, id: <F as FsmBackend>::Timers) -> crate::FsmResult<()> {
         let timer = self.timers.get_timer_storage_mut(&id);
         *timer = None;
+        // a triggered, but not yet dispatched timer
+        self.pending_events.retain(|pending_id| *pending_id != id);
         Ok(())
     }
 
