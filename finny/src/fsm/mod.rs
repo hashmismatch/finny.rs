@@ -11,6 +11,8 @@ mod tests_fsm;
 mod dispatch;
 mod timers;
 mod inspect;
+#[cfg(feature = "async")]
+mod asynch;
 
 pub use self::events::*;
 pub use self::fsm_factory::*;
@@ -21,6 +23,8 @@ pub use self::transitions::*;
 pub use self::inspect::*;
 pub use self::dispatch::*;
 pub use self::timers::*;
+#[cfg(feature = "async")]
+pub use self::asynch::*;
 
 use crate::lib::*;
 
@@ -37,8 +41,8 @@ pub enum FsmError {
 
 pub type FsmDispatchResult = FsmResult<()>;
 
-/// Finite State Machine backend. Handles the dispatching, the types are
-/// defined by the code generator.
+/// Finite State Machine backend. The types are defined by the code generator. The
+/// dispatching is implemented by either [`FsmDispatch`] or `FsmAsyncDispatch`.
 pub trait FsmBackend where Self: Sized + Debug {
     /// The machine's context that is shared between its constructors and actions.
     type Context;
@@ -49,7 +53,10 @@ pub trait FsmBackend where Self: Sized + Debug {
     type Events: AsRef<str> + Clone;
     /// An enum with variants for all the possible timer instances, with support for submachines.
     type Timers: Debug + Clone + PartialEq + AllVariants;
+}
 
+/// Synchronous event dispatching, implemented by the code generator.
+pub trait FsmDispatch: FsmBackend {
     fn dispatch_event<Q, I, T>(ctx: DispatchContext<Self, Q, I, T>, event: FsmEvent<Self::Events, Self::Timers>) -> FsmDispatchResult
         where Q: FsmEventQueue<Self>, I: Inspect, T: FsmTimers<Self>;
 }

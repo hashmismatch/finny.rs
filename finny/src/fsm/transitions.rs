@@ -1,6 +1,6 @@
 //! All of these traits will be implemented by the procedural code generator.
 
-use crate::{FsmBackendImpl, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, lib::*};
+use crate::{FsmBackendImpl, FsmDispatch, FsmDispatchResult, FsmEventQueueSub, FsmTimers, FsmTimersSub, lib::*};
 use crate::{DispatchContext, EventContext, FsmBackend, FsmCurrentState, FsmEvent, FsmEventQueue, FsmRegionId, FsmStateTransitionAsMut, FsmStates, Inspect};
 
 use super::inspect::InspectFsmEvent;
@@ -64,7 +64,7 @@ pub trait FsmTransitionGuard<F: FsmBackend, E> {
     /// Return a boolean value whether this transition is usable at the moment. The check shouln't mutate any structures.
     fn guard<'a, Q: FsmEventQueue<F>>(event: &E, context: &EventContext<'a, F, Q>, states: &'a <F as FsmBackend>::States) -> bool;
 
-    fn execute_guard<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut I) -> bool
+    fn execute_guard<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &I) -> bool
         where I: Inspect, Self: Sized, T: FsmTimers<F>
     {
         let event_context = EventContext {
@@ -87,7 +87,7 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
     fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, 
         _fsm_event: &FsmEvent<<F as FsmBackend>::Events, <F as FsmBackend>::Timers>,
         region: FsmRegionId,
-        inspect_event_ctx: &mut I)
+        inspect_event_ctx: &I)
         where
             I: Inspect,
             TInitialState: FsmState<F>,
@@ -107,10 +107,10 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
 
     /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary. Subsequent
     /// dispatches are handled using the main dispatch table.
-    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &mut I) 
+    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &I) 
         -> FsmDispatchResult
         where
-        TInitialState: FsmBackend,
+        TInitialState: FsmDispatch,
             Q: FsmEventQueue<F>,
             I: Inspect,
             <F as FsmBackend>::Events: From<<TInitialState as FsmBackend>::Events>,
@@ -155,7 +155,7 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
     /// This action is executed after the first state's exit event, and just before the second event's entry action. It can mutate both states.
     fn action<'a, Q: FsmEventQueue<F>>(event: &E, context: &mut EventContext<'a, F, Q>, from: &mut TStateFrom, to: &mut TStateTo);
 
-    fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut I)
+    fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &I)
         where 
             I: Inspect,
             <F as FsmBackend>::States: FsmStateTransitionAsMut<TStateFrom, TStateTo>,
@@ -191,10 +191,10 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
 
     /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary. Subsequent
     /// dispatches are handled using the main dispatch table.
-    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &mut I) 
+    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &I) 
         -> FsmDispatchResult
         where
-            TStateTo: FsmBackend,
+            TStateTo: FsmDispatch,
             Q: FsmEventQueue<F>,
             I: Inspect,
             <F as FsmBackend>::Events: From<<TStateTo as FsmBackend>::Events>,
@@ -255,7 +255,7 @@ pub trait FsmAction<F: FsmBackend, E, State> {
         Self::action(event, &mut event_context, state);
     }
 
-    fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &mut I)
+    fn execute_transition<'a, 'b, 'c, 'd, Q: FsmEventQueue<F>, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, event: &E, region: FsmRegionId, inspect_event_ctx: &I)
         where I: Inspect,
             State: FsmState<F>,
             <F as FsmBackend>::States: AsMut<State>, Self: Sized,

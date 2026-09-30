@@ -1,5 +1,5 @@
 use crate::{DispatchContext, FsmTimers, Inspect, lib::*};
-use crate::{FsmBackend, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
+use crate::{FsmBackend, FsmDispatch, FsmEvent, FsmEventQueue, FsmResult, FsmStates};
 
 use super::FsmStateFactory;
 
@@ -72,7 +72,7 @@ pub struct FsmFrontend<F, Q, I, T>
 }
 
 impl<F, Q, I, T> FsmFrontend<F, Q, I, T>
-    where F: FsmBackend, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
+    where F: FsmDispatch, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
 {
     /// Start the FSM, initiates the transition to the initial state.
     pub fn start(&mut self) -> FsmResult<()> {

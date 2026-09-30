@@ -4,13 +4,19 @@ use proc_macro2::{Span, TokenStream};
 use quote::{TokenStreamExt, quote};
 use crate::{codegen_meta::generate_fsm_meta, fsm::FsmTypes, parse::{FsmState, FsmStateAction, FsmStateKind}, utils::{remap_closure_inputs, to_field_name, tokens_to_string}};
 
-use crate::{parse::{FsmFnInput, FsmStateTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
+use crate::{parse::{FsmFnInput, FsmMode, FsmRegion, FsmStateTransition, FsmTransition, FsmTransitionState, FsmTransitionType}, utils::ty_append};
 
 pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStream) -> syn::Result<TokenStream> {
     let fsm_ty = &fsm.base.fsm_ty;
     let fsm_types = FsmTypes::new(&fsm.base.fsm_ty, &fsm.base.fsm_generics);
     //let fsm_mod = to_field_name(&ty_append(fsm_ty, "Finny"))?;
-    let ctx_ty = &fsm.base.context_ty;
+    let is_async = fsm.base.mode == FsmMode::Async;
+    // Async FSMs share their context through an `Arc`.
+    let ctx_ty = {
+        let ctx_ty = &fsm.base.context_ty;
+        if is_async { quote! { finny::bundled::Arc< #ctx_ty > } } else { quote! { #ctx_ty } }
+    };
+    let async_kw = if is_async { quote! { async } } else { TokenStream::new() };
 
     let states_store_ty = ty_append(&fsm.base.fsm_ty, "States");
     let states_enum_ty = ty_append(&fsm.base.fsm_ty, "CurrentState");
@@ -20,6 +26,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
     let event_enum_ty = fsm_types.get_fsm_events_ty();
 
     let region_count = fsm.fsm.regions.len();
+    let concurrent_regions = is_async && fsm.fsm.codegen_options.concurrent_regions && region_count > 1;
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
 
@@ -70,31 +77,41 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 }
                 FsmStateKind::SubMachine(ref sub) => {
 
-                    let ctx_codegen = match &sub.context_constructor {
+                    let sub_ctx = match &sub.context_constructor {
                         Some(c) => {
                             let remap = remap_closure_inputs(&c.inputs, &[quote!{ context }])?;
                             let body = &c.body;
-                            quote! {
+                            let ctx_codegen = quote! {
                                 #remap
                                 {
                                     #body
+                                }
+                            };
+                            if is_async {
+                                // converted into the sub machine's `Arc` context
+                                quote! {
+                                    let sub_ctx: < #ty as finny::FsmBackend >::Context = core::convert::Into::into({ #ctx_codegen });
+                                }
+                            } else {
+                                quote! {
+                                    let sub_ctx = { #ctx_codegen };
                                 }
                             }
                         },
                         None => {
                             quote! {
-                                Default::default()
+                                let sub_ctx = Default::default();
                             }
                         }
                     };
 
+                    let factory = if is_async { quote! { FsmAsyncFactory } } else { quote! { FsmFactory } };
+
                     quote! {
                         #name: {
-                            use finny::{FsmFactory};
-                            
-                            let sub_ctx = {
-                                #ctx_codegen
-                            };
+                            use finny::#factory;
+
+                            #sub_ctx
                             let fsm_backend = finny::FsmBackendImpl::<#ty>::new(sub_ctx)?;
                             let fsm = <#ty>::new_submachine_backend(fsm_backend)?;
                             fsm
@@ -157,6 +174,97 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
         }
 
+        let region_views = if concurrent_regions {
+            let mut view_generics = fsm.base.fsm_generics.clone();
+            view_generics.params.insert(0, syn::parse_quote!('fsm_region));
+            let (view_impl, view_type, view_where) = view_generics.split_for_impl();
+
+            let mut code = TokenStream::new();
+            let mut view_tys = vec![];
+            let mut view_inits = vec![];
+
+            for region in &fsm.fsm.regions {
+                let view_ty = ty_append(&fsm.base.fsm_ty, &format!("Region{}States", region.region_id));
+
+                let mut view_fields: Vec<(syn::Ident, TokenStream)> = vec![];
+                for state in &region.states {
+                    let ty = &state.ty;
+                    view_fields.push((state.state_storage_field.clone(), quote! { #ty }));
+                    for timer in &state.timers {
+                        let timer_ty = timer.get_ty(&fsm.base);
+                        view_fields.push((timer.get_field(&fsm.base), quote! { #timer_ty #fsm_generics_type }));
+                    }
+                }
+
+                let mut fields = TokenStream::new();
+                let mut inits = TokenStream::new();
+                let mut accessors = TokenStream::new();
+                for (name, ty) in &view_fields {
+                    fields.append_all(quote! { #name: &'fsm_region mut #ty, });
+                    inits.append_all(quote! { #name: &mut self. #name, });
+                    accessors.append_all(quote! {
+                        impl #view_impl core::convert::AsRef<#ty> for #view_ty #view_type #view_where {
+                            fn as_ref(&self) -> & #ty {
+                                &*self. #name
+                            }
+                        }
+
+                        impl #view_impl core::convert::AsMut<#ty> for #view_ty #view_type #view_where {
+                            fn as_mut(&mut self) -> &mut #ty {
+                                &mut *self. #name
+                            }
+                        }
+                    });
+                }
+
+                let mut seen = HashSet::new();
+                for transition in &region.transitions {
+                    if let FsmTransitionType::StateTransition(ref s) = transition.ty {
+                        if let (Ok(from), Ok(to)) = (s.state_from.get_fsm_state(), s.state_to.get_fsm_state()) {
+                            if !seen.insert((from.ty.clone(), to.ty.clone())) { continue; }
+                            let (from_ty, to_ty) = (&from.ty, &to.ty);
+                            let (from_field, to_field) = (&from.state_storage_field, &to.state_storage_field);
+                            accessors.append_all(quote! {
+                                impl #view_impl finny::FsmStateTransitionAsMut<#from_ty, #to_ty> for #view_ty #view_type #view_where {
+                                    fn as_state_transition_mut(&mut self) -> (&mut #from_ty, &mut #to_ty) {
+                                        (&mut *self. #from_field, &mut *self. #to_field)
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+
+                code.append_all(quote! {
+                    /// The states of a single region, for executing the regions concurrently.
+                    #[doc(hidden)]
+                    pub struct #view_ty #view_generics #view_where {
+                        #fields
+                        _fsm: core::marker::PhantomData<&'fsm_region #fsm_ty #fsm_generics_type>
+                    }
+
+                    #accessors
+                });
+
+                view_tys.push(quote! { #view_ty #view_type });
+                view_inits.push(quote! { #view_ty { #inits _fsm: core::marker::PhantomData } });
+            }
+
+            code.append_all(quote! {
+                impl #fsm_generics_impl #states_store_ty #fsm_generics_type #fsm_generics_where {
+                    /// Splits the states into disjoint views, one for each region.
+                    #[doc(hidden)]
+                    pub fn split_regions<'fsm_region>(&'fsm_region mut self) -> ( #(#view_tys),* ) {
+                        ( #(#view_inits),* )
+                    }
+                }
+            });
+
+            code
+        } else {
+            TokenStream::new()
+        };
+
         quote! {
             /// States storage struct for the state machine.
             pub struct #states_store_ty #fsm_generics_type #fsm_generics_where {
@@ -187,6 +295,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             #state_accessors
 
             #transition_states
+
+            #region_views
         }
     };
     
@@ -271,6 +381,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
     };
     
     let transition_types = {
+        let (fsm_action_trait, fsm_start_trait, fsm_transition_action_trait) = if is_async {
+            (quote! { FsmActionAsync }, quote! { FsmTransitionFsmStartAsync }, quote! { FsmTransitionActionAsync })
+        } else {
+            (quote! { FsmAction }, quote! { FsmTransitionFsmStart }, quote! { FsmTransitionAction })
+        };
+
         let mut t = TokenStream::new();
         
         for region in &fsm.fsm.regions {
@@ -340,8 +456,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
                         let state_ty = &state.ty;
                         q.append_all(quote! {
-                            impl #fsm_generics_impl finny::FsmAction<#fsm_ty #fsm_generics_type, #event_ty, #state_ty > for #ty #fsm_generics_where {
-                                fn action<'fsm_event, Q>(event: & #event_ty , context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q >, state: &mut #state_ty)
+                            impl #fsm_generics_impl finny::#fsm_action_trait<#fsm_ty #fsm_generics_type, #event_ty, #state_ty > for #ty #fsm_generics_where {
+                                #async_kw fn action<'fsm_event, Q>(event: & #event_ty , context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q >, state: &mut #state_ty)
                                     where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
                                 {
                                     #action_body
@@ -361,7 +477,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                         transition_doc.push_str(" Start transition.");
 
                         q.append_all(quote! {
-                            impl #fsm_generics_impl finny::FsmTransitionFsmStart<#fsm_ty #fsm_generics_type, #initial_state_ty > for #ty #fsm_generics_where {
+                            impl #fsm_generics_impl finny::#fsm_start_trait<#fsm_ty #fsm_generics_type, #initial_state_ty > for #ty #fsm_generics_where {
 
                             }
                         });
@@ -428,8 +544,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                         let state_to_ty = &state_to.ty;
 
                         let a = quote! {
-                            impl #fsm_generics_impl finny::FsmTransitionAction<#fsm_ty #fsm_generics_type, #event_ty, #state_from_ty, #state_to_ty> for #ty #fsm_generics_where {
-                                fn action<'fsm_event, Q>(event: & #event_ty , context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q >, from: &mut #state_from_ty, to: &mut #state_to_ty)
+                            impl #fsm_generics_impl finny::#fsm_transition_action_trait<#fsm_ty #fsm_generics_type, #event_ty, #state_from_ty, #state_to_ty> for #ty #fsm_generics_where {
+                                #async_kw fn action<'fsm_event, Q>(event: & #event_ty , context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q >, from: &mut #state_from_ty, to: &mut #state_to_ty)
                                     where Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>
                                 {
                                     #action_body
@@ -455,259 +571,534 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
         t
     };
 
-    let dispatch = {        
-        
+    let dispatch = {
 
-        let mut regions = TokenStream::new();
-        for region in &fsm.fsm.regions {
-            let mut region_transitions = TokenStream::new();
+        // The pattern for the current state of the region.
+        let match_state = |transition: &FsmTransition| -> TokenStream {
+            let state_from = match &transition.ty {
+                FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
+                    &s.state
+                }
+                FsmTransitionType::StateTransition(s) => &s.state_from
+            };
 
-            let region_id = region.region_id;
-            for transition in &region.transitions {
+            match state_from {
+                FsmTransitionState::None => quote! { finny::FsmCurrentState::Stopped },
+                FsmTransitionState::State(st) => {
+                    let state_ty = FsmTypes::new(&st.ty, &fsm.base.fsm_generics);
+                    let variant = state_ty.get_fsm_no_generics_ty();
+                    quote! { finny::FsmCurrentState::State(#states_enum_ty :: #variant) }
+                }
+            }
+        };
 
-                let transition_ty = &transition.transition_ty;
-                
-                let match_state = {
-                    let state_from = match &transition.ty {
-                        FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
-                            &s.state
+        // The pattern for the event, binds it to `ev`.
+        let match_event = |transition: &FsmTransition| -> TokenStream {
+            let event = match &transition.ty {
+                FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => &s.event,
+                FsmTransitionType::StateTransition(s) => &s.event
+            };
+
+            match event {
+                crate::parse::FsmTransitionEvent::Start => quote! { ev @ finny::FsmEvent::Start },
+                crate::parse::FsmTransitionEvent::Stop => quote ! { ev @ finny::FsmEvent::Stop },
+                crate::parse::FsmTransitionEvent::Event(ev) => {
+                    let kind = &ev.ty;
+                    quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ev)) }
+                }
+            }
+        };
+
+        let match_guard = |transition: &FsmTransition, region_id: usize| -> TokenStream {
+            let has_guard = match &transition.ty {
+                FsmTransitionType::StateTransition(s) => {
+                    s.action.guard.is_some()
+                }
+                FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
+                    s.action.guard.is_some()
+                }
+            };
+
+            let transition_ty = &transition.transition_ty;
+            if has_guard {
+                quote! {
+                    if <#transition_ty>::execute_guard(&mut ctx, &ev, #region_id, &inspect_event_ctx)
+                }
+            } else {
+                TokenStream::new()
+            }
+        };
+
+        let entered_state = |transition: &'_ FsmTransition| -> Option<FsmState> {
+            match &transition.ty {
+                FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st), .. }) => Some(st.clone()),
+                FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(st), .. }) => Some(st.clone()),
+                _ => None
+            }
+        };
+
+        let exited_state = |transition: &'_ FsmTransition| -> Option<FsmState> {
+            match &transition.ty {
+                FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st), .. }) => Some(st.clone()),
+                FsmTransitionType::StateTransition(FsmStateTransition { state_from: FsmTransitionState::State(st), .. }) => Some(st.clone()),
+                _ => None
+            }
+        };
+
+        let entered_sub_machine = |transition: &'_ FsmTransition| -> Option<FsmState> {
+            match &transition.ty {
+                FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => Some(s.clone()),
+                _ => None
+            }
+        };
+
+        // Starts or stops the timers of the state. Sync FSMs operate on the dispatch context `ctx`,
+        // async FSMs on the region context `rc`.
+        let state_timers = |state: Option<FsmState>, enter: bool| -> TokenStream {
+            let mut code = TokenStream::new();
+            for timer in state.iter().flat_map(|s| s.timers.iter()) {
+                let timer_field = timer.get_field(&fsm.base);
+                let timer_ty = timer.get_ty(&fsm.base);
+
+                code.append_all(match (is_async, enter) {
+                    (false, true) => quote! {
+                        {
+                            use finny::FsmTimer;
+                            ctx.backend.states. #timer_field . execute_on_enter( #timers_enum_ty :: #timer_ty , &mut ctx.backend.context, &inspect_event_ctx, ctx.timers );
                         }
-                        FsmTransitionType::StateTransition(s) => &s.state_from
-                    };
-
-                    match state_from {
-                        FsmTransitionState::None => quote! { finny::FsmCurrentState::Stopped },
-                        FsmTransitionState::State(st) => {
-                            let state_ty = FsmTypes::new(&st.ty, &fsm.base.fsm_generics);
-                            let variant = state_ty.get_fsm_no_generics_ty();
-                            quote! { finny::FsmCurrentState::State(#states_enum_ty :: #variant) }
+                    },
+                    (false, false) => quote! {
+                        {
+                            use finny::FsmTimer;
+                            ctx.backend.states. #timer_field . execute_on_exit( #timers_enum_ty :: #timer_ty , &inspect_event_ctx, ctx.timers );
+                        }
+                    },
+                    (true, true) => quote! {
+                        {
+                            use finny::FsmTimer;
+                            rc.states. #timer_field . execute_on_enter( #timers_enum_ty :: #timer_ty , &mut *rc.context, &inspect_event_ctx, &mut *rc.timers );
+                        }
+                    },
+                    (true, false) => quote! {
+                        {
+                            use finny::FsmTimer;
+                            rc.states. #timer_field . execute_on_exit( #timers_enum_ty :: #timer_ty , &inspect_event_ctx, &mut *rc.timers );
                         }
                     }
-                };
-                
-                let match_event = {                
-                    let event = match &transition.ty {
-                        FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => &s.event,
-                        FsmTransitionType::StateTransition(s) => &s.event
-                    };
+                });
+            }
+            code
+        };
 
-                    match event {
-                        crate::parse::FsmTransitionEvent::Start => quote! { ev @ finny::FsmEvent::Start },
-                        crate::parse::FsmTransitionEvent::Stop => quote ! { ev @ finny::FsmEvent::Stop },
-                        crate::parse::FsmTransitionEvent::Event(ev) => {
-                            let kind = &ev.ty;
-                            quote! { finny::FsmEvent::Event(#event_enum_ty::#kind(ev)) }
-                        }
-                    }
-                };
+        // The body of a matched transition.
+        let transition_body = |transition: &FsmTransition, region_id: usize| -> TokenStream {
+            let transition_ty = &transition.transition_ty;
+            let timers_exit = state_timers(exited_state(transition), false);
+            let timers_enter = state_timers(entered_state(transition), true);
 
-                let guard = {
-                    let has_guard = match &transition.ty {
-                        FsmTransitionType::StateTransition(s) => {
-                            s.action.guard.is_some()
-                        }
-                        FsmTransitionType::InternalTransition(s) | FsmTransitionType::SelfTransition(s) => {
-                            s.action.guard.is_some()
-                        }
-                    };
-
-                    if has_guard {
-                        quote! {
-                            if <#transition_ty>::execute_guard(&mut ctx, &ev, #region_id, &mut inspect_event_ctx)
-                        }
-                    } else {
-                        TokenStream::new()
-                    }
-                };
-                
-                let fsm_sub_entry = match &transition.ty {
-                    FsmTransitionType::StateTransition(FsmStateTransition {state_to: FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => {
-
+            if is_async {
+                let fsm_sub_entry = match entered_sub_machine(transition) {
+                    Some(s) => {
                         let sub_ty = &s.ty;
-
                         quote! {
+                            {
+                                let sub_fsm: &mut #sub_ty = rc.states.as_mut();
+                                finny::reset_submachine(sub_fsm, &inspect_event_ctx);
+                            }
+                            if let Err(ref e) = <#transition_ty>::execute_on_sub_entry(&mut rc, &inspect_event_ctx).await {
+                                inspect_event_ctx.on_error("Failed to start the sub-machine.", e);
+                            }
+                        }
+                    },
+                    None => TokenStream::new()
+                };
 
+                quote! {
+                    #timers_exit
+
+                    <#transition_ty>::execute_transition(&mut rc, &ev, &inspect_event_ctx).await;
+
+                    #fsm_sub_entry
+
+                    #timers_enter
+                }
+            } else {
+                let fsm_sub_entry = match entered_sub_machine(transition) {
+                    Some(s) => {
+                        let sub_ty = &s.ty;
+                        quote! {
                             // reset
                             {
                                 use finny::FsmBackendResetSubmachine;
                                 <Self as FsmBackendResetSubmachine<_, #sub_ty >>::reset(ctx.backend, &mut inspect_event_ctx);
                             }
                             {
-                                <#transition_ty>::execute_on_sub_entry(&mut ctx, #region_id, &mut inspect_event_ctx);
+                                <#transition_ty>::execute_on_sub_entry(&mut ctx, #region_id, &inspect_event_ctx);
                             }
                         }
                     },
-                    _ => TokenStream::new()
+                    None => TokenStream::new()
                 };
 
-                let timers_enter = {
-                    let mut timers_enter = TokenStream::new();
+                quote! {
+                    #timers_exit
 
-                    let state = match &transition.ty {
-                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
-                            Some(st)
-                        },
-                        FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
-                            Some(st)
-                        },
-                        _ => None
-                    };
+                    <#transition_ty>::execute_transition(&mut ctx, &ev, #region_id, &inspect_event_ctx);
 
-                    if let Some(state) = state {
-                        for timer in &state.timers {
-                            let timer_field = timer.get_field(&fsm.base);
-                            let timer_ty = timer.get_ty(&fsm.base);
+                    #fsm_sub_entry
 
-                            timers_enter.append_all(quote! {
-                                {
-                                    use finny::FsmTimer;
-                                    ctx.backend.states. #timer_field . execute_on_enter( #timers_enum_ty :: #timer_ty , &mut ctx.backend.context, &mut inspect_event_ctx, ctx.timers );
-                                }
-                            });
-                        }
-                    }
-
-                    timers_enter
-                };
-
-                let timers_exit = {
-                    let mut timers_exit = TokenStream::new();
-
-                    let state = match &transition.ty {
-                        FsmTransitionType::SelfTransition(FsmStateAction { state: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
-                            Some(st)
-                        },
-                        FsmTransitionType::StateTransition(FsmStateTransition { state_from: FsmTransitionState::State(st @ FsmState { .. }), .. }) => {
-                            Some(st)
-                        },
-                        _ => None
-                    };
-
-                    if let Some(state) = state {
-                        for timer in &state.timers {
-                            let timer_field = timer.get_field(&fsm.base);
-                            let timer_ty = timer.get_ty(&fsm.base);
-
-                            timers_exit.append_all(quote! {
-                                {
-                                    use finny::FsmTimer;
-                                    ctx.backend.states. #timer_field . execute_on_exit( #timers_enum_ty :: #timer_ty , &mut inspect_event_ctx, ctx.timers );
-                                }
-                            });
-                        }
-                    }
-
-                    timers_exit
-                };
-
-                let m = quote! {
-                    ( #match_state , #match_event ) #guard => {
-
-                        #timers_exit
-
-                        <#transition_ty>::execute_transition(&mut ctx, &ev, #region_id, &mut inspect_event_ctx);
-
-                        #fsm_sub_entry
-                        
-                        #timers_enter                        
-                    },
-                };
-
-                region_transitions.append_all(m);
+                    #timers_enter
+                }
             }
+        };
 
-            // match and dispatch to submachines
-            let region_submachines = {
+        // Sub machines that are the states of this region.
+        let region_submachines = |region: &FsmRegion| -> Vec<(syn::Type, syn::Type)> {
+            region.states.iter()
+                .filter(|s| if let FsmStateKind::SubMachine(_) = s.kind { true } else { false })
+                .map(|s| {
+                    let sub_ty = FsmTypes::new(&s.ty, &fsm.base.fsm_generics);
+                    (s.ty.clone(), sub_ty.get_fsm_no_generics_ty().clone())
+                })
+                .collect()
+        };
 
-                let mut sub_matches = TokenStream::new();
-
-                let submachines: Vec<_> = region.transitions.iter().filter_map(|t| match &t.ty {
-                    FsmTransitionType::InternalTransition(_) => None,
-                    FsmTransitionType::SelfTransition(_) => None,
-                    FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => {
-                        Some(s)
-                    },
-                    _ => None
-                }).collect();
-
-                for submachine in submachines {
-                    let kind = &submachine.ty;
-                    let fsm_sub = FsmTypes::new(&submachine.ty, &fsm.base.fsm_generics);
-                    let kind_variant = fsm_sub.get_fsm_no_generics_ty();
-
-                    let sub = quote! {
-                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
-                            return finny::dispatch_to_submachine::<_, #kind, _, _, _>(&mut ctx, finny::FsmEvent::Event(ev.clone()), &mut inspect_event_ctx);
-                        },
-                    };
-
-                    sub_matches.append_all(sub);
+        // Forwards the event or the timer to a sub machine.
+        let dispatch_to_sub = |sub: &syn::Type, ev: TokenStream| -> TokenStream {
+            if is_async {
+                quote! {
+                    finny::dispatch_to_submachine_async::<_, #sub, _, _, _, _>(&mut rc, #ev, &inspect_event_ctx).await
                 }
+            } else {
+                quote! {
+                    finny::dispatch_to_submachine::<_, #sub, _, _, _>(&mut ctx, #ev, &inspect_event_ctx)
+                }
+            }
+        };
 
-                sub_matches
-            };
-
-            // match and dispatch timer events
-            let timers = {
-                let mut timer_dispatch = TokenStream::new();
-
-                // our timers
-                for state in &region.states {
-                    for timer in &state.timers {
-                        let timer_ty = timer.get_ty(&fsm.base);
-
-                        timer_dispatch.append_all(quote! {
-                            (_, finny::FsmEvent::Timer( timer_id @ #timers_enum_ty :: #timer_ty )) => {
-                                {
-                                    use finny::FsmTimer;
-                                    < #timer_ty #fsm_generics_type > :: execute_trigger(*timer_id, &mut ctx, &mut inspect_event_ctx);
-                                }
-                            },
-                        });
+        // Triggers our own timers.
+        let own_timers_trigger = |region: &FsmRegion| -> Vec<(syn::Type, TokenStream)> {
+            region.states.iter().flat_map(|s| s.timers.iter()).map(|timer| {
+                let timer_ty = timer.get_ty(&fsm.base);
+                let trigger = quote! {
+                    {
+                        use finny::FsmTimer;
+                        < #timer_ty #fsm_generics_type > :: execute_trigger(*timer_id, &mut ctx, &inspect_event_ctx);
                     }
-                }
+                };
+                (timer_ty, trigger)
+            }).collect()
+        };
 
-                // sub machines
-                for state in region.states.iter().filter(|s| if let FsmStateKind::SubMachine(_) = s.kind { true } else { false })
-                {
-                    let sub = &state.ty;
-                    let sub_ty = FsmTypes::new(sub, &fsm.base.fsm_generics);
-                    let sub_variant = sub_ty.get_fsm_no_generics_ty();
+        let dispatch_body = if !concurrent_regions {
+            // The regions are dispatched one after the other, each one matching, guarding and
+            // executing its transition.
+            let mut regions = TokenStream::new();
+            for region in &fsm.fsm.regions {
+                let region_id = region.region_id;
+                let region_context = if is_async {
+                    quote! { let mut rc = ctx.region_context(#region_id); }
+                } else {
+                    TokenStream::new()
+                };
 
-                    timer_dispatch.append_all(quote! {
-                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => {
-                            {
-                                let ev = finny::FsmEvent::Timer(*timer_id);
-                                return finny::dispatch_to_submachine::<_, #sub, _, _, _>(&mut ctx, ev, &mut inspect_event_ctx);
-                            }
+                let mut arms = TokenStream::new();
+
+                for (sub, kind_variant) in region_submachines(region) {
+                    // only the sub machines that can be entered
+                    let entered = region.transitions.iter().any(|t| entered_sub_machine(t).map(|s| s.ty == sub).unwrap_or(false));
+                    if !entered { continue; }
+
+                    let dispatch = dispatch_to_sub(&sub, quote! { finny::FsmEvent::Event(ev.clone()) });
+                    arms.append_all(quote! {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
+                            #region_context
+                            return #dispatch;
                         },
                     });
                 }
 
-                timer_dispatch
-            };
+                for transition in &region.transitions {
+                    let match_state = match_state(transition);
+                    let match_event = match_event(transition);
+                    let guard = match_guard(transition, region_id);
+                    let body = transition_body(transition, region_id);
 
-            regions.append_all(quote! {
-                match (ctx.backend.current_states[#region_id], &event) {
+                    arms.append_all(quote! {
+                        ( #match_state , #match_event ) #guard => {
+                            #region_context
+                            #body
+                        },
+                    });
+                }
 
-                    #region_submachines
-                    
-                    #region_transitions
-
-                    // do not dispatch timers if the machine is stopped
+                // do not dispatch timers if the machine is stopped
+                arms.append_all(quote! {
                     (finny::FsmCurrentState::Stopped, finny::FsmEvent::Timer(_)) => (),
+                });
 
-                    #timers
+                for (timer_ty, trigger) in own_timers_trigger(region) {
+                    arms.append_all(quote! {
+                        (_, finny::FsmEvent::Timer( timer_id @ #timers_enum_ty :: #timer_ty )) => {
+                            #trigger
+                        },
+                    });
+                }
 
-                    _ => {
-                        transition_misses += 1;
+                for (sub, sub_variant) in region_submachines(region) {
+                    let dispatch = dispatch_to_sub(&sub, quote! { finny::FsmEvent::Timer(*timer_id) });
+                    arms.append_all(quote! {
+                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => {
+                            #region_context
+                            return #dispatch;
+                        },
+                    });
+                }
+
+                regions.append_all(quote! {
+                    match (ctx.backend.current_states[#region_id], &event) {
+                        #arms
+                        _ => {
+                            transition_misses += 1;
+                        }
+                    }
+                });
+            }
+
+            quote! {
+                #regions
+
+                let result = if transition_misses == #region_count {
+                    Err(finny::FsmError::NoTransition)
+                } else {
+                    Ok(())
+                };
+
+                inspect_event_ctx.event_done(&ctx.backend);
+
+                result
+            }
+        } else {
+            // Concurrent regions. First all the regions select their transitions, then the
+            // selected transitions are executed concurrently, each region on its own view of
+            // the states, its own queue and timers buffers.
+            let mut select = TokenStream::new();
+            let mut region_futures = TokenStream::new();
+            let mut merge = TokenStream::new();
+
+            let region_idents = |prefix: &str| -> Vec<syn::Ident> {
+                (0..region_count).map(|r| syn::Ident::new(&format!("{}_{}", prefix, r), Span::call_site())).collect()
+            };
+            let views = region_idents("region_states");
+            let current_states = region_idents("region_current_state");
+            let futures = region_idents("region_future");
+            let results = region_idents("region_result");
+
+            for region in &fsm.fsm.regions {
+                let region_id = region.region_id;
+                let selected = syn::Ident::new(&format!("region_selected_{}", region_id), Span::call_site());
+                let view = &views[region_id];
+                let current_state = &current_states[region_id];
+                let future = &futures[region_id];
+                let context = syn::Ident::new(&format!("region_context_{}", region_id), Span::call_site());
+                let queue = syn::Ident::new(&format!("region_queue_{}", region_id), Span::call_site());
+                let timers = syn::Ident::new(&format!("region_timers_{}", region_id), Span::call_site());
+
+                let mut select_arms = TokenStream::new();
+                let mut execute_arms = TokenStream::new();
+                let mut arm_id = 0usize;
+
+                for (sub, kind_variant) in region_submachines(region) {
+                    let entered = region.transitions.iter().any(|t| entered_sub_machine(t).map(|s| s.ty == sub).unwrap_or(false));
+                    if !entered { continue; }
+
+                    let dispatch = dispatch_to_sub(&sub, quote! { finny::FsmEvent::Event(ev.clone()) });
+                    select_arms.append_all(quote! {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => Some(#arm_id),
+                    });
+                    execute_arms.append_all(quote! {
+                        Some(#arm_id) => {
+                            if let finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev)) = &event {
+                                region_result = #dispatch;
+                            }
+                        },
+                    });
+                    arm_id += 1;
+                }
+
+                for transition in &region.transitions {
+                    let match_state = match_state(transition);
+                    let match_event = match_event(transition);
+                    let guard = match_guard(transition, region_id);
+                    let body = transition_body(transition, region_id);
+
+                    select_arms.append_all(quote! {
+                        ( #match_state , #match_event ) #guard => Some(#arm_id),
+                    });
+                    execute_arms.append_all(quote! {
+                        Some(#arm_id) => {
+                            if let #match_event = &event {
+                                #body
+                            }
+                        },
+                    });
+                    arm_id += 1;
+                }
+
+                select_arms.append_all(quote! {
+                    (finny::FsmCurrentState::Stopped, finny::FsmEvent::Timer(_)) => None,
+                });
+
+                // our own timers only enqueue their events, they are triggered right away
+                for (timer_ty, trigger) in own_timers_trigger(region) {
+                    select_arms.append_all(quote! {
+                        (_, finny::FsmEvent::Timer( timer_id @ #timers_enum_ty :: #timer_ty )) => {
+                            #trigger
+                            None
+                        },
+                    });
+                }
+
+                for (sub, sub_variant) in region_submachines(region) {
+                    let dispatch = dispatch_to_sub(&sub, quote! { finny::FsmEvent::Timer(*timer_id) });
+                    select_arms.append_all(quote! {
+                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => Some(#arm_id),
+                    });
+                    execute_arms.append_all(quote! {
+                        Some(#arm_id) => {
+                            if let finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id)) = &event {
+                                region_result = #dispatch;
+                            }
+                        },
+                    });
+                    arm_id += 1;
+                }
+
+                select.append_all(quote! {
+                    let #selected: Option<usize> = match (ctx.backend.current_states[#region_id], &event) {
+                        #select_arms
+                        _ => {
+                            transition_misses += 1;
+                            None
+                        }
+                    };
+                });
+
+                region_futures.append_all(quote! {
+                    let mut #context = ctx.backend.context.clone();
+                    let mut #queue = finny::FsmEventQueueVec::<Self>::new();
+                    let mut #timers = finny::FsmTimersDeferred::<Self>::new();
+                    let #future = async {
+                        let mut region_result: finny::FsmDispatchResult = Ok(());
+                        let mut rc = finny::RegionContext::<Self, _, _, _> {
+                            states: &mut #view,
+                            context: &mut #context,
+                            current_state: #current_state,
+                            queue: &mut #queue,
+                            timers: &mut #timers,
+                            region: #region_id
+                        };
+
+                        match #selected {
+                            #execute_arms
+                            _ => ()
+                        }
+
+                        region_result
+                    };
+                });
+
+                merge.append_all(quote! {
+                    finny::merge_region_queue(#queue, &mut *ctx.queue, &inspect_event_ctx);
+                    #timers.apply(&mut *ctx.timers, &inspect_event_ctx);
+                });
+            }
+
+            quote! {
+                #select
+
+                let (#(mut #views),*) = ctx.backend.states.split_regions();
+                let [#(#current_states),*] = &mut ctx.backend.current_states;
+
+                #region_futures
+
+                let (#(#results),*) = finny::bundled::tokio::join!(#(#futures),*);
+
+                // in the order of the regions
+                #merge
+
+                let mut region_error = None;
+                for region_result in [#(#results),*] {
+                    match region_result {
+                        Ok(()) => (),
+                        Err(finny::FsmError::NoTransition) => {
+                            transition_misses += 1;
+                        },
+                        Err(e) => {
+                            if region_error.is_none() {
+                                region_error = Some(e);
+                            }
+                        }
                     }
                 }
-            });
-        }
+
+                let result = if let Some(e) = region_error {
+                    Err(e)
+                } else if transition_misses == #region_count {
+                    Err(finny::FsmError::NoTransition)
+                } else {
+                    Ok(())
+                };
+
+                inspect_event_ctx.event_done(&ctx.backend);
+
+                result
+            }
+        };
+
+        let dispatch_impl = if is_async {
+            quote! {
+                impl #fsm_generics_impl finny::FsmAsyncDispatch for #fsm_ty #fsm_generics_type
+                    #fsm_generics_where
+                {
+                    #[allow(unused_variables, unused_mut, unreachable_code)]
+                    async fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<'_, '_, '_, Self, Q, I, T>, event: finny::FsmEvent<Self::Events, Self::Timers>) -> finny::FsmDispatchResult
+                        where Q: finny::FsmEventQueue<Self>,
+                        I: finny::Inspect, T: finny::FsmTimers<Self>
+                    {
+                        use finny::{FsmTransitionGuard, FsmTransitionActionAsync, FsmActionAsync, FsmStateAsync, FsmTransitionFsmStartAsync, Inspect};
+
+                        let mut transition_misses = 0;
+
+                        let inspect_event_ctx = ctx.inspect.new_event::<Self>(&event, &ctx.backend);
+
+                        #dispatch_body
+                    }
+                }
+            }
+        } else {
+            quote! {
+                impl #fsm_generics_impl finny::FsmDispatch for #fsm_ty #fsm_generics_type
+                    #fsm_generics_where
+                {
+                    fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<Self, Q, I, T>, event: finny::FsmEvent<Self::Events, Self::Timers>) -> finny::FsmDispatchResult
+                        where Q: finny::FsmEventQueue<Self>,
+                        I: finny::Inspect, T: finny::FsmTimers<Self>
+                    {
+                        use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState, FsmTransitionFsmStart};
+
+                        let mut transition_misses = 0;
+
+                        let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event, &ctx.backend);
+
+                        #dispatch_body
+                    }
+                }
+            }
+        };
 
         quote! {
-              
+
             impl #fsm_generics_impl finny::FsmBackend for #fsm_ty #fsm_generics_type
                 #fsm_generics_where
             {
@@ -715,30 +1106,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 type States = #states_store_ty #fsm_generics_type;
                 type Events = #event_enum_ty;
                 type Timers = #timers_enum_ty;
-
-                fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<Self, Q, I, T>, event: finny::FsmEvent<Self::Events, Self::Timers>) -> finny::FsmDispatchResult
-                    where Q: finny::FsmEventQueue<Self>,
-                    I: finny::Inspect, T: finny::FsmTimers<Self>
-                {
-                    use finny::{FsmTransitionGuard, FsmTransitionAction, FsmAction, FsmState, FsmTransitionFsmStart};
-
-                    let mut transition_misses = 0;
-
-                    let mut inspect_event_ctx = ctx.inspect.new_event::<Self>(&event, &ctx.backend);
-
-                    #regions
-
-                    let result = if transition_misses == #region_count {
-                        Err(finny::FsmError::NoTransition)
-                    } else {
-                        Ok(())
-                    };
-
-                    inspect_event_ctx.event_done(&ctx.backend);
-
-                    result
-                }
             }
+
+            #dispatch_impl
 
             impl #fsm_generics_impl core::fmt::Debug for #fsm_ty #fsm_generics_type
                 #fsm_generics_where
@@ -749,8 +1119,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
         }
     };
-    
+
     let states = {
+        let fsm_state_trait = if is_async { quote! { FsmStateAsync } } else { quote! { FsmState } };
 
         let mut states = TokenStream::new();
         for (ty, state) in fsm.fsm.states.iter() {
@@ -778,12 +1149,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
             let state = quote! {
 
-                impl #fsm_generics_impl finny::FsmState<#fsm_ty #fsm_generics_type> for #ty #fsm_generics_where {
-                    fn on_entry<'fsm_event, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>) {
+                impl #fsm_generics_impl finny::#fsm_state_trait<#fsm_ty #fsm_generics_type> for #ty #fsm_generics_where {
+                    #async_kw fn on_entry<'fsm_event, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>) {
                         #on_entry
                     }
 
-                    fn on_exit<'fsm_event, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>) {
+                    #async_kw fn on_exit<'fsm_event, Q: finny::FsmEventQueue<#fsm_ty #fsm_generics_type>>(&mut self, context: &mut finny::EventContext<'fsm_event, #fsm_ty #fsm_generics_type, Q>) {
                         #on_exit
                     }
 
@@ -802,6 +1173,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
     };
 
     let builder = {
+        let factory = if is_async { quote! { FsmAsyncFactory } } else { quote! { FsmFactory } };
 
         quote! {
 
@@ -810,7 +1182,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 backend: finny::FsmBackendImpl<#fsm_ty #fsm_generics_type >
             }
 
-            impl #fsm_generics_impl finny::FsmFactory for #fsm_ty #fsm_generics_type #fsm_generics_where {
+            impl #fsm_generics_impl finny::#factory for #fsm_ty #fsm_generics_type #fsm_generics_where {
                 type Fsm = #fsm_ty #fsm_generics_type;
 
                 fn new_submachine_backend(backend: finny::FsmBackendImpl<Self::Fsm>) -> finny::FsmResult<Self> where Self: Sized {

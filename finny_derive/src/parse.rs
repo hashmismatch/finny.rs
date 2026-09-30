@@ -11,8 +11,16 @@ pub struct FsmFnInput {
     pub fsm: ValidatedFsm,
 }
 
+/// Selected by the type of the builder: `FsmBuilder` or `FsmAsyncBuilder`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FsmMode {
+    Sync,
+    Async
+}
+
 #[derive(Debug, Clone)]
 pub struct FsmFnBase {
+    pub mode: FsmMode,
     pub context_ty: syn::Type,
     pub fsm_ty: syn::Type,
     pub fsm_info_ty: syn::Type,
@@ -26,7 +34,7 @@ impl FsmFnInput {
         let input_fn: syn::ItemFn = syn::parse2(item)?;
 
         // builder name/generics
-        let (builder_ident, fsm_ty, context_ty) = {
+        let (builder_ident, fsm_ty, context_ty, mode) = {
             let input_fsm_builder = match (input_fn.sig.inputs.len(), input_fn.sig.inputs.first()) {
                 (1, Some(p)) => {
                     Ok(p)
@@ -55,6 +63,8 @@ impl FsmFnInput {
                 (1, Some(s)) => Ok(s),
                 (_, _) => Err(Error::new(builder_input_type.path.segments.span(), "Only one segment is supported!"))
             }?;
+
+            let mode = if path_segment.ident == "FsmAsyncBuilder" { FsmMode::Async } else { FsmMode::Sync };
 
             let generic_arguments = match &path_segment.arguments {
                 syn::PathArguments::AngleBracketed(g) => Ok(g),
@@ -85,7 +95,7 @@ impl FsmFnInput {
                 fsm_ty
             };
 
-            (builder_input_pat_ident.ident.clone(), fsm_ty, context_ty.clone())
+            (builder_input_pat_ident.ident.clone(), fsm_ty, context_ty.clone(), mode)
         };
 
 
@@ -108,6 +118,7 @@ impl FsmFnInput {
         }
 
         let base = FsmFnBase {
+            mode,
             builder_ident,
             context_ty,
             fsm_info_ty: crate::utils::ty_append(&fsm_ty, "Info"),

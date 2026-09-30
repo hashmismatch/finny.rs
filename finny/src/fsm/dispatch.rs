@@ -1,5 +1,5 @@
 use crate::{FsmTimers, FsmTimersSub, lib::*};
-use crate::{EventContext, FsmBackend, FsmBackendImpl, FsmEvent, FsmEventQueue, FsmEventQueueSub, FsmRegionId, FsmResult, Inspect};
+use crate::{EventContext, FsmBackend, FsmBackendImpl, FsmDispatch, FsmEvent, FsmEventQueue, FsmEventQueueSub, FsmRegionId, FsmResult, Inspect};
 
 pub struct DispatchContext<'a, 'b, 'c, F, Q, I, T>
     where F: FsmBackend,
@@ -32,14 +32,14 @@ where F: FsmBackend,
 
 /// Used to funnel the event down to the sub-machine.
 pub fn dispatch_to_submachine<'a, 'b, 'c, TFsm, TSubMachine, Q, I, T>(ctx: &mut DispatchContext<'a, 'b, 'c, TFsm, Q, I, T>,
-        ev: FsmEvent<<TSubMachine as FsmBackend>::Events, <TSubMachine as FsmBackend>::Timers>, inspect_event_ctx: &mut I)
+        ev: FsmEvent<<TSubMachine as FsmBackend>::Events, <TSubMachine as FsmBackend>::Timers>, inspect_event_ctx: &I)
     -> FsmResult<()>
     where
         TFsm: FsmBackend,
-        <TFsm as FsmBackend>::States: AsMut<TSubMachine>,        
+        <TFsm as FsmBackend>::States: AsMut<TSubMachine>,
         <TFsm as FsmBackend>::Events: From<<TSubMachine as FsmBackend>::Events>,
         <TFsm as FsmBackend>::Timers: From<<TSubMachine as FsmBackend>::Timers>,
-        TSubMachine: FsmBackend + DerefMut<Target = FsmBackendImpl<TSubMachine>>,
+        TSubMachine: FsmDispatch + DerefMut<Target = FsmBackendImpl<TSubMachine>>,
         Q: FsmEventQueue<TFsm>,
         I: Inspect,
         T: FsmTimers<TFsm>,

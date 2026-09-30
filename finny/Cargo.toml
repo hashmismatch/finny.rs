@@ -16,6 +16,7 @@ finny_derive.workspace = true
 arraydeque.workspace = true
 tracing = { workspace = true, optional = true }
 heapless.workspace = true
+tokio = { workspace = true, optional = true, features = ["sync", "time", "macros"] }
 
 [features]
 default = ["std", "inspect_tracing", "timers_std"]
@@ -23,3 +24,8 @@ std = ["arraydeque/std", "timers_std", "tracing?/std", "finny_derive/std"]
 inspect_tracing = ["dep:tracing"]
 timers_std = []
 generate_plantuml = ["finny_derive/generate_plantuml"]
+# Async FSMs (`FsmAsyncBuilder`), driven by the tokio runtime.
+async = ["std", "dep:tokio"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "time", "test-util"] }

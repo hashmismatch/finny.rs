@@ -6,6 +6,7 @@ publish = false
 edition.workspace = true
 
 [dependencies]
-finny.workspace = true
+finny = { workspace = true, features = ["async"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "time", "sync", "test-util"] }
