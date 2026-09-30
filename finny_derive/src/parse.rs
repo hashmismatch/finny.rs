@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use indexmap::IndexMap;
 
 use proc_macro2::{Span, TokenStream};
 use syn::{Error, Expr, ExprMethodCall, GenericArgument, ItemFn, parse::{self, Parse, ParseStream}, spanned::Spanned};
@@ -140,8 +140,8 @@ impl FsmFnInput {
 #[derive(Debug)]
 pub struct FsmDeclarations {
     pub initial_states: Vec<syn::Type>,
-    pub states: HashMap<syn::Type, FsmState>,
-    pub events: HashMap<syn::Type, FsmEvent>,
+    pub states: IndexMap<syn::Type, FsmState>,
+    pub events: IndexMap<syn::Type, FsmEvent>,
     pub transitions: Vec<FsmTransition>
 }
 
@@ -149,8 +149,8 @@ pub struct FsmDeclarations {
 pub struct ValidatedFsm {
     pub codegen_options: FsmCodegenOptions,
     pub regions: Vec<FsmRegion>,
-    pub states: HashMap<syn::Type, FsmState>,
-    pub events: HashMap<syn::Type, FsmEvent>
+    pub states: IndexMap<syn::Type, FsmState>,
+    pub events: IndexMap<syn::Type, FsmEvent>
 }
 
 #[derive(Debug)]
@@ -296,11 +296,19 @@ pub enum FsmEventTransition {
     SelfTransition(syn::Type, EventGuardAction)
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct EventGuardAction{
     pub guard: Option<syn::ExprClosure>,
     pub action: Option<syn::ExprClosure>,
-    pub type_hint: Option<syn::Type>
+    pub type_hint: Option<syn::Type>,
+    /// Where the transition was declared.
+    pub span: Span
+}
+
+impl Default for EventGuardAction {
+    fn default() -> Self {
+        Self { guard: None, action: None, type_hint: None, span: Span::call_site() }
+    }
 }
 
 impl FsmDeclarations {

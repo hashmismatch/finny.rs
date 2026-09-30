@@ -53,6 +53,10 @@ impl<TFsm, TContext, TState, M> FsmStateBuilder<TFsm, TContext, TState, M>
 	where TFsm: FsmBackend
 {
 	/// What happens if we receive this event and we are in this state right now?
+	///
+	/// A state can have several transitions for the same event. They are tried in the order of
+	/// their declaration, the first one whose guard passes is taken. A transition after one
+	/// without a guard could never be taken, and is rejected by the code generator.
 	pub fn on_event<TEvent>(&self) -> FsmEventBuilderState<'_, TFsm, TContext, TEvent, TState, M> {
 		FsmEventBuilderState {
 			_state_builder: self,

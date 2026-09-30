@@ -68,6 +68,9 @@ impl<TFsm, TContext, TSubMachine, M> FsmSubMachineBuilder<TFsm, TContext, TSubMa
 	where TFsm: FsmBackend<Context = TContext>,	TSubMachine: FsmBackend
 {
 	/// What happens if we receive this event and we are in this submachine's state right now?
+	///
+	/// The transitions for the same event are tried in the order of their declaration, see
+	/// [`FsmStateBuilder::on_event`](super::FsmStateBuilder::on_event).
 	pub fn on_event<TEvent>(&self) -> FsmEventBuilderState<'_, TFsm, TContext, TEvent, TSubMachine, M> {
 		FsmEventBuilderState {
 			_state_builder: &self._state_builder,

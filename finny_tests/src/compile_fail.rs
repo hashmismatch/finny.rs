@@ -83,6 +83,32 @@
 //! # fn main() {}
 //! ```
 //!
+//! Transitions are tried in the order of their declaration. A transition that follows an
+//! unguarded one for the same state and event could never be taken:
+//!
+//! ```compile_fail
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default)]
+//! pub struct StateA;
+//! #[derive(Default)]
+//! pub struct StateB;
+//! #[derive(Default)]
+//! pub struct StateC;
+//! #[derive(Clone)]
+//! pub struct Event;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.initial_state::<StateA>();
+//!     fsm.state::<StateA>().on_event::<Event>().transition_to::<StateB>();
+//!     fsm.state::<StateA>().on_event::<Event>().transition_to::<StateC>().guard(|_, _, _| true);
+//!     fsm.state::<StateB>();
+//!     fsm.state::<StateC>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```
+//!
 //! An async FSM whose context isn't `Sync` can't be moved to another thread, its `Arc` isn't `Send`:
 //!
 //! ```compile_fail

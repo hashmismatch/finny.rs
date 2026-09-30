@@ -41,6 +41,8 @@ impl<F> FsmTimers<F> for TimersTokio<F>
     where F: FsmBackend
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &TimerSettings) -> FsmResult<()> {
+        settings.validate()?;
+
         // replace any existing ones
         self.cancel(id.clone())?;
 

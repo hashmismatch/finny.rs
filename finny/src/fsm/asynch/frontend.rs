@@ -18,9 +18,18 @@ pub struct FsmAsyncFrontend<F, Q, I, T>
 impl<F, Q, I, T> FsmAsyncFrontend<F, Q, I, T>
     where F: FsmAsyncDispatch, Q: FsmEventQueue<F>, I: Inspect, T: FsmTimers<F>
 {
-    /// Start the FSM, initiates the transition to the initial state.
+    /// Start the FSM, initiates the transition to the initial state and runs the events
+    /// enqueued by it to completition.
     pub async fn start(&mut self) -> FsmResult<()> {
-        self.dispatch_single_event(FsmEvent::Start).await
+        self.dispatch_single_event(FsmEvent::Start).await?;
+        self.dispatch_queue().await
+    }
+
+    /// Stop the FSM: exits the active states of all the regions, including their timers and
+    /// sub-machines. The FSM can be started again.
+    pub async fn stop(&mut self) -> FsmResult<()> {
+        self.dispatch_single_event(FsmEvent::Stop).await?;
+        self.dispatch_queue().await
     }
 
     /// Dispatch any pending timer events into the queue, then run all the
@@ -53,12 +62,15 @@ impl<F, Q, I, T> FsmAsyncFrontend<F, Q, I, T>
         F::dispatch_event(dispatch_ctx, event).await
     }
 
-    /// Dispatch the entire event queue and run it to completition. Events without
-    /// a matching transition are skipped.
+    /// Dispatch the entire event queue and run it to completition. The events that fail,
+    /// usually because the current state doesn't handle them, are reported to the inspector
+    /// with `Inspect::on_queued_event_error`.
     pub async fn dispatch_queue(&mut self) -> FsmResult<()> {
-        // A loop instead of recursing through `dispatch`, recursive async functions would require boxing.
+        // A loop, the events enqueued by the dispatched events are appended to the same queue.
         while let Some(ev) = self.queue.dequeue() {
-            let _ = self.dispatch_single_event(FsmEvent::Event(ev)).await;
+            if let Err(e) = self.dispatch_single_event(FsmEvent::Event(ev.clone())).await {
+                self.inspect.on_queued_event_error::<F>(&ev, &e);
+            }
         }
 
         Ok(())

@@ -153,7 +153,7 @@ async fn test_async_sub() -> FsmResult<()> {
     assert_eq!(0, fsm.sub_exit.load(Ordering::SeqCst));
     assert_eq!(0, fsm.sub_action.load(Ordering::SeqCst));
 
-    // a self transition re-enters the sub machine, which restarts it
+    // a self transition exits and re-enters the sub machine, which restarts it
     fsm.dispatch(EventSub { n: 1 }).await?;
     assert_eq!(2, fsm.sub_enter.load(Ordering::SeqCst));
     assert_eq!(1, fsm.sub_exit.load(Ordering::SeqCst));

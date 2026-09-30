@@ -645,11 +645,16 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
         };
 
+        let sub_machine_state = |state: Option<FsmState>| -> Option<FsmState> {
+            state.filter(|s| if let FsmStateKind::SubMachine(_) = s.kind { true } else { false })
+        };
+
         let entered_sub_machine = |transition: &'_ FsmTransition| -> Option<FsmState> {
-            match &transition.ty {
-                FsmTransitionType::StateTransition(FsmStateTransition { state_to: FsmTransitionState::State(s @ FsmState { kind: FsmStateKind::SubMachine(_), .. }), .. }) => Some(s.clone()),
-                _ => None
-            }
+            sub_machine_state(entered_state(transition))
+        };
+
+        let exited_sub_machine = |transition: &'_ FsmTransition| -> Option<FsmState> {
+            sub_machine_state(exited_state(transition))
         };
 
         // Starts or stops the timers of the state. Sync FSMs operate on the dispatch context `ctx`,
@@ -690,66 +695,81 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             code
         };
 
-        // The body of a matched transition.
-        let transition_body = |transition: &FsmTransition, region_id: usize| -> TokenStream {
-            let transition_ty = &transition.transition_ty;
-            let timers_exit = state_timers(exited_state(transition), false);
-            let timers_enter = state_timers(entered_state(transition), true);
+        // Starts or stops a sub machine. Its errors are reported to the inspector.
+        let sub_machine_lifecycle = |sub: Option<FsmState>, start: bool| -> TokenStream {
+            let sub = match sub {
+                Some(sub) => sub,
+                None => return TokenStream::new()
+            };
+            let sub_ty = &sub.ty;
 
-            if is_async {
-                let fsm_sub_entry = match entered_sub_machine(transition) {
-                    Some(s) => {
-                        let sub_ty = &s.ty;
-                        quote! {
-                            {
-                                let sub_fsm: &mut #sub_ty = rc.states.as_mut();
-                                finny::reset_submachine(sub_fsm, &inspect_event_ctx);
-                            }
-                            if let Err(ref e) = <#transition_ty>::execute_on_sub_entry(&mut rc, &inspect_event_ctx).await {
-                                inspect_event_ctx.on_error("Failed to start the sub-machine.", e);
-                            }
-                        }
-                    },
-                    None => TokenStream::new()
-                };
+            let (call, msg) = match (is_async, start) {
+                (false, true) => (quote! { finny::start_submachine::<_, #sub_ty, _, _, _>(&mut ctx, &inspect_event_ctx) }, "Failed to start the sub-machine."),
+                (false, false) => (quote! { finny::stop_submachine::<_, #sub_ty, _, _, _>(&mut ctx, &inspect_event_ctx) }, "Failed to stop the sub-machine."),
+                (true, true) => (quote! { finny::start_submachine_async::<_, #sub_ty, _, _, _, _>(&mut rc, &inspect_event_ctx).await }, "Failed to start the sub-machine."),
+                (true, false) => (quote! { finny::stop_submachine_async::<_, #sub_ty, _, _, _, _>(&mut rc, &inspect_event_ctx).await }, "Failed to stop the sub-machine.")
+            };
 
-                quote! {
-                    #timers_exit
-
-                    <#transition_ty>::execute_transition(&mut rc, &ev, &inspect_event_ctx).await;
-
-                    #fsm_sub_entry
-
-                    #timers_enter
-                }
-            } else {
-                let fsm_sub_entry = match entered_sub_machine(transition) {
-                    Some(s) => {
-                        let sub_ty = &s.ty;
-                        quote! {
-                            // reset
-                            {
-                                use finny::FsmBackendResetSubmachine;
-                                <Self as FsmBackendResetSubmachine<_, #sub_ty >>::reset(ctx.backend, &mut inspect_event_ctx);
-                            }
-                            {
-                                <#transition_ty>::execute_on_sub_entry(&mut ctx, #region_id, &inspect_event_ctx);
-                            }
-                        }
-                    },
-                    None => TokenStream::new()
-                };
-
-                quote! {
-                    #timers_exit
-
-                    <#transition_ty>::execute_transition(&mut ctx, &ev, #region_id, &inspect_event_ctx);
-
-                    #fsm_sub_entry
-
-                    #timers_enter
+            quote! {
+                if let Err(ref e) = #call {
+                    inspect_event_ctx.on_error(#msg, e);
                 }
             }
+        };
+
+        // The body of a matched transition. A sub machine that is exited is stopped first, so
+        // its states are exited before the sub machine's own state (inner before outer).
+        let transition_body = |transition: &FsmTransition, region_id: usize| -> TokenStream {
+            let transition_ty = &transition.transition_ty;
+            let stop_sub = sub_machine_lifecycle(exited_sub_machine(transition), false);
+            let timers_exit = state_timers(exited_state(transition), false);
+            let start_sub = sub_machine_lifecycle(entered_sub_machine(transition), true);
+            let timers_enter = state_timers(entered_state(transition), true);
+
+            let execute = if is_async {
+                quote! { <#transition_ty>::execute_transition(&mut rc, &ev, &inspect_event_ctx).await; }
+            } else {
+                quote! { <#transition_ty>::execute_transition(&mut ctx, &ev, #region_id, &inspect_event_ctx); }
+            };
+
+            quote! {
+                #stop_sub
+
+                #timers_exit
+
+                #execute
+
+                #start_sub
+
+                #timers_enter
+            }
+        };
+
+        // Stopping the machine: exits the region's current state.
+        let stop_body = |state: &FsmState, region_id: usize| -> TokenStream {
+            let state_ty = &state.ty;
+            let stop_sub = sub_machine_lifecycle(sub_machine_state(Some(state.clone())), false);
+            let timers_exit = state_timers(Some(state.clone()), false);
+
+            if is_async {
+                quote! {
+                    #stop_sub
+                    #timers_exit
+                    <#state_ty>::execute_on_exit(&mut rc, &inspect_event_ctx).await;
+                    *rc.current_state = finny::FsmCurrentState::Stopped;
+                }
+            } else {
+                quote! {
+                    #stop_sub
+                    #timers_exit
+                    <#state_ty>::execute_on_exit(&mut ctx, #region_id);
+                    ctx.backend.current_states[#region_id] = finny::FsmCurrentState::Stopped;
+                }
+            }
+        };
+
+        let state_variant = |state: &FsmState| -> syn::Type {
+            FsmTypes::new(&state.ty, &fsm.base.fsm_generics).get_fsm_no_generics_ty().clone()
         };
 
         // Sub machines that are the states of this region.
@@ -832,6 +852,17 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                     });
                 }
 
+                for state in &region.states {
+                    let variant = state_variant(state);
+                    let body = stop_body(state, region_id);
+                    arms.append_all(quote! {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #variant), finny::FsmEvent::Stop ) => {
+                            #region_context
+                            #body
+                        },
+                    });
+                }
+
                 // do not dispatch timers if the machine is stopped
                 arms.append_all(quote! {
                     (finny::FsmCurrentState::Stopped, finny::FsmEvent::Timer(_)) => (),
@@ -848,10 +879,12 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 for (sub, sub_variant) in region_submachines(region) {
                     let dispatch = dispatch_to_sub(&sub, quote! { finny::FsmEvent::Timer(*timer_id) });
                     arms.append_all(quote! {
-                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => {
+                        (finny::FsmCurrentState::State(#states_enum_ty :: #sub_variant), finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => {
                             #region_context
                             return #dispatch;
                         },
+                        // a timer of a sub machine that isn't active anymore
+                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (_))) => (),
                     });
                 }
 
@@ -945,6 +978,20 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                     arm_id += 1;
                 }
 
+                for state in &region.states {
+                    let variant = state_variant(state);
+                    let body = stop_body(state, region_id);
+                    select_arms.append_all(quote! {
+                        ( finny::FsmCurrentState::State(#states_enum_ty :: #variant), finny::FsmEvent::Stop ) => Some(#arm_id),
+                    });
+                    execute_arms.append_all(quote! {
+                        Some(#arm_id) => {
+                            #body
+                        },
+                    });
+                    arm_id += 1;
+                }
+
                 select_arms.append_all(quote! {
                     (finny::FsmCurrentState::Stopped, finny::FsmEvent::Timer(_)) => None,
                 });
@@ -962,7 +1009,9 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 for (sub, sub_variant) in region_submachines(region) {
                     let dispatch = dispatch_to_sub(&sub, quote! { finny::FsmEvent::Timer(*timer_id) });
                     select_arms.append_all(quote! {
-                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => Some(#arm_id),
+                        (finny::FsmCurrentState::State(#states_enum_ty :: #sub_variant), finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => Some(#arm_id),
+                        // a timer of a sub machine that isn't active anymore
+                        (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (_))) => None,
                     });
                     execute_arms.append_all(quote! {
                         Some(#arm_id) => {
@@ -1488,47 +1537,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
         code
     };
 
-    // submachine restart
-    
-    let sub_restart = {
-
-        let subs: Vec<_> = fsm.fsm.states.iter().filter_map(|(ty, state)| match state.kind {
-            FsmStateKind::SubMachine(ref sub) => Some((ty, state, sub.clone())),
-            _ => None
-        }).collect();
-
-
-        if subs.len() == 0 {
-            TokenStream::new()
-        } else {
-
-            let mut q = TokenStream::new();
-
-            for (sub_ty, state, sub) in subs {
-
-                q.append_all(quote! {
-
-                    impl #fsm_generics_impl finny::FsmBackendResetSubmachine< #fsm_ty #fsm_generics_type , #sub_ty > for #fsm_ty #fsm_generics_type
-                        #fsm_generics_where
-                    {
-                        
-                        fn reset<I>(backend: &mut finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >, inspect_event_ctx: &mut I)
-                            where I: finny::Inspect
-                        {
-                            let sub_fsm: &mut #sub_ty = backend.states.as_mut();
-                            sub_fsm.backend.current_states = Default::default();
-                            inspect_event_ctx.info("Setting the state of the submachine to Start.");
-                        }
-                    }
-
-                });
-
-            }
-
-            q
-        }
-    };
-
     let fsm_meta = generate_fsm_meta(&fsm);
 
     let mut q = quote! {
@@ -1545,8 +1553,6 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
         #builder
 
         #timers
-
-        #sub_restart
 
         #fsm_meta
     };

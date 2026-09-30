@@ -106,6 +106,11 @@ impl<A, B> Inspect for InspectChain<A, B>
         self.a.info(msg);
         self.b.info(msg);
     }
+
+    fn on_queued_event_error<F: FsmBackend>(&self, event: &<F as FsmBackend>::Events, error: &crate::FsmError) {
+        self.a.on_queued_event_error::<F>(event, error);
+        self.b.on_queued_event_error::<F>(event, error);
+    }
 }
 
 impl<A, B> InspectEvent for InspectChain<A, B>

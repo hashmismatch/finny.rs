@@ -31,6 +31,8 @@ impl<F> FsmTimers<F> for TimersStd<F>
     where F: FsmBackend
 {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &crate::TimerSettings) -> crate::FsmResult<()> {
+        settings.validate()?;
+
         // try to cancel any existing ones
         self.cancel(id.clone())?;
 
@@ -45,6 +47,10 @@ impl<F> FsmTimers<F> for TimersStd<F>
 
     fn cancel(&mut self, id: <F as FsmBackend>::Timers) -> crate::FsmResult<()> {
         self.timers.retain(|(timer_id, _)| *timer_id != id);
+        // and the ticks it missed
+        if self.pending_intervals.as_ref().map(|(pending_id, _)| *pending_id == id).unwrap_or(false) {
+            self.pending_intervals = None;
+        }
         Ok(())
     }
 
@@ -68,7 +74,7 @@ impl<F> FsmTimers<F> for TimersStd<F>
                 },
                 StdTimer::Interval { started_at, interval } if now.duration_since(*started_at) >= *interval => {
                     let t = now.duration_since(*started_at);
-                    let times = ((t.as_secs_f32() / interval.as_secs_f32()).floor() as usize) - 1;
+                    let times = usize::try_from(t.as_nanos() / interval.as_nanos()).unwrap_or(usize::MAX) - 1;
                     if times > 0 {
                         self.pending_intervals = Some((timer_id.clone(), times));
                     }

@@ -1,6 +1,6 @@
 //! Structures that describe the FSM. Used by inspection frontends and documentation.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use serde::{Serialize, Deserialize};
 
 pub mod plantuml;
@@ -9,14 +9,14 @@ pub mod plantuml;
 pub struct FinnyFsm {
     pub fsm_id: String,
     pub context_id: String,
-    pub regions: HashMap<usize, FinnyRegion>
+    pub regions: BTreeMap<usize, FinnyRegion>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct FinnyRegion {
     pub region_id: usize,
-    pub states: HashMap<String, FinnyStateKind>,
-    pub transitions: HashMap<String, FinnyTransition>
+    pub states: BTreeMap<String, FinnyStateKind>,
+    pub transitions: BTreeMap<String, FinnyTransition>
 }
 
 

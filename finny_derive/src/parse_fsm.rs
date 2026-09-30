@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 use proc_macro2::Span;
 use syn::{ExprMethodCall, ItemFn, Type, spanned::Spanned};
@@ -53,8 +53,8 @@ fn check_closure(mode: FsmMode, kind: ClosureKind, closure: &syn::ExprClosure) -
 
 pub struct FsmParser {
     initial_states: Vec<syn::Type>,
-    states: HashMap<Type, FsmState>,
-    events: HashMap<Type, FsmEvent>,
+    states: IndexMap<Type, FsmState>,
+    events: IndexMap<Type, FsmEvent>,
     options: FsmCodegenOptions,
     base: FsmFnBase,
     timer_id: usize
@@ -64,8 +64,8 @@ impl FsmParser {
     pub fn new(base: FsmFnBase) -> Self {
         FsmParser {
             initial_states: vec![],
-            states: HashMap::new(),
-            events: HashMap::new(),
+            states: IndexMap::new(),
+            events: IndexMap::new(),
             options: FsmCodegenOptions::new(),
             base,
             timer_id: 1
@@ -178,8 +178,8 @@ impl FsmParser {
         Ok(())
     }
 
-    fn parse_event_guard_action(mode: FsmMode, event_method_calls: &[MethodOverviewRef]) -> syn::Result<EventGuardAction> {
-        let mut guard_action = EventGuardAction { guard: None, action: None, type_hint: None };
+    fn parse_event_guard_action(mode: FsmMode, span: Span, event_method_calls: &[MethodOverviewRef]) -> syn::Result<EventGuardAction> {
+        let mut guard_action = EventGuardAction { guard: None, action: None, type_hint: None, span };
         
         for method in event_method_calls {
             match method {
@@ -221,14 +221,14 @@ impl FsmParser {
 
     fn parse_state_on_event(mode: FsmMode, state: &FsmState, event: &mut FsmEvent, method_calls: &[MethodOverviewRef]) -> syn::Result<()> {
         match method_calls {
-            [MethodOverviewRef { name: "transition_to", generics: [ty_to], .. }, ev @ .. ] => {
-                event.transitions.push(FsmEventTransition::State(state.ty.clone(), ty_to.clone(), Self::parse_event_guard_action(mode, ev)?));                
+            [m @ MethodOverviewRef { name: "transition_to", generics: [ty_to], .. }, ev @ .. ] => {
+                event.transitions.push(FsmEventTransition::State(state.ty.clone(), ty_to.clone(), Self::parse_event_guard_action(mode, m.call.method.span(), ev)?));
             },
-            [MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
-                event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(mode, ev)?));
+            [m @ MethodOverviewRef { name: "internal_transition", generics: [], ..}, ev @ ..] => {
+                event.transitions.push(FsmEventTransition::InternalTransition(state.ty.clone(), Self::parse_event_guard_action(mode, m.call.method.span(), ev)?));
             },
-            [MethodOverviewRef { name: "self_transition", generics: [], ..}, ev @ ..] => {
-                event.transitions.push(FsmEventTransition::SelfTransition(state.ty.clone(), Self::parse_event_guard_action(mode, ev)?));
+            [m @ MethodOverviewRef { name: "self_transition", generics: [], ..}, ev @ ..] => {
+                event.transitions.push(FsmEventTransition::SelfTransition(state.ty.clone(), Self::parse_event_guard_action(mode, m.call.method.span(), ev)?));
             },
             [] => (),
             _ => { return Err(syn::Error::new(method_calls.first().map(|m| m.call.span()).unwrap_or(Span::call_site()), "Unsupported methods.")); }
@@ -242,6 +242,25 @@ impl FsmParser {
 
         if self.initial_states.len() == 0 {
             return Err(syn::Error::new(input_fn.span(), "Missing the initial state declaration! Use the method 'initial_state' or 'initial_states'."));
+        }
+
+        // The transitions of a state for the same event are tried in the order of their declaration.
+        // Everything after a transition without a guard is unreachable.
+        for (_, ev) in self.events.iter() {
+            let mut unguarded: Vec<&Type> = vec![];
+            for t in &ev.transitions {
+                let (state, action) = match t {
+                    FsmEventTransition::State(from, _, action) => (from, action),
+                    FsmEventTransition::InternalTransition(state, action) | FsmEventTransition::SelfTransition(state, action) => (state, action)
+                };
+
+                if unguarded.contains(&state) {
+                    return Err(syn::Error::new(action.span, "This transition can never be taken: an earlier transition of this state for the same event has no guard. The transitions are tried in the order of their declaration, add a guard to the earlier transition or remove this one."));
+                }
+                if action.guard.is_none() {
+                    unguarded.push(state);
+                }
+            }
         }
         
         // build and validate the transitions table
@@ -259,7 +278,7 @@ impl FsmParser {
 
             // start transition
             for initial_state in &self.initial_states {
-                let fsm_initial_state = self.states.get(&initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
+                let fsm_initial_state = self.states.get(initial_state).ok_or(syn::Error::new(initial_state.span(), "The initial state is not refered in the builder. Use the 'state' method on the builder."))?;
 
                 transitions.push(FsmTransition {
                     transition_ty: generate_transition_ty(&self.base, &mut i, &None),

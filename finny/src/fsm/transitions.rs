@@ -105,49 +105,6 @@ pub trait FsmTransitionFsmStart<F: FsmBackend, TInitialState> {
         cs[region] = FsmCurrentState::State(<TInitialState>::fsm_state());
     }
 
-    /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary. Subsequent
-    /// dispatches are handled using the main dispatch table.
-    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &I) 
-        -> FsmDispatchResult
-        where
-        TInitialState: FsmDispatch,
-            Q: FsmEventQueue<F>,
-            I: Inspect,
-            <F as FsmBackend>::Events: From<<TInitialState as FsmBackend>::Events>,
-            <F as FsmBackend>::States: AsMut<TInitialState>,
-            TInitialState: DerefMut<Target = FsmBackendImpl<TInitialState>>,
-            T: FsmTimers<F>,
-            <F as FsmBackend>::Timers: From<<TInitialState as FsmBackend>::Timers>
-    {
-        let sub_backend: &mut TInitialState = context.backend.states.as_mut();
-        let states = sub_backend.get_current_states();
-        if FsmCurrentState::all_stopped(states.as_ref()) {
-            let mut queue_adapter = FsmEventQueueSub {
-                parent: context.queue,
-                _parent_fsm: PhantomData::<F>::default(),
-                _sub_fsm: PhantomData::<TInitialState>::default()
-            };
-
-            let mut timers_adapter = FsmTimersSub {
-                parent: context.timers,
-                _parent_fsm: core::marker::PhantomData::<F>::default(),
-                _sub_fsm: core::marker::PhantomData::<TInitialState>::default()
-            };
-
-            let mut inspect = inspect_event_ctx.for_sub_machine::<TInitialState>();
-
-            let sub_dispatch_context = DispatchContext {
-                backend: sub_backend,
-                inspect: &mut inspect,
-                queue: &mut queue_adapter,
-                timers: &mut timers_adapter
-            };
-
-            return TInitialState::dispatch_event(sub_dispatch_context, FsmEvent::Start);
-        }
-
-        Ok(())
-    }
 }
 
 /// A transition's action that operates on both the exit and entry states.
@@ -189,49 +146,6 @@ pub trait FsmTransitionAction<F: FsmBackend, E, TStateFrom, TStateTo> {
         cs[region] = FsmCurrentState::State(<TStateTo>::fsm_state());
     }
 
-    /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary. Subsequent
-    /// dispatches are handled using the main dispatch table.
-    fn execute_on_sub_entry<'a, 'b, 'c, 'd, Q, I, T>(context: &'d mut DispatchContext<'a, 'b, 'c, F, Q, I, T>, _region: FsmRegionId, inspect_event_ctx: &I) 
-        -> FsmDispatchResult
-        where
-            TStateTo: FsmDispatch,
-            Q: FsmEventQueue<F>,
-            I: Inspect,
-            <F as FsmBackend>::Events: From<<TStateTo as FsmBackend>::Events>,
-            <F as FsmBackend>::States: AsMut<TStateTo>,
-            TStateTo: DerefMut<Target = FsmBackendImpl<TStateTo>>,
-            T: FsmTimers<F>,
-            <F as FsmBackend>::Timers: From<<TStateTo as FsmBackend>::Timers>
-    {
-        let sub_backend: &mut TStateTo = context.backend.states.as_mut();
-        let states = sub_backend.get_current_states();
-        if FsmCurrentState::all_stopped(states.as_ref()) {
-            let mut queue_adapter = FsmEventQueueSub {
-                parent: context.queue,
-                _parent_fsm: PhantomData::<F>::default(),
-                _sub_fsm: PhantomData::<TStateTo>::default()
-            };
-
-            let mut timers_adapter = FsmTimersSub {
-                parent: context.timers,
-                _parent_fsm: core::marker::PhantomData::<F>::default(),
-                _sub_fsm: core::marker::PhantomData::<TStateTo>::default()
-            };
-
-            let mut inspect = inspect_event_ctx.for_sub_machine::<TStateTo>();
-
-            let sub_dispatch_context = DispatchContext {
-                backend: sub_backend,
-                inspect: &mut inspect,
-                queue: &mut queue_adapter,
-                timers: &mut timers_adapter
-            };
-
-            return TStateTo::dispatch_event(sub_dispatch_context, FsmEvent::Start);
-        }
-
-        Ok(())
-    }
 }
 
 /// An internal or self action can only mutate itself.

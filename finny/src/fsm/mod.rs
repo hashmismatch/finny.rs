@@ -36,7 +36,9 @@ pub enum FsmError {
     NoTransition,
     QueueOverCapacity,
     NotSupported,
-    TimerNotStarted
+    TimerNotStarted,
+    /// A renewing timer needs a non-zero timeout.
+    InvalidTimerSettings
 }
 
 pub type FsmDispatchResult = FsmResult<()>;

@@ -139,6 +139,17 @@ pub struct TimerSettings
     pub renew: bool
 }
 
+impl TimerSettings {
+    /// A renewing timer needs a non-zero timeout, otherwise it would trigger continuously.
+    pub fn validate(&self) -> FsmResult<()> {
+        if self.renew && self.timeout.is_zero() {
+            Err(FsmError::InvalidTimerSettings)
+        } else {
+            Ok(())
+        }
+    }
+}
+
 pub trait FsmTimers<F>
     where F: FsmBackend
 {

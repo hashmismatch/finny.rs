@@ -73,6 +73,21 @@ fn main() -> FsmResult<()> {
     Ok(())
 }
 ```
+### Semantics
+
+* **Run to completion.** `start`, `dispatch` and `stop` dispatch their event and then every event
+  that the actions enqueued, in order. A queued event that fails, most commonly because the
+  current state has no transition for it, is reported to the inspector with
+  `Inspect::on_queued_event_error`.
+* **Transition priority.** A state can have several transitions for the same event. They are
+  tried in the order of their declaration, the first one whose guard passes is taken. A
+  transition after one without a guard could never be taken, so it's rejected at compile time.
+* **Sub-machines.** Leaving a sub-machine's state, including a self transition, first stops the
+  sub-machine: its active states are exited and their timers cancelled. Entering the state starts
+  it again from its initial state.
+* **Stopping.** `stop` exits the active states of all the regions, including their timers and
+  sub-machines. The machine can be started again.
+
 ### Async FSMs
 
 With the `async` feature, FSMs declared with `FsmAsyncBuilder` have async state and transition

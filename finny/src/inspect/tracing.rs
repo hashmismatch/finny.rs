@@ -1,6 +1,6 @@
 extern crate alloc;
 
-use ::tracing::{Span, error, info, info_span};
+use ::tracing::{Span, error, info, info_span, warn};
 use crate::{FsmBackend, FsmBackendImpl, FsmEvent, Inspect, InspectEvent, InspectFsmEvent};
 use crate::lib::*;
 use core::fmt::Debug;
@@ -96,6 +96,10 @@ impl Inspect for InspectTracing
 
     fn info(&self, msg: &str) {
         self.scope(|| info!("{}", msg));
+    }
+
+    fn on_queued_event_error<F: FsmBackend>(&self, event: &<F as FsmBackend>::Events, error: &crate::FsmError) {
+        self.scope(|| warn!(event = event.as_ref(), error = ?error, "A queued event failed"));
     }
 }
 

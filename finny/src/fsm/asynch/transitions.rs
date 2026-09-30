@@ -4,7 +4,7 @@ use crate::lib::*;
 use crate::{EventContext, FsmBackend, FsmBackendImpl, FsmCurrentState, FsmDispatchResult, FsmEvent, FsmEventQueue,
     FsmStateTransitionAsMut, FsmStates, FsmTimers, Inspect, InspectFsmEvent};
 
-use super::{FsmAsyncDispatch, RegionContext, start_submachine_async};
+use super::RegionContext;
 
 /// A state's async entry and exit actions.
 #[allow(async_fn_in_trait)]
@@ -68,20 +68,6 @@ pub trait FsmTransitionFsmStartAsync<F: FsmBackend, TInitialState> {
 
         *rc.current_state = FsmCurrentState::State(<TInitialState>::fsm_state());
     }
-
-    /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary.
-    async fn execute_on_sub_entry<S, Q, T, I>(rc: &mut RegionContext<'_, F, S, Q, T>, inspect: &I) -> FsmDispatchResult
-        where
-            TInitialState: FsmAsyncDispatch + DerefMut<Target = FsmBackendImpl<TInitialState>>,
-            S: AsMut<TInitialState>,
-            <F as FsmBackend>::Events: From<<TInitialState as FsmBackend>::Events>,
-            <F as FsmBackend>::Timers: From<<TInitialState as FsmBackend>::Timers>,
-            Q: FsmEventQueue<F>,
-            T: FsmTimers<F>,
-            I: Inspect
-    {
-        start_submachine_async::<F, TInitialState, S, Q, T, I>(rc, inspect).await
-    }
 }
 
 /// A transition's async action that operates on both the exit and entry states.
@@ -119,20 +105,6 @@ pub trait FsmTransitionActionAsync<F: FsmBackend, E, TStateFrom, TStateTo> {
         <TStateTo>::execute_on_entry(rc, &inspect_ctx).await;
 
         *rc.current_state = FsmCurrentState::State(<TStateTo>::fsm_state());
-    }
-
-    /// Executed after the transition on the parent FSM (F) and triggers the first `start()` call if necessary.
-    async fn execute_on_sub_entry<S, Q, T, I>(rc: &mut RegionContext<'_, F, S, Q, T>, inspect: &I) -> FsmDispatchResult
-        where
-            TStateTo: FsmAsyncDispatch + DerefMut<Target = FsmBackendImpl<TStateTo>>,
-            S: AsMut<TStateTo>,
-            <F as FsmBackend>::Events: From<<TStateTo as FsmBackend>::Events>,
-            <F as FsmBackend>::Timers: From<<TStateTo as FsmBackend>::Timers>,
-            Q: FsmEventQueue<F>,
-            T: FsmTimers<F>,
-            I: Inspect
-    {
-        start_submachine_async::<F, TStateTo, S, Q, T, I>(rc, inspect).await
     }
 }
 

@@ -118,7 +118,7 @@ pub async fn dispatch_to_submachine_async<F, TSubMachine, S, Q, T, I>(rc: &mut R
     TSubMachine::dispatch_event(sub_dispatch_ctx, ev).await
 }
 
-/// Starts an async sub-machine after its state was entered, unless it was already running.
+/// Starts an async sub-machine after its state was entered, unless it is already running.
 pub async fn start_submachine_async<F, TSubMachine, S, Q, T, I>(rc: &mut RegionContext<'_, F, S, Q, T>, inspect: &I) -> FsmDispatchResult
     where
         F: FsmBackend,
@@ -139,12 +139,25 @@ pub async fn start_submachine_async<F, TSubMachine, S, Q, T, I>(rc: &mut RegionC
     Ok(())
 }
 
-/// Sets the state of the sub-machine to stopped, so the next entry into it starts it again.
-pub fn reset_submachine<TSubMachine, I>(sub_fsm: &mut TSubMachine, inspect: &I)
-    where TSubMachine: FsmBackend + DerefMut<Target = FsmBackendImpl<TSubMachine>>, I: Inspect
+/// Stops an async sub-machine before its state is exited: exits its active states, including
+/// their timers and the nested sub-machines.
+pub async fn stop_submachine_async<F, TSubMachine, S, Q, T, I>(rc: &mut RegionContext<'_, F, S, Q, T>, inspect: &I) -> FsmDispatchResult
+    where
+        F: FsmBackend,
+        S: AsMut<TSubMachine>,
+        <F as FsmBackend>::Events: From<<TSubMachine as FsmBackend>::Events>,
+        <F as FsmBackend>::Timers: From<<TSubMachine as FsmBackend>::Timers>,
+        TSubMachine: FsmAsyncDispatch + DerefMut<Target = FsmBackendImpl<TSubMachine>>,
+        Q: FsmEventQueue<F>,
+        T: FsmTimers<F>,
+        I: Inspect
 {
-    sub_fsm.current_states = Default::default();
-    inspect.info("Setting the state of the submachine to Start.");
+    let sub_fsm: &mut TSubMachine = rc.states.as_mut();
+    if FsmCurrentState::all_stopped(sub_fsm.get_current_states().as_ref()) {
+        return Ok(());
+    }
+
+    dispatch_to_submachine_async::<F, TSubMachine, S, Q, T, I>(rc, FsmEvent::Stop, inspect).await
 }
 
 enum DeferredTimerOp<T> {
@@ -179,6 +192,7 @@ impl<F: FsmBackend> FsmTimersDeferred<F> {
 
 impl<F: FsmBackend> FsmTimers<F> for FsmTimersDeferred<F> {
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &TimerSettings) -> crate::FsmResult<()> {
+        settings.validate()?;
         self.ops.push(DeferredTimerOp::Create(id, settings.clone()));
         Ok(())
     }

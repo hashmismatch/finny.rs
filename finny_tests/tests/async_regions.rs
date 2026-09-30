@@ -2,7 +2,7 @@
 
 use std::{sync::atomic::{AtomicBool, AtomicUsize, Ordering}, time::Duration};
 
-use finny::{FsmAsyncFactory, FsmCurrentState, FsmError, FsmEventQueue, FsmEventQueueSender, FsmEventQueueVec, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmAsyncBuilder}, finny_fsm, inspect::tracing::InspectTracing};
+use finny::{FsmAsyncFactory, FsmCurrentState, FsmError, FsmEvent, FsmEventQueue, FsmEventQueueSender, FsmEventQueueVec, FsmResult, FsmTimersNull, decl::{BuiltFsm, FsmAsyncBuilder}, finny_fsm, inspect::tracing::InspectTracing};
 use tokio::sync::Barrier;
 
 #[derive(Default)]
@@ -207,7 +207,8 @@ async fn test_concurrent_regions() -> FsmResult<()> {
 
     let mut fsm = BarrierMachine::new_with(BarrierCtx::default(), FsmEventQueueVec::new(), InspectTracing::new(), FsmTimersNull)?;
 
-    tokio::time::timeout(Duration::from_secs(5), fsm.start())
+    // only the start event, keep the enqueued events in the queue
+    tokio::time::timeout(Duration::from_secs(5), fsm.dispatch_single_event(FsmEvent::Start))
         .await
         .expect("the regions didn't run concurrently")?;
 
