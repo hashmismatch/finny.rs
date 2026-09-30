@@ -2,7 +2,7 @@
 // style of PlantUML's state diagrams.
 
 import cytoscape from 'cytoscape';
-import { pathKey, storage } from './util.js';
+import { formatMs, pathKey, storage, timerDue, timerKey } from './util.js';
 
 const FONT_FAMILY = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
 const STATE_FONT = `12px ${FONT_FAMILY}`;
@@ -19,8 +19,26 @@ const COLORS = {
   active: '#E8590C',
   activeFill: '#FFE7A3',
   rejected: '#C92A2A',
-  selected: '#1C7ED6'
+  selected: '#1C7ED6',
+  timer: '#0C8599'
 };
+
+/** The status of a timer, after its name in the state's box. Empty when it's not running. */
+export function timerSuffix(status, now) {
+  if (!status) return '';
+  switch (status.status) {
+    case 'running': {
+      const left = timerDue(status) - now;
+      return left > 0 ? `▶ ${formatMs(left)}` : '▶ due';
+    }
+    case 'expired': return '✓ fired';
+    case 'failed': return '✕ failed';
+    case 'disabled': return '– disabled';
+    default: return '';
+  }
+}
+
+const timerLine = (id, suffix) => (suffix ? `⏱ ${id}  ${suffix}` : `⏱ ${id}`);
 
 let measureContext = null;
 function measure(text, font) {
@@ -37,27 +55,33 @@ function transitionLabel(t) {
   return label;
 }
 
-/** The label of a simple state, with PlantUML's compartment for the timers and the internal transitions. */
-function stateLabel(id, lines) {
-  if (!lines.length) return { label: id, width: Math.max(70, measure(id, STATE_FONT) + 28), height: 34 };
-  const width = Math.max(measure(id, STATE_FONT), ...lines.map((l) => measure(l, STATE_FONT)));
+/**
+ * The label of a simple state, with PlantUML's compartment for the timers and the internal
+ * transitions. The width fits `reserved`, the widest lines that the label can have.
+ */
+function stateLabel(id, lines, reserved = lines) {
+  if (!lines.length) return { label: id, width: Math.max(70, measure(id, STATE_FONT) + 28), height: 34, divider: '' };
+  const width = Math.max(measure(id, STATE_FONT), ...reserved.map((l) => measure(l, STATE_FONT)));
   let divider = '';
   while (measure(divider, STATE_FONT) < width) divider += '─';
   return {
     label: [id, divider, ...lines].join('\n'),
     width: Math.max(70, width + 28),
-    height: (lines.length + 2) * LINE_HEIGHT + 10
+    height: (lines.length + 2) * LINE_HEIGHT + 10,
+    divider
   };
 }
 
 /**
  * Builds the elements of the diagram and the ELK graph for their layout.
- * `byTransition`: transition type name -> element id; `byState`: `${pathKey}|${stateId}` -> node id.
+ * `byTransition`: transition type name -> element id; `byState`: `${pathKey}|${stateId}` -> node id;
+ * `byTimer`: `${pathKey}|${timerId}` -> node id.
  */
 export function buildModel(info) {
   const elements = [];
   const byTransition = new Map();
   const byState = new Map();
+  const byTimer = new Map();
   const elkNodes = new Map();
   const elkRoot = { id: 'root', children: [], edges: [] };
 
@@ -116,10 +140,15 @@ export function buildModel(info) {
             { layoutOptions: { 'elk.padding': '[top=34,left=16,bottom=16,right=16]' } });
           addMachine(s.sub_machine, [...path, s.type_name], id, valuePath);
         } else {
-          const lines = [...s.timers.map((t) => `⏱ ${t.id}`), ...(internals.get(s.id) ?? [])];
-          const { label, width, height } = stateLabel(s.id, lines);
-          addNode({ id, parent: container, kind: 'state', label, width, height, stateId: s.id, typeName: s.type_name, valuePath },
-            { width, height });
+          const timerIds = s.timers.map((t) => t.id);
+          const internalLines = internals.get(s.id) ?? [];
+          const lines = [...timerIds.map((t) => timerLine(t)), ...internalLines];
+          // room for the widest status of the timers
+          const reserved = [...timerIds.flatMap((t) => ['▶ 00.0s', '✕ failed', '– disabled'].map((sfx) => timerLine(t, sfx))), ...internalLines];
+          const { label, width, height, divider } = stateLabel(s.id, lines, reserved);
+          addNode({ id, parent: container, kind: 'state', label, width, height, stateId: s.id, typeName: s.type_name, valuePath,
+            timerIds, internalLines, divider }, { width, height });
+          for (const t of timerIds) byTimer.set(timerKey(path, t), id);
         }
       }
 
@@ -170,7 +199,7 @@ export function buildModel(info) {
     if (!node.children.length) delete node.children;
   }
 
-  return { elements, elkRoot, byTransition, byState };
+  return { elements, elkRoot, byTransition, byState, byTimer };
 }
 
 const ELK_OPTIONS = {
@@ -310,6 +339,10 @@ function stylesheet() {
     {
       selector: 'node[kind = "machine"].active',
       style: { 'background-color': '#FFF8E1' }
+    },
+    {
+      selector: 'node.timer-running',
+      style: { 'outline-width': 2, 'outline-color': COLORS.timer, 'outline-offset': 3, 'outline-style': 'dashed' }
     },
     {
       selector: 'node.internal-taken',
@@ -641,6 +674,35 @@ export class Diagram {
       for (const id of wanted.taken) cy.getElementById(id).flashClass('pulse', 350);
     }
     this.lastSeq = snapshot?.seq ?? null;
+  }
+
+  /**
+   * The status of the timers after their names in the states' boxes, at the time `now`. The
+   * states with a running timer are outlined.
+   */
+  showTimers(snapshot, now) {
+    const cy = this.cy;
+    const byNode = new Map();
+    for (const t of snapshot?.timers ?? []) {
+      const id = this.model.byTimer.get(timerKey(t.path, t.timer));
+      if (!id) continue;
+      if (!byNode.has(id)) byNode.set(id, new Map());
+      byNode.get(id).set(t.timer, t);
+    }
+
+    cy.batch(() => {
+      cy.nodes('[kind = "state"]').forEach((node) => {
+        const d = node.data();
+        if (!d.timerIds?.length) return;
+        const statuses = byNode.get(node.id());
+        const lines = d.timerIds.map((t) => timerLine(t, timerSuffix(statuses?.get(t), now)));
+        const label = [d.stateId, d.divider, ...lines, ...d.internalLines].join('\n');
+        if (label !== d.label) node.data('label', label);
+
+        const running = !!statuses && [...statuses.values()].some((t) => t.status === 'running');
+        if (running !== node.hasClass('timer-running')) node.toggleClass('timer-running', running);
+      });
+    });
   }
 
   select(nodeId, transitionTypeName) {

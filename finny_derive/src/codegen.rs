@@ -1228,10 +1228,14 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                         restore_timers.append_all(quote! {
                             if let Some((id, settings)) = backend.states. #timer_field .instance.as_ref().map(|i| (i.id.clone(), i.settings)) {
                                 let log = inspect.for_timer::<Self>(id.clone());
-                                match timers.create(id, &settings.to_timer_settings()) {
-                                    Ok(()) => log.info("Restored the timer."),
+                                match timers.create(id.clone(), &settings.to_timer_settings()) {
+                                    Ok(()) => {
+                                        log.info("Restored the timer.");
+                                        log.on_timer::<Self>(&id, &finny::InspectTimerEvent::Started { settings, restored: true });
+                                    },
                                     Err(ref e) => {
                                         log.on_error("Failed to restore the timer", e);
+                                        log.on_timer::<Self>(&id, &finny::InspectTimerEvent::Failed);
                                         backend.states. #timer_field .instance = None;
                                     }
                                 }

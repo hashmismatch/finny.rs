@@ -15,6 +15,8 @@
   --error-soft: #fdecec;
   --selected: #1c7ed6;
   --selected-soft: #e7f1fc;
+  --timer: #0c8599;
+  --timer-soft: #e3f6f8;
   --paper: #fdfcf8;
   --paper-dot: #e8e3d9;
   --j-string: #0b7a3e;
@@ -46,6 +48,8 @@
     --error-soft: #3d1d1d;
     --selected: #74c0fc;
     --selected-soft: #1b2c3d;
+    --timer: #3bc9db;
+    --timer-soft: #14302f;
     --paper: #f7f5ef;
     --paper-dot: #dcd6ca;
     --j-string: #8ce99a;
@@ -74,6 +78,8 @@
   --error-soft: #3d1d1d;
   --selected: #74c0fc;
   --selected-soft: #1b2c3d;
+  --timer: #3bc9db;
+  --timer-soft: #14302f;
   --j-string: #8ce99a;
   --j-number: #91c8ff;
   --j-bool: #faa2c1;
@@ -267,6 +273,7 @@ code, .type-name { font-family: var(--mono); font-size: 12px; }
 .legend .lg-active { height: 10px; border: 2px solid #e8590c; background: #ffe7a3; border-radius: 3px; }
 .legend .lg-taken { border-color: #e8590c; }
 .legend .lg-rejected { border-top: 2px dashed #c92a2a; }
+.legend .lg-timer { height: 10px; border: 2px dashed #0c8599; border-radius: 3px; }
 
 .diagram-banner {
   position: absolute;
@@ -397,6 +404,7 @@ code, .type-name { font-family: var(--mono); font-size: 12px; }
 .badge-ok { background: var(--ok-soft); color: var(--ok); }
 .badge-error { background: var(--error-soft); color: var(--error); }
 .badge-muted { background: var(--surface-2); color: var(--muted); }
+.badge-running { background: var(--timer-soft); color: var(--timer); }
 
 .chip {
   display: inline-flex;
@@ -613,3 +621,41 @@ ul.history { list-style: none; margin: 0; padding: 0; }
   padding: 0 5px;
   border-radius: 4px;
 }
+
+/* Timers */
+
+.timer-group h4 { margin: 10px 0 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.timers { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+
+.timer-row {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 7px 9px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.timer-row:hover { border-color: var(--muted); }
+.timer-row.selected { border-color: var(--selected); box-shadow: 0 0 0 1px var(--selected); }
+.timer-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.timer-head .spacer { flex: 1; }
+.timer-name { white-space: nowrap; }
+.timer-head .chip { margin: 0; }
+.timer-detail { font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.timer-bar {
+  display: block;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.timer-bar > span { display: block; height: 100%; background: var(--timer); transition: width 0.25s linear; }
+.timer-bar.due > span { background: var(--active); }
+.timer-bar.done > span { background: var(--ok); }

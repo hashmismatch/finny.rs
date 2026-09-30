@@ -1,4 +1,5 @@
 import { h } from 'preact';
+import { useEffect, useState } from 'preact/hooks';
 import htm from 'htm';
 
 export const html = htm.bind(h);
@@ -27,6 +28,43 @@ export function formatDuration(us) {
   if (us < 1000) return `${us} µs`;
   if (us < 1000000) return `${(us / 1000).toFixed(us < 10000 ? 2 : 1)} ms`;
   return `${(us / 1000000).toFixed(2)} s`;
+}
+
+/** A timer's duration: `450ms`, `4.2s`, `42s`, `3m05s`. */
+export function formatMs(ms) {
+  ms = Math.max(0, ms);
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 10000) return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 60000) return `${Math.floor(ms / 1000)}s`;
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}m${String(s % 60).padStart(2, '0')}s`;
+}
+
+/** When a running timer triggers next, in milliseconds since the UNIX epoch. */
+export function timerDue(t) {
+  return (t.last_triggered_ms ?? t.started_ms) + t.timeout_ms;
+}
+
+export function timerKey(path, timer) {
+  return `${pathKey(path)}|${timer}`;
+}
+
+/**
+ * The time that the timers of a snapshot are shown at. The newest snapshot is followed live,
+ * with the clock ticking while a timer runs, an older one is shown at the time it was taken.
+ */
+export function useTimersNow(snapshot, live) {
+  const running = live && !!snapshot?.timers?.some((t) => t.status === 'running');
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [running]);
+  if (!snapshot) return now;
+  const taken = snapshot.timestamp_ms + snapshot.duration_us / 1000;
+  return live ? Math.max(now, taken) : taken;
 }
 
 function singleKey(value) {

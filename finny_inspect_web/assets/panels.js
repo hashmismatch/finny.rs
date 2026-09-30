@@ -1,9 +1,9 @@
 // The panels next to the diagram: the values, the event, the trace and the history.
 
 import { useState } from 'preact/hooks';
-import { html, shortName, formatTime, formatDuration, eventLabel, getIn, pathKey } from './util.js';
+import { html, shortName, formatTime, formatDuration, formatMs, eventLabel, getIn, pathKey, timerDue, timerKey, useTimersNow } from './util.js';
 import { JsonTree, NO_PREV } from './json-tree.js';
-import { current, previous, snapshots, selectedNode, selectedTransition, selectSeq, meta, transitionNames } from './api.js';
+import { current, previous, snapshots, selectedNode, selectedTransition, selectSeq, meta, transitionNames, follow } from './api.js';
 
 const OPT_IN_HINT = html`
   <div class="hint">
@@ -201,4 +201,123 @@ export function HistoryPanel() {
             </button>
           </li>`)}
       </ul>`}`;
+}
+
+/**
+ * All the timers declared by the machine and its sub-machines, grouped by machine:
+ * `[{ path, name, timers: [{ timer, stateId, node }] }]`. `node` is the state, as selected in the diagram.
+ */
+export function declaredTimers(info) {
+  const machines = [];
+  const walk = (machine, path, valuePrefix) => {
+    const group = { path, name: path.length ? shortName(path[path.length - 1]) : machine.id, timers: [] };
+    machines.push(group);
+    for (const region of machine.regions) {
+      for (const s of region.states) {
+        const valuePath = [...valuePrefix, 'states', s.storage_field];
+        const node = { nodeId: `state:${pathKey(path)}|${s.id}`, label: s.id, typeName: s.type_name, valuePath, isMachine: !!s.sub_machine };
+        for (const t of s.timers) group.timers.push({ timer: t.id, stateId: s.id, node });
+        if (s.sub_machine) walk(s.sub_machine, [...path, s.type_name], valuePath);
+      }
+    }
+  };
+  if (info) walk(info, [], []);
+  return machines.filter((m) => m.timers.length);
+}
+
+const TIMER_BADGES = {
+  running: 'badge-running',
+  expired: 'badge-ok',
+  failed: 'badge-error',
+  cancelled: 'badge-muted',
+  disabled: 'badge-muted'
+};
+
+function TimerRow({ entry, status, active, now }) {
+  const selected = selectedNode.value?.nodeId === entry.node.nodeId;
+  let progress = null;
+  let when = null;
+  let title;
+  if (status?.status === 'running') {
+    const since = status.last_triggered_ms ?? status.started_ms;
+    progress = status.timeout_ms > 0 ? Math.min(1, (now - since) / status.timeout_ms) : 1;
+    const left = timerDue(status) - now;
+    if (left > 0) {
+      when = `${formatMs(left)} left`;
+    } else {
+      when = `due ${formatMs(-left)} ago`;
+      title = 'Due, waiting for the timers to be dispatched, for example with dispatch_timer_events';
+    }
+  } else if (status?.status === 'expired') {
+    progress = 1;
+    when = `fired at ${formatTime(status.last_triggered_ms)}`;
+  } else if (status?.status === 'cancelled') {
+    when = 'cancelled on exit';
+  } else if (status?.status === 'failed') {
+    when = 'the timers service failed to create it';
+  } else if (status?.status === 'disabled') {
+    when = 'disabled by its setup';
+  }
+
+  const details = [];
+  if (status && status.status !== 'failed' && status.status !== 'disabled') {
+    details.push(status.renew ? `↻ every ${formatMs(status.timeout_ms)}` : `once after ${formatMs(status.timeout_ms)}`);
+    if (status.triggers) {
+      details.push(`triggered ${status.triggers}×`);
+      if (status.renew) details.push(`last at ${formatTime(status.last_triggered_ms)}`);
+    }
+    if (!status.cancel_on_state_exit) details.push('kept on exit');
+  }
+
+  return html`
+    <li>
+      <button class=${`timer-row${selected ? ' selected' : ''}`} onClick=${() => { selectedNode.value = selected ? null : entry.node; }}
+        title=${`Select the state ${entry.stateId} in the diagram`}>
+        <span class="timer-head">
+          <span class="timer-name">⏱ <b>${entry.timer}</b></span>
+          <span class=${active ? 'chip chip-active' : 'chip chip-muted'} title=${active ? 'The current state' : 'Not the current state'}>${entry.stateId}</span>
+          <span class="spacer"></span>
+          ${status?.restored && html`<span class="badge badge-muted" title="Re-created when the machine was restored">restored</span>`}
+          <span class=${`badge ${status ? TIMER_BADGES[status.status] : 'badge-muted'}`}>${status?.status ?? 'idle'}</span>
+        </span>
+        ${progress != null && html`
+          <span class=${`timer-bar${status.status === 'running' && progress >= 1 ? ' due' : ''}${status.status === 'expired' ? ' done' : ''}`}
+            role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(progress * 100)}>
+            <span style=${{ width: `${progress * 100}%` }}></span>
+          </span>`}
+        <span class="timer-detail" title=${title}>
+          ${when ?? html`<span class="muted">not started yet</span>`}${details.length ? html`<span class="muted"> · ${details.join(' · ')}</span>` : ''}
+        </span>
+      </button>
+    </li>`;
+}
+
+export function TimersPanel() {
+  const snapshot = current.value;
+  const live = follow.value;
+  const now = useTimersNow(snapshot, live);
+  const machines = declaredTimers(meta.value?.info);
+
+  if (!meta.value) return html`<div class="empty">No FSM selected.</div>`;
+  if (!machines.length) return html`<div class="empty">This FSM has no timers.</div>`;
+
+  const statuses = new Map((snapshot?.timers ?? []).map((t) => [timerKey(t.path, t.timer), t]));
+  const isActive = (path, stateId) => {
+    const key = pathKey(path);
+    return !!snapshot?.active.some((a) => pathKey(a.path) === key && a.states.includes(stateId));
+  };
+
+  return html`
+    <${Section} title="Timers"
+      aside=${html`<span class="muted">${snapshot ? (live ? 'live' : html`at #${snapshot.seq}, ${formatTime(now)}`) : 'no snapshots yet'}</span>`}>
+      ${machines.map((m) => html`
+        <div key=${pathKey(m.path)} class="timer-group" style=${{ paddingLeft: `${m.path.length * 12}px` }}>
+          ${machines.length > 1 && html`<h4 title=${m.path[m.path.length - 1] ?? ''}>${m.name}</h4>`}
+          <ul class="timers">
+            ${m.timers.map((entry) => html`
+              <${TimerRow} key=${entry.timer} entry=${entry} status=${statuses.get(timerKey(m.path, entry.timer))}
+                active=${isActive(m.path, entry.stateId)} now=${now} />`)}
+          </ul>
+        </div>`)}
+    <//>`;
 }

@@ -1,4 +1,4 @@
-use crate::{AllVariants, DispatchContext, FsmError, FsmEvent, FsmEventQueue, Inspect, lib::*};
+use crate::{AllVariants, DispatchContext, FsmError, FsmEvent, FsmEventQueue, Inspect, InspectTimerEvent, lib::*};
 use crate::{FsmBackend, FsmResult};
 
 /// Associate some data with a specific timer ID.
@@ -33,15 +33,18 @@ pub trait FsmTimer<F, S>
             match timers.create(id.clone(), &settings.to_timer_settings()) {
                 Ok(_) => {
                     let instance = self.get_instance_mut();
-                    *instance = Some( TimerInstance { id, settings } );
+                    *instance = Some( TimerInstance { id: id.clone(), settings } );
                     log.info("Started the timer.");
+                    log.on_timer::<F>(&id, &InspectTimerEvent::Started { settings, restored: false });
                 },
                 Err(ref e) => {
                     log.on_error("Failed to create a timer", e);
+                    log.on_timer::<F>(&id, &InspectTimerEvent::Failed);
                 }
             }
         } else {
             log.info("The timer wasn't enabled.");
+            log.on_timer::<F>(&id, &InspectTimerEvent::Disabled);
         }
     }
 
@@ -50,10 +53,11 @@ pub trait FsmTimer<F, S>
         match self.get_instance_mut() {
             Some(instance) => {
                 if id == instance.id && instance.settings.cancel_on_state_exit {
-                    match timers.cancel(id) {
+                    match timers.cancel(id.clone()) {
                         Ok(_) => {
                             *self.get_instance_mut() = None;
                             log.info("Cancelled the timer.");
+                            log.on_timer::<F>(&id, &InspectTimerEvent::Cancelled);
                         },
                         Err(ref e) => {
                             log.on_error("Failed to cancel the timer", e);
@@ -73,10 +77,11 @@ pub trait FsmTimer<F, S>
             <F as FsmBackend>::States: AsRef<Self>,
             T: FsmTimers<F>
     {
-        let inspect = inspect.for_timer::<F>(id);
+        let inspect = inspect.for_timer::<F>(id.clone());
         let timer: &Self = context.backend.states.as_ref();
         match timer.get_instance() {
-            Some(_) => {                
+            Some(_) => {
+                inspect.on_timer::<F>(&id, &InspectTimerEvent::Triggered);
                 match Self::trigger(&context.backend.context, context.backend.states.as_ref()) {
                     Some(ev) => {
                         let inspect = inspect.new_event::<F>(&FsmEvent::Event(ev.clone()), &context.backend);

@@ -48,6 +48,9 @@
 //!
 //! Chain it with other inspectors using `finny::inspect::chain::InspectChain`. FSMs that don't
 //! opt in with `fsm.serde()` are inspected too, just without the values.
+//!
+//! The snapshots also have the state of the machine's timers, reported by
+//! `finny::Inspect::on_timer`, which the frontend shows in its Timers panel and in the statechart.
 
 mod assets;
 mod config;

@@ -19,6 +19,8 @@ pub struct Snapshot {
     pub trace: Vec<TraceEntry>,
     /// The current states of the machine and of all its sub-machines.
     pub active: Vec<ActiveStates>,
+    /// The timers of the machine and of its sub-machines that were started at least once.
+    pub timers: Vec<TimerStatus>,
     /// The serialized `{ context, states, current_states }`, for the FSMs that opted in with
     /// `fsm.serde()`.
     pub values: Option<Value>,
@@ -48,6 +50,40 @@ pub struct ActiveStates {
     pub path: Vec<String>,
     /// The id of the current state of each region, `None` when the region is stopped.
     pub states: Vec<Option<String>>
+}
+
+/// The last known state of a timer.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TimerStatus {
+    /// The type names of the sub-machines leading to the timer's machine, empty for the root machine.
+    pub path: Vec<String>,
+    /// The id of the timer, as in the FSM's description.
+    pub timer: String,
+    pub status: TimerState,
+    pub timeout_ms: f64,
+    pub renew: bool,
+    pub cancel_on_state_exit: bool,
+    /// Milliseconds since the UNIX epoch, when the timer was last started.
+    pub started_ms: u64,
+    /// Milliseconds since the UNIX epoch, when the timer last triggered since it was started.
+    pub last_triggered_ms: Option<u64>,
+    /// How many times the timer triggered since it was started.
+    pub triggers: u64,
+    /// Started by restoring a saved machine.
+    pub restored: bool
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TimerState {
+    Running,
+    /// A timer that doesn't renew and already triggered.
+    Expired,
+    Cancelled,
+    /// The timers service failed to create the timer.
+    Failed,
+    /// The timer's setup disabled it.
+    Disabled
 }
 
 #[derive(Debug, Clone, Serialize)]
