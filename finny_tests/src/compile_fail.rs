@@ -214,3 +214,37 @@
 //!     assert_eq!(1, fsm.counter.get());
 //! }
 //! ```
+//!
+//! An FSM that opts into the serialization needs `Serialize` on its states:
+//!
+//! ```compile_fail
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default)]
+//! pub struct StateA;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.serde();
+//!     fsm.initial_state::<StateA>();
+//!     fsm.state::<StateA>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```
+//!
+//! With them, it compiles:
+//!
+//! ```
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default, serde::Serialize)]
+//! pub struct StateA;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.serde();
+//!     fsm.initial_state::<StateA>();
+//!     fsm.state::<StateA>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```

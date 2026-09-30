@@ -94,6 +94,11 @@ mod fsm;
 
 pub mod inspect;
 pub mod timers;
+#[cfg(feature = "meta")]
+pub mod meta;
+
+#[cfg(feature = "meta")]
+extern crate alloc;
 
 pub use fsm::*;
 
@@ -116,6 +121,19 @@ pub mod bundled {
 
     #[cfg(feature = "async")]
     pub use std::sync::Arc;
+
+    /// Used by the generated FSM descriptions.
+    #[cfg(feature = "meta")]
+    pub mod alloc {
+        pub use ::alloc::{boxed, string, vec};
+    }
+
+    /// Serialization of the FSMs that opt in with `fsm.serde()`.
+    #[cfg(feature = "serde")]
+    pub use ::serde;
+
+    #[cfg(feature = "serde")]
+    pub use ::erased_serde;
 }
 
 mod lib {

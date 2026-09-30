@@ -90,6 +90,12 @@ impl Inspect for InspectTracing
         self.scope(|| info!(stop_state = ?fsm.get_current_states(), "Dispatch done"));
     }
 
+    fn on_dispatch_result(&self, result: &crate::FsmDispatchResult) {
+        if let Err(e) = result {
+            self.scope(|| info!(error = ?e, "Dispatch failed"));
+        }
+    }
+
     fn on_error<E>(&self, msg: &str, error: &E) where E: Debug {
         self.scope(|| error!(error = ?error, "{}", msg));
     }

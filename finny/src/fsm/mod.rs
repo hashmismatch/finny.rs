@@ -55,6 +55,19 @@ pub trait FsmBackend where Self: Sized + Debug {
     type Events: AsRef<str> + Clone;
     /// An enum with variants for all the possible timer instances, with support for submachines.
     type Timers: Debug + Clone + PartialEq + AllVariants;
+
+    /// The machine's context, states and current states, for the FSMs that opted into the
+    /// serialization with `fsm.serde()`.
+    #[cfg(feature = "serde")]
+    fn serialize_backend(_backend: &FsmBackendImpl<Self>) -> Option<&dyn erased_serde::Serialize> {
+        None
+    }
+
+    /// The event, for the FSMs that opted into the serialization with `fsm.serde()`.
+    #[cfg(feature = "serde")]
+    fn serialize_event(_event: &Self::Events) -> Option<&dyn erased_serde::Serialize> {
+        None
+    }
 }
 
 /// Synchronous event dispatching, implemented by the code generator.

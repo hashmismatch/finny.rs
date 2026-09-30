@@ -8,6 +8,8 @@ use crate::{parse::{EventGuardAction, FsmDeclarations, FsmEvent, FsmEventTransit
 #[derive(Copy, Clone, Debug)]
 pub struct FsmCodegenOptions {
     pub event_debug: bool,
+    /// Serialize the context, states and events, `fsm.serde()`.
+    pub serde: bool,
     /// Run the actions of the regions concurrently, async FSMs only.
     pub concurrent_regions: bool
 }
@@ -16,6 +18,7 @@ impl FsmCodegenOptions {
     pub fn new() -> Self {
         Self {
             event_debug: false,
+            serde: false,
             concurrent_regions: false
         }
     }
@@ -90,6 +93,12 @@ impl FsmParser {
                         },
                         [MethodOverviewRef { name: "events_debug", generics: [], .. }] => {
                             self.options.event_debug = true;
+                        },
+                        [m @ MethodOverviewRef { name: "serde", generics: [], .. }] => {
+                            if !cfg!(feature = "serde") {
+                                return Err(syn::Error::new(m.call.span(), "Enable the `serde` feature of finny to serialize the FSM."));
+                            }
+                            self.options.serde = true;
                         },
                         [m @ MethodOverviewRef { name: "concurrent_regions", generics: [], .. }] => {
                             if self.base.mode != FsmMode::Async {

@@ -133,6 +133,20 @@ async fn main() -> FsmResult<()> {
 }
 ```
 
+### Inspection
+
+The dispatching is reported to an `Inspect` implementation: `InspectTracing` logs it through
+`tracing`, and inspectors can be chained with `InspectChain`.
+
+The [`finny_inspect_web`](finny_inspect_web) crate is a live web inspector. It draws the machine
+as a PlantUML-style statechart, keeps a history of snapshots, and shows the trace of each event
+and the values of the context, states and events.
+
+Two optional features support it:
+* `meta` generates a runtime description of each FSM, `finny::meta::FsmMeta`, and can render it
+  as PlantUML with `finny::meta::plantuml::to_plantuml`.
+* `serde` serializes the context, states and events of the FSMs that opt in with `fsm.serde()`.
+
 [crates-badge]: https://img.shields.io/crates/v/finny.svg
 [crates-url]: https://crates.io/crates/finny
 

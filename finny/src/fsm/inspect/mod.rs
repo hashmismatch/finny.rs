@@ -23,6 +23,9 @@ pub trait Inspect: InspectEvent {
     fn on_state_exit<S>(&self);
     fn on_action<S>(&self);
 
+    /// The result of dispatching the event, reported just before `event_done`.
+    fn on_dispatch_result(&self, _result: &crate::FsmDispatchResult) { }
+
     fn on_error<E>(&self, msg: &str, error: &E) where E: core::fmt::Debug;
     fn info(&self, msg: &str);
 

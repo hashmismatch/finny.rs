@@ -34,6 +34,13 @@ impl<TFsm, TContext> FsmBuilder<TFsm, TContext>
 		
 	}
 
+	/// Serialize the FSM's context, states and events with `serde`, for example for the
+	/// inspection frontends. Requires `serde::Serialize` on all of them, and on the sub-machines
+	/// that also have to opt in. Needs the `serde` feature.
+	pub fn serde(&mut self) {
+
+	}
+
 	/// Adds some information about a state.
 	pub fn state<TState>(&mut self) -> FsmStateBuilder<TFsm, TContext, TState> {
 		FsmStateBuilder::new()
