@@ -41,6 +41,25 @@ impl<F: FsmBackend> FsmBackendImpl<F> {
     }
 }
 
+/// Serialized as `{ context, states, current_states }`, the current states have one entry for
+/// each region.
+#[cfg(feature = "serde")]
+impl<F: FsmBackend> serde::Serialize for FsmBackendImpl<F>
+    where <F as FsmBackend>::Context: serde::Serialize,
+    <F as FsmBackend>::States: serde::Serialize,
+    <<F as FsmBackend>::States as FsmStates<F>>::StateKind: serde::Serialize
+{
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeStruct;
+
+        let mut s = serializer.serialize_struct("FsmBackendImpl", 3)?;
+        s.serialize_field("context", &self.context)?;
+        s.serialize_field("states", &self.states)?;
+        s.serialize_field("current_states", self.current_states.as_ref())?;
+        s.end()
+    }
+}
+
 impl<F: FsmBackend> Deref for FsmBackendImpl<F> {
     type Target = <F as FsmBackend>::Context;
 

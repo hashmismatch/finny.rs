@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finny Inspector</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='2' y='3' width='9' height='6' rx='2' fill='%23FEFECE' stroke='%23A80036' stroke-width='1.6'/%3E%3Crect x='13' y='15' width='9' height='6' rx='2' fill='%23FEFECE' stroke='%23A80036' stroke-width='1.6'/%3E%3Cpath d='M6.5 9v5.5a2 2 0 0 0 2 2H12' fill='none' stroke='%23A80036' stroke-width='1.6'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="assets/style.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "preact": "./assets/vendor/preact.module.js",
+        "preact/hooks": "./assets/vendor/hooks.module.js",
+        "htm": "./assets/vendor/htm.module.js",
+        "@preact/signals-core": "./assets/vendor/signals-core.module.js",
+        "@preact/signals": "./assets/vendor/signals.module.js",
+        "cytoscape": "./assets/vendor/cytoscape.esm.min.mjs"
+      }
+    }
+  </script>
+  <!-- ELK's bundle is a classic script, it defines `window.ELK` -->
+  <script src="assets/vendor/elk.bundled.js" defer></script>
+  <script type="module" src="assets/app.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <noscript>The Finny inspector needs JavaScript.</noscript>
+</body>
+</html>

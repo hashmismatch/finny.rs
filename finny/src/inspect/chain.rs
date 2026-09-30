@@ -97,6 +97,11 @@ impl<A, B> Inspect for InspectChain<A, B>
         self.b.on_action::<S>();
     }
 
+    fn on_dispatch_result(&self, result: &crate::FsmDispatchResult) {
+        self.a.on_dispatch_result(result);
+        self.b.on_dispatch_result(result);
+    }
+
     fn on_error<E>(&self, msg: &str, error: &E) where E: core::fmt::Debug {
         self.a.on_error(msg, error);
         self.b.on_error(msg, error);

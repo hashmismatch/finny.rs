@@ -109,6 +109,61 @@
 //! # fn main() {}
 //! ```
 //!
+//! A transition into the same state has to be a self or an internal transition:
+//!
+//! ```compile_fail
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default)]
+//! pub struct StateA;
+//! #[derive(Clone)]
+//! pub struct Event;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.initial_state::<StateA>();
+//!     fsm.state::<StateA>().on_event::<Event>().transition_to::<StateA>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```
+//!
+//! Each region has its own initial state:
+//!
+//! ```compile_fail
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default)]
+//! pub struct StateA;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.initial_states::<(StateA, StateA)>();
+//!     fsm.state::<StateA>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```
+//!
+//! And the regions can't have transitions between them:
+//!
+//! ```compile_fail
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default)]
+//! pub struct StateA;
+//! #[derive(Default)]
+//! pub struct StateB;
+//! #[derive(Clone)]
+//! pub struct Event;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.initial_states::<(StateA, StateB)>();
+//!     fsm.state::<StateA>().on_event::<Event>().transition_to::<StateB>();
+//!     fsm.state::<StateB>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```
+//!
 //! An async FSM whose context isn't `Sync` can't be moved to another thread, its `Arc` isn't `Send`:
 //!
 //! ```compile_fail
@@ -158,4 +213,38 @@
 //!     fsm.start().await.unwrap();
 //!     assert_eq!(1, fsm.counter.get());
 //! }
+//! ```
+//!
+//! An FSM that opts into the serialization needs `Serialize` on its states:
+//!
+//! ```compile_fail
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default)]
+//! pub struct StateA;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.serde();
+//!     fsm.initial_state::<StateA>();
+//!     fsm.state::<StateA>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
+//! ```
+//!
+//! With them, it compiles:
+//!
+//! ```
+//! use finny::{finny_fsm, decl::{BuiltFsm, FsmBuilder}};
+//! #[derive(Default, serde::Serialize)]
+//! pub struct StateA;
+//!
+//! #[finny_fsm]
+//! fn build(mut fsm: FsmBuilder<Machine, ()>) -> BuiltFsm {
+//!     fsm.serde();
+//!     fsm.initial_state::<StateA>();
+//!     fsm.state::<StateA>();
+//!     fsm.build()
+//! }
+//! # fn main() {}
 //! ```

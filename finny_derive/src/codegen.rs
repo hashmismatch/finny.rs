@@ -30,6 +30,18 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
     let (fsm_generics_impl, fsm_generics_type, fsm_generics_where) = fsm.base.fsm_generics.split_for_impl();
 
+    // `fsm.serde()`: the generated types are serialized along with the user's types.
+    let serde = fsm.fsm.codegen_options.serde;
+    let serde_derive = if serde {
+        quote! {
+            #[derive(finny::bundled::serde::Serialize)]
+            #[serde(crate = "finny::bundled::serde")]
+        }
+    } else {
+        TokenStream::new()
+    };
+    let serde_skip = if serde { quote! { #[serde(skip)] } } else { TokenStream::new() };
+
     let states_store = {
 
         let mut code_fields = TokenStream::new();
@@ -48,7 +60,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 let timer_ty = timer.get_ty(&fsm.base);
                 let timer_field = timer.get_field(&fsm.base);
 
-                code_fields.append_all(quote! { #timer_field: #timer_ty #fsm_generics_type, });
+                code_fields.append_all(quote! { #serde_skip #timer_field: #timer_ty #fsm_generics_type, });
                 new_state_fields.append_all(quote! { #timer_field: #timer_ty::default(), });
 
                 state_accessors.append_all(quote! {
@@ -267,8 +279,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
         quote! {
             /// States storage struct for the state machine.
+            #serde_derive
             pub struct #states_store_ty #fsm_generics_type #fsm_generics_where {
                 #code_fields
+                #serde_skip
                 _fsm: core::marker::PhantomData< #fsm_ty #fsm_generics_type >
             }
             
@@ -283,6 +297,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
             
             #[derive(Copy, Clone, Debug, PartialEq)]
+            #serde_derive
             pub enum #states_enum_ty {
                 #state_variants
             }
@@ -366,6 +381,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             #[derive(finny::bundled::derive_more::From)]
             #[derive(Clone)]
             #derives
+            #serde_derive
             pub enum #event_enum_ty {
                 #variants
             }
@@ -762,7 +778,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 quote! {
                     #stop_sub
                     #timers_exit
-                    <#state_ty>::execute_on_exit(&mut ctx, #region_id);
+                    <#state_ty>::execute_on_exit(&mut ctx, #region_id, &inspect_event_ctx);
                     ctx.backend.current_states[#region_id] = finny::FsmCurrentState::Stopped;
                 }
             }
@@ -833,7 +849,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                     arms.append_all(quote! {
                         ( finny::FsmCurrentState::State(#states_enum_ty :: #kind_variant), finny::FsmEvent::Event(#event_enum_ty::#kind_variant(ev))  ) => {
                             #region_context
-                            return #dispatch;
+                            forwarded = Some(#dispatch);
+                            break 'fsm_regions;
                         },
                     });
                 }
@@ -881,7 +898,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                     arms.append_all(quote! {
                         (finny::FsmCurrentState::State(#states_enum_ty :: #sub_variant), finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (timer_id))) => {
                             #region_context
-                            return #dispatch;
+                            forwarded = Some(#dispatch);
+                            break 'fsm_regions;
                         },
                         // a timer of a sub machine that isn't active anymore
                         (_, finny::FsmEvent::Timer( #timers_enum_ty :: #sub_variant (_))) => (),
@@ -899,14 +917,20 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
 
             quote! {
-                #regions
+                // The result of an event or a timer forwarded to a sub machine.
+                let mut forwarded: Option<finny::FsmDispatchResult> = None;
 
-                let result = if transition_misses == #region_count {
-                    Err(finny::FsmError::NoTransition)
-                } else {
-                    Ok(())
+                'fsm_regions: {
+                    #regions
+                }
+
+                let result = match forwarded {
+                    Some(result) => result,
+                    None if transition_misses == #region_count => Err(finny::FsmError::NoTransition),
+                    None => Ok(())
                 };
 
+                inspect_event_ctx.on_dispatch_result(&result);
                 inspect_event_ctx.event_done(&ctx.backend);
 
                 result
@@ -1036,7 +1060,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 region_futures.append_all(quote! {
                     let mut #context = ctx.backend.context.clone();
                     let mut #queue = finny::FsmEventQueueVec::<Self>::new();
-                    let mut #timers = finny::FsmTimersDeferred::<Self>::new();
+                    let mut #timers = region_timers.region();
                     let #future = async {
                         let mut region_result: finny::FsmDispatchResult = Ok(());
                         let mut rc = finny::RegionContext::<Self, _, _, _> {
@@ -1059,7 +1083,10 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
                 merge.append_all(quote! {
                     finny::merge_region_queue(#queue, &mut *ctx.queue, &inspect_event_ctx);
-                    #timers.apply(&mut *ctx.timers, &inspect_event_ctx);
+                    // an action replaced the shared context
+                    if !finny::bundled::Arc::ptr_eq(&#context, &original_context) {
+                        ctx.backend.context = #context;
+                    }
                 });
             }
 
@@ -1068,10 +1095,13 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
 
                 let (#(mut #views),*) = ctx.backend.states.split_regions();
                 let [#(#current_states),*] = &mut ctx.backend.current_states;
+                let original_context = ctx.backend.context.clone();
+                let region_timers = finny::FsmTimersShared::<Self, _>::new(&mut *ctx.timers);
 
                 #region_futures
 
                 let (#(#results),*) = finny::bundled::tokio::join!(#(#futures),*);
+                drop(region_timers);
 
                 // in the order of the regions
                 #merge
@@ -1099,6 +1129,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                     Ok(())
                 };
 
+                inspect_event_ctx.on_dispatch_result(&result);
                 inspect_event_ctx.event_done(&ctx.backend);
 
                 result
@@ -1110,7 +1141,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 impl #fsm_generics_impl finny::FsmAsyncDispatch for #fsm_ty #fsm_generics_type
                     #fsm_generics_where
                 {
-                    #[allow(unused_variables, unused_mut, unreachable_code)]
+                    #[allow(unused_variables, unused_mut, unreachable_code, unused_labels)]
                     async fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<'_, '_, '_, Self, Q, I, T>, event: finny::FsmEvent<Self::Events, Self::Timers>) -> finny::FsmDispatchResult
                         where Q: finny::FsmEventQueue<Self>,
                         I: finny::Inspect, T: finny::FsmTimers<Self>
@@ -1130,6 +1161,7 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 impl #fsm_generics_impl finny::FsmDispatch for #fsm_ty #fsm_generics_type
                     #fsm_generics_where
                 {
+                    #[allow(unused_labels)]
                     fn dispatch_event<Q, I, T>(mut ctx: finny::DispatchContext<Self, Q, I, T>, event: finny::FsmEvent<Self::Events, Self::Timers>) -> finny::FsmDispatchResult
                         where Q: finny::FsmEventQueue<Self>,
                         I: finny::Inspect, T: finny::FsmTimers<Self>
@@ -1146,6 +1178,20 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
             }
         };
 
+        let serialize_fns = if serde {
+            quote! {
+                fn serialize_backend(backend: &finny::FsmBackendImpl<Self>) -> Option<&dyn finny::bundled::erased_serde::Serialize> {
+                    Some(backend)
+                }
+
+                fn serialize_event(event: &Self::Events) -> Option<&dyn finny::bundled::erased_serde::Serialize> {
+                    Some(event)
+                }
+            }
+        } else {
+            TokenStream::new()
+        };
+
         quote! {
 
             impl #fsm_generics_impl finny::FsmBackend for #fsm_ty #fsm_generics_type
@@ -1155,6 +1201,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                 type States = #states_store_ty #fsm_generics_type;
                 type Events = #event_enum_ty;
                 type Timers = #timers_enum_ty;
+
+                #serialize_fns
             }
 
             #dispatch_impl
@@ -1224,6 +1272,24 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
     let builder = {
         let factory = if is_async { quote! { FsmAsyncFactory } } else { quote! { FsmFactory } };
 
+        // A sub-machine is serialized within its parent's states.
+        let serialize_fsm = if serde {
+            let mut generics = fsm.base.fsm_generics.clone();
+            generics.make_where_clause().predicates.push(syn::parse_quote! {
+                finny::FsmBackendImpl< #fsm_ty #fsm_generics_type >: finny::bundled::serde::Serialize
+            });
+            let (_, _, where_clause) = generics.split_for_impl();
+            quote! {
+                impl #fsm_generics_impl finny::bundled::serde::Serialize for #fsm_ty #fsm_generics_type #where_clause {
+                    fn serialize<S: finny::bundled::serde::Serializer>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error> {
+                        finny::bundled::serde::Serialize::serialize(&self.backend, serializer)
+                    }
+                }
+            }
+        } else {
+            TokenStream::new()
+        };
+
         quote! {
 
             /// A Finny Finite State Machine.
@@ -1254,7 +1320,8 @@ pub fn generate_fsm_code(fsm: &FsmFnInput, _attr: TokenStream, input: TokenStrea
                     &mut self.backend
                 }
             }
-            
+
+            #serialize_fsm
         }
     };
 

@@ -160,46 +160,52 @@ pub async fn stop_submachine_async<F, TSubMachine, S, Q, T, I>(rc: &mut RegionCo
     dispatch_to_submachine_async::<F, TSubMachine, S, Q, T, I>(rc, FsmEvent::Stop, inspect).await
 }
 
-enum DeferredTimerOp<T> {
-    Create(T, TimerSettings),
-    Cancel(T)
+/// The FSM's timers, shared by the regions that execute concurrently. The regions run within
+/// the same task and use the timers synchronously, so the lock is never contended.
+pub struct FsmTimersShared<'a, F, T>
+    where F: FsmBackend, T: FsmTimers<F>
+{
+    timers: std::sync::Mutex<&'a mut T>,
+    _fsm: PhantomData<fn() -> F>
 }
 
-/// Records the timer operations of a region that runs concurrently with the other regions.
-/// They are applied to the FSM's timers once all the regions are done.
-pub struct FsmTimersDeferred<F: FsmBackend> {
-    ops: Vec<DeferredTimerOp<<F as FsmBackend>::Timers>>
-}
-
-impl<F: FsmBackend> FsmTimersDeferred<F> {
-    pub fn new() -> Self {
-        Self { ops: Vec::new() }
-    }
-
-    /// Applies the recorded operations in their original order.
-    pub fn apply<T: FsmTimers<F>, I: Inspect>(self, timers: &mut T, inspect: &I) {
-        for op in self.ops {
-            let result = match op {
-                DeferredTimerOp::Create(id, settings) => timers.create(id, &settings),
-                DeferredTimerOp::Cancel(id) => timers.cancel(id)
-            };
-            if let Err(ref e) = result {
-                inspect.on_error("Failed to apply a timer operation of a concurrent region", e);
-            }
+impl<'a, F, T> FsmTimersShared<'a, F, T>
+    where F: FsmBackend, T: FsmTimers<F>
+{
+    pub fn new(timers: &'a mut T) -> Self {
+        Self {
+            timers: std::sync::Mutex::new(timers),
+            _fsm: PhantomData
         }
     }
+
+    /// The timers for one of the regions.
+    pub fn region(&self) -> FsmTimersRegion<'_, 'a, F, T> {
+        FsmTimersRegion { shared: self }
+    }
+
+    fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        let mut timers = self.timers.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        f(&mut **timers)
+    }
 }
 
-impl<F: FsmBackend> FsmTimers<F> for FsmTimersDeferred<F> {
+/// A region's access to the shared timers.
+pub struct FsmTimersRegion<'s, 'a, F, T>
+    where F: FsmBackend, T: FsmTimers<F>
+{
+    shared: &'s FsmTimersShared<'a, F, T>
+}
+
+impl<'s, 'a, F, T> FsmTimers<F> for FsmTimersRegion<'s, 'a, F, T>
+    where F: FsmBackend, T: FsmTimers<F>
+{
     fn create(&mut self, id: <F as FsmBackend>::Timers, settings: &TimerSettings) -> crate::FsmResult<()> {
-        settings.validate()?;
-        self.ops.push(DeferredTimerOp::Create(id, settings.clone()));
-        Ok(())
+        self.shared.with(|timers| timers.create(id, settings))
     }
 
     fn cancel(&mut self, id: <F as FsmBackend>::Timers) -> crate::FsmResult<()> {
-        self.ops.push(DeferredTimerOp::Cancel(id));
-        Ok(())
+        self.shared.with(|timers| timers.cancel(id))
     }
 
     fn get_triggered_timer(&mut self) -> Option<<F as FsmBackend>::Timers> {

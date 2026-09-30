@@ -17,15 +17,21 @@ arraydeque.workspace = true
 tracing = { workspace = true, optional = true }
 heapless.workspace = true
 tokio = { workspace = true, optional = true, features = ["sync", "time", "macros"] }
+serde = { workspace = true, optional = true, features = ["alloc"] }
+erased-serde = { workspace = true, optional = true, features = ["alloc"] }
 
 [features]
 default = ["std", "inspect_tracing", "timers_std"]
-std = ["arraydeque/std", "timers_std", "tracing?/std", "finny_derive/std"]
+std = ["arraydeque/std", "timers_std", "tracing?/std", "finny_derive/std", "serde?/std", "erased-serde?/std"]
 inspect_tracing = ["dep:tracing"]
 timers_std = []
-generate_plantuml = ["finny_derive/generate_plantuml"]
+# The runtime description of the FSMs' structure, `finny::meta`. Requires `alloc`.
+meta = ["finny_derive/meta"]
+# Serialization of the FSMs' context, states and events, for FSMs that opt in with `fsm.serde()`.
+serde = ["meta", "dep:serde", "dep:erased-serde", "finny_derive/serde"]
+generate_plantuml = ["meta", "finny_derive/generate_plantuml"]
 # Async FSMs (`FsmAsyncBuilder`), driven by the tokio runtime.
-async = ["std", "dep:tokio"]
+async = ["std", "dep:tokio", "serde?/rc"]
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros", "time", "test-util"] }

@@ -37,6 +37,17 @@ impl<S> Debug for FsmCurrentState<S> where S: Debug + Copy {
     }
 }
 
+/// A stopped region is serialized as `None`.
+#[cfg(feature = "serde")]
+impl<S> serde::Serialize for FsmCurrentState<S> where S: Clone + Copy + serde::Serialize {
+    fn serialize<Ser: serde::Serializer>(&self, serializer: Ser) -> Result<Ser::Ok, Ser::Error> {
+        match self {
+            FsmCurrentState::Stopped => serializer.serialize_none(),
+            FsmCurrentState::State(s) => serializer.serialize_some(s)
+        }
+    }
+}
+
 impl<S> Default for FsmCurrentState<S> where S: Clone + Copy {
     fn default() -> Self {
         Self::Stopped

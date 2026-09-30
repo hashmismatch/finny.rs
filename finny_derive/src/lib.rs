@@ -10,7 +10,6 @@ use proc_macro::TokenStream;
 
 mod codegen;
 mod codegen_meta;
-mod meta;
 mod parse;
 mod parse_blocks;
 mod parse_fsm;

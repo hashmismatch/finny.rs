@@ -119,13 +119,22 @@ impl<TFsm, TContext> FsmAsyncBuilder<TFsm, TContext>
 
 	}
 
+	/// Serialize the FSM's context, states and events with `serde`, for example for the
+	/// inspection frontends. Requires `serde::Serialize` on all of them, and on the sub-machines
+	/// that also have to opt in. Needs the `serde` feature.
+	pub fn serde(&mut self) {
+
+	}
+
 	/// Run the actions of the FSM's regions concurrently, within the same task. Only has an effect
 	/// on FSMs with multiple regions.
 	///
 	/// All the regions first select their transitions, evaluating the guards against the state
 	/// before the event was dispatched. Then the selected transitions of all the regions are
 	/// executed concurrently. Events enqueued by the actions are appended to the queue in the
-	/// order of the regions.
+	/// order of the regions. Each region's actions get their own clone of the context's `Arc`;
+	/// an action that replaces it replaces the FSM's context once all the regions are done (the
+	/// last region's replacement wins).
 	pub fn concurrent_regions(&mut self) {
 
 	}
