@@ -29,7 +29,7 @@ Preact, htm and Cytoscape.js, and all the files are embedded into the binary.
 ```toml
 [dependencies]
 finny = { version = "0.3", features = ["serde"] }
-finny_inspect_web = "0.1"
+finny_inspect_web = "0.3"
 serde = { version = "1", features = ["derive"] }
 ```
 
